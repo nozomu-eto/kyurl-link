@@ -9,8 +9,15 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - Dev: `pnpm dev`
 - Build: `pnpm build`
 - Deploy: `pnpm deploy`
-- Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`)
+- Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`。テスト未整備の間はスキップ可)
 - Type check: `pnpm exec tsc --noEmit`
+
+## Definition of Done
+
+- `pnpm exec tsc --noEmit` がエラーなく通ること
+- テストが整備されている範囲では `pnpm test` が通ること
+- 新規APIエンドポイントを追加した場合、対応するzodスキーマ(`src/shared/schemas/`)があること
+- 変更内容がこのファイルのCode style・Boundariesに反していないこと
 
 ## Code style
 
@@ -26,6 +33,13 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - React Routerは **data mode** のみ使用する。`@react-router/dev`によるFramework modeは使わない
 - `src/renderer.tsx`と`vite-ssr-components`は、React Router導入時にまとめて置き換える(それまで個別に消さない)
 - `docs/`配下の各ドキュメントは直接編集する。「更新版」「追補」といった別ファイルを新設して重複させない(バージョン管理はgit commitで行う)
+- `.env`や秘密鍵・APIキーの値をコミットしない。設定が必要な場合は変数名だけを記載し、値は書かない
+
+## Escalation
+
+- 既存の設計(`docs/architecture.md`)と矛盾する変更が必要な場合は、実装前にユーザーに確認する
+- スキーマ変更・依存関係の大幅な入れ替えなど、後戻りしにくい変更は事前に確認する
+- 判断に迷う場合は、推測で進めずユーザーに確認する
 
 ## Git
 
