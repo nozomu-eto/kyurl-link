@@ -8,11 +8,15 @@
     "lib": [
       "ESNext"
     ],
-    "types": ["vite/client"],
+    // "@cloudflare/vitest-plugin" はVitest上でCloudflare Workersランタイム(cloudflare:testなど)の型を解決するために必要
+    "types": ["vite/client", "@cloudflare/vitest-plugin"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
+  // worker-configuration.d.ts は `pnpm cf-typegen` (wrangler types) で生成される型定義ファイル。
+  // CloudflareBindings等のバインディング型をテストコードからも参照できるようinclude対象に含める
+  "include": ["src/**/*", "*.config.ts", "worker-configuration.d.ts"],
 }
