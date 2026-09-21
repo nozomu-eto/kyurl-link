@@ -2,6 +2,8 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "kyurl-link",
 	"compatibility_date": "2025-08-03",
+	// Better Authがnode:crypto等のNode.js組み込みモジュールを使うため有効化する
+	"compatibility_flags": ["nodejs_compat"],
 	"main": "./src/index.tsx",
 	"d1_databases": [
 		{

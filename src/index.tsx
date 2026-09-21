@@ -1,14 +1,19 @@
 import { Hono } from 'hono'
+import { auth } from '@/lib/auth'
 import links from '@/routes/links'
 import { renderer } from './renderer'
 
-const app = new Hono()
+const app = new Hono<{ Bindings: CloudflareBindings }>()
 
 app.use(renderer)
 
 app.get('/', (c) => {
   return c.render(<h1>Hello!</h1>)
 })
+
+// Better Authのサインアップ・サインイン等のエンドポイントを/api/auth配下にマウントする。
+// /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth(c.env).handler(c.req.raw))
 
 // linksルートを/api/v1配下にマウントする(links.ts側のbasePath('/links')と合わせて /api/v1/links になる)
 const routes = app.basePath('/api/v1').route('/', links)
