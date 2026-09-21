@@ -19,5 +19,5 @@
   },
   // worker-configuration.d.ts は `pnpm cf-typegen` (wrangler types) で生成される型定義ファイル。
   // CloudflareBindings等のバインディング型をテストコードからも参照できるようinclude対象に含める
-  "include": ["src/**/*", "*.config.ts", "worker-configuration.d.ts"],
+  "include": ["src/**/*", "test/**/*", "*.config.ts", "worker-configuration.d.ts"],
 }
