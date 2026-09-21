@@ -25,6 +25,17 @@ export const linkCreateInputSchema = z.object({
   expiresAt: z.string().nullable().optional(),
 })
 
+// link更新APIの入力用スキーマ。
+// 作成用のlinkCreateInputSchemaとは異なり、更新可能なのはstatusとexpiresAtのみ
+// (originalUrl/shortCodeは作成後不変、id/createdAtはそもそもクライアントが変更できない)。
+// どちらのフィールドも省略可能とし、指定されたものだけを更新するPATCHの入力として扱う
+export const linkUpdateInputSchema = z.object({
+  // linkの状態(有効/期限切れ/停止)
+  status: z.enum(['active', 'expired', 'suspended']).optional(),
+  // 有効期限(ISO文字列)。nullを指定すると無期限に変更する
+  expiresAt: z.string().nullable().optional(),
+})
+
 // linkの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)
 export const linkListResponseSchema = z.object({
   // 取得したlinkの配列

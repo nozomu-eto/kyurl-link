@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
-import { linkCreateInputSchema, linkListResponseSchema, linkSchema } from '@/shared/schemas/link'
+import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
 // shortCode生成に使う文字種(英数字)
 const SHORT_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -130,6 +130,83 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const response = linkSchema.parse(record)
 
     return c.json(response)
+  })
+  // status・expiresAtのみ更新可能
+  .patch('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id')
+
+    const body = await c.req.json().catch(() => null)
+    const parsed = linkUpdateInputSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'リクエストボディが不正です',
+            details: parsed.error.flatten(),
+          },
+        },
+        400,
+      )
+    }
+
+    const db = drizzle(c.env.DB)
+
+    const [existing] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+
+    // 見つからない、またはソフトデリート済みの場合は404
+    if (!existing || existing.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたlinkが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    // リクエストで指定されたフィールドのみを更新対象にする
+    const updateValues: Partial<typeof links.$inferInsert> = {}
+    if (parsed.data.status !== undefined) {
+      updateValues.status = parsed.data.status
+    }
+    if (parsed.data.expiresAt !== undefined) {
+      updateValues.expiresAt = parsed.data.expiresAt
+    }
+
+    const [updated] = await db.update(links).set(updateValues).where(eq(links.id, id)).returning()
+
+    const response = linkSchema.parse(updated)
+
+    return c.json(response)
+  })
+  // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
+  .delete('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id')
+    const db = drizzle(c.env.DB)
+
+    const [existing] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+
+    // 見つからない、または既に削除済みの場合は404
+    if (!existing || existing.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたlinkが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    await db.update(links).set({ deletedAt: new Date() }).where(eq(links.id, id))
+
+    // ボディ無しの204を返す
+    return c.body(null, 204)
   })
 
 export default app
