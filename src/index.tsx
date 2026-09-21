@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { auth } from '@/lib/auth'
 import links from '@/routes/links'
+import posters from '@/routes/posters'
 import qrcodes from '@/routes/qrcodes'
 import { renderer } from './renderer'
 
@@ -16,9 +17,10 @@ app.get('/', (c) => {
 // /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth(c.env).handler(c.req.raw))
 
-// links・qrcodesルートを/api/v1配下にマウントする
-// (各ルート側のbasePath('/links')・basePath('/qrcodes')と合わせて /api/v1/links・/api/v1/qrcodes になる)
-const routes = app.basePath('/api/v1').route('/', links).route('/', qrcodes)
+// links・qrcodes・postersルートを/api/v1配下にマウントする
+// (各ルート側のbasePath('/links')・basePath('/qrcodes')・basePath('/posters')と合わせて
+// /api/v1/links・/api/v1/qrcodes・/api/v1/posters になる)
+const routes = app.basePath('/api/v1').route('/', links).route('/', qrcodes).route('/', posters)
 
 export default app
 // Hono RPCクライアントの型推論に使うアプリ全体の型
