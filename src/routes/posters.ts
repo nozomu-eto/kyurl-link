@@ -1,7 +1,10 @@
+import puppeteer from '@cloudflare/puppeteer'
 import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
-import { posters, qrcodes } from '@/db/schema'
+import QRCode from 'qrcode-svg'
+import { links, posters, qrcodes } from '@/db/schema'
+import { generatePosterHtml } from '@/lib/poster-template'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import {
   posterCreateInputSchema,
@@ -200,6 +203,135 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // ボディ無しの204を返す
     return c.body(null, 204)
+  })
+  // PDF/PNG書き出し(Browser Rendering生成 + R2内容ハッシュキャッシュ、docs/architecture.md 第13節)
+  .get('/:id/export', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+
+    // 1. まず対象posterに対する認可チェック(存在確認・ソフトデリート確認)を行う。
+    // docs/architecture.md 第9節「掲示物PDFキャッシュ(R2)の認可チェックは、必ずWorkerの
+    // コード内で所有者チェックを行ってからキャッシュを参照する設計」に従い、この確認を
+    // R2キャッシュの参照よりも必ず先に行う。もしキャッシュ確認を先にしてしまうと、
+    // 本来アクセスできないはずのposterのidさえ知っていれば、認可チェックをすり抜けて
+    // キャッシュ済みのPDF/PNGの中身を直接読めてしまうため
+    const [poster] = await db.select().from(posters).where(eq(posters.id, id)).limit(1)
+
+    if (!poster || poster.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたposterが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    // 2. formatクエリパラメータ(pdf/png)を検証する。未指定はpdfをデフォルトとする
+    const format = c.req.query('format') ?? 'pdf'
+    if (format !== 'pdf' && format !== 'png') {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'formatはpdfまたはpngを指定してください',
+          },
+        },
+        400,
+      )
+    }
+
+    // 3. poster.qrCodeIdからqrcodeレコードを取得し、GET /api/v1/qrcodes/:id/imageと
+    // 同様の方法で対象URLを解決してQRコードのSVGを生成する
+    const [qrcode] = await db.select().from(qrcodes).where(eq(qrcodes.id, poster.qrCodeId)).limit(1)
+
+    if (!qrcode || qrcode.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '対象のqrcodeが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    let qrContent: string
+    if (qrcode.targetType === 'link') {
+      const targetId = qrcode.targetId
+      if (!targetId) {
+        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
+      }
+
+      const [targetLink] = await db
+        .select({ shortCode: links.shortCode })
+        .from(links)
+        .where(and(eq(links.id, targetId), isNull(links.deletedAt)))
+        .limit(1)
+
+      if (!targetLink) {
+        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
+      }
+
+      qrContent = `${new URL(c.req.url).origin}/${targetLink.shortCode}`
+    } else {
+      const targetUrl = qrcode.targetUrl
+      if (!targetUrl) {
+        return c.json({ error: { code: 'NOT_FOUND', message: '対象URLが見つかりません' } }, 404)
+      }
+
+      qrContent = targetUrl
+    }
+
+    const qrCodeSvg = new QRCode({ content: qrContent }).svg()
+
+    // 4. poster(title/subtitle/size/styleOptions)とQRコードのSVG内容からハッシュ値を計算し、
+    // R2オブジェクトキーを作る(内容が変われば別のキーになるキャッシュキー)
+    const hashSource = JSON.stringify({
+      title: poster.title,
+      subtitle: poster.subtitle,
+      size: poster.size,
+      styleOptions: poster.styleOptions,
+      qrCodeSvg,
+    })
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashSource))
+    const hash = Array.from(new Uint8Array(hashBuffer))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('')
+    const objectKey = `${poster.id}/${format}/${hash}`
+    const contentType = format === 'pdf' ? 'application/pdf' : 'image/png'
+
+    // 5. 認可チェック(手順1)が完了した後で、R2(POSTER_CACHE)に既存オブジェクトが無いか確認する。
+    // あればそれをそのまま返す
+    const cachedObject = await c.env.POSTER_CACHE.get(objectKey)
+    if (cachedObject) {
+      return c.body(cachedObject.body, 200, { 'Content-Type': contentType })
+    }
+
+    // 6. キャッシュが無ければ、generatePosterHtmlでHTMLを生成し、Browser Rendering
+    // (@cloudflare/puppeteer)でページを開いてcontentをセットし、formatに応じてPDF/PNGを生成する
+    const html = generatePosterHtml({ title: poster.title, subtitle: poster.subtitle, size: poster.size }, qrCodeSvg)
+
+    const browser = await puppeteer.launch(c.env.BROWSER)
+    let binary: Uint8Array<ArrayBuffer>
+    try {
+      const page = await browser.newPage()
+      await page.setContent(html)
+      const buffer = format === 'pdf' ? await page.pdf() : await page.screenshot({ type: 'png' })
+      // Buffer(Uint8Array<ArrayBufferLike>)をHonoのc.body()が受け付けるUint8Array<ArrayBuffer>に変換する
+      binary = new Uint8Array(buffer)
+    } finally {
+      // 生成後は必ずブラウザセッションを閉じる
+      await browser.close()
+    }
+
+    // 7. 生成したバイナリをR2に手順4のキーでputし、クライアントに返す
+    await c.env.POSTER_CACHE.put(objectKey, binary)
+
+    return c.body(binary, 200, { 'Content-Type': contentType })
   })
 
 export default app
