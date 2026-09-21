@@ -107,6 +107,30 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(response, 201)
   })
+  // 詳細取得(クリック数サマリ・QR一覧は別リソース実装後に追加するため、現時点ではlinkSchema分のみ返す)
+  .get('/:id', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+
+    const [record] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+
+    // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404
+    if (!record || record.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたlinkが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    const response = linkSchema.parse(record)
+
+    return c.json(response)
+  })
 
 export default app
 // Hono RPCクライアントから型推論できるようルートの型をexportする
