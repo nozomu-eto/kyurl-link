@@ -45,3 +45,30 @@ export const qrcodes = sqliteTable('qrcodes', {
   // ソフトデリート日時。未削除の場合はnull
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 })
+
+// posters: 掲示物リソース(docs/architecture.md 第7節)のテーブル定義
+export const posters = sqliteTable('posters', {
+  // posterリソースの一意なID(主キー)
+  id: text('id').primaryKey(),
+  // 掲示物のタイトル
+  title: text('title').notNull(),
+  // 掲示物のサブタイトル。無い場合はnull
+  subtitle: text('subtitle'),
+  // レイアウトテンプレートの識別子。今回は固定値'default'のみ扱う
+  layoutTemplate: text('layout_template').notNull(),
+  // 掲示物のスタイル設定をJSON文字列として保持する(qrcodes.styleOptionsと同じ扱い)
+  styleOptions: text('style_options'),
+  // 掲示物のサイズ(A6縦・A5縦)
+  size: text('size', { enum: ['A6', 'A5'] }).notNull(),
+  // 対象のQRコード(qrcodes.id)。QRコードが先に削除されると掲示物が壊れるため、
+  // cascadeではなくrestrict(参照されている間は削除を禁止する)にする
+  qrCodeId: text('qr_code_id')
+    .notNull()
+    .references(() => qrcodes.id, { onDelete: 'restrict' }),
+  // レコード作成日時。D1(SQLite)側でunixepoch()により自動設定する
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  // ソフトデリート日時。未削除の場合はnull
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+})
