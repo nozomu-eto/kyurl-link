@@ -20,4 +20,7 @@ export const links = sqliteTable('links', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
+  // ソフトデリート日時(docs/architecture.md 第7節「削除方針: deletedAtによるソフトデリート」)。
+  // 未削除の場合はnull。猶予期間後のバッチ処理で物理削除するまでこの値で判定する
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 })

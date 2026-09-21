@@ -15,6 +15,13 @@
       "when": 1790001919938,
       "tag": "0001_woozy_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790002790189,
+      "tag": "0002_perpetual_bishop",
+      "breakpoints": true
     }
   ]
 }
