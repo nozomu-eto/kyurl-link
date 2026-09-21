@@ -1,6 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
+import QRCode from 'qrcode-svg'
 import { links, qrcodes } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import {
@@ -191,6 +192,69 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // ボディ無しの204を返す
     return c.body(null, 204)
+  })
+  // QRコード画像(SVG)。リダイレクト等と同様、認証不要の公開エンドポイントとする(docs/architecture.md 第7節)
+  .get('/:id/image', async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+
+    const [record] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+
+    // authMiddlewareを通さないため、エラーレスポンスもここでJSON形式に統一する
+    if (!record || record.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたqrcodeが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    // QRコードに埋め込む内容を、対象種別に応じて決定する
+    let content: string
+    if (record.targetType === 'link') {
+      const targetId = record.targetId
+      if (!targetId) {
+        return c.json(
+          { error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } },
+          404,
+        )
+      }
+
+      // 対象linkのshortCodeを取得し、`{origin}/{shortCode}`(リダイレクトURL)をQRコードの内容にする
+      const [targetLink] = await db
+        .select({ shortCode: links.shortCode })
+        .from(links)
+        .where(and(eq(links.id, targetId), isNull(links.deletedAt)))
+        .limit(1)
+
+      if (!targetLink) {
+        return c.json(
+          { error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } },
+          404,
+        )
+      }
+
+      content = `${new URL(c.req.url).origin}/${targetLink.shortCode}`
+    } else {
+      const targetUrl = record.targetUrl
+      if (!targetUrl) {
+        return c.json(
+          { error: { code: 'NOT_FOUND', message: '対象URLが見つかりません' } },
+          404,
+        )
+      }
+
+      // targetType='rawUrl'の場合は、保存されたURLをそのままQRコードの内容にする
+      content = targetUrl
+    }
+
+    const svg = new QRCode({ content }).svg()
+
+    return c.body(svg, 200, { 'Content-Type': 'image/svg+xml' })
   })
 
 export default app
