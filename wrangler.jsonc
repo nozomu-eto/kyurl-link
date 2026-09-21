@@ -1,6 +1,13 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "kyurl-link",
-  "compatibility_date": "2025-08-03",
-  "main": "./src/index.tsx"
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "kyurl-link",
+	"compatibility_date": "2025-08-03",
+	"main": "./src/index.tsx",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "kyurl-link-prod",
+			"database_id": "dce7140f-9c83-4152-b681-aab89f886238"
+		}
+	]
 }
