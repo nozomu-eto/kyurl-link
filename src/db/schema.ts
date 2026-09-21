@@ -24,3 +24,24 @@ export const links = sqliteTable('links', {
   // 未削除の場合はnull。猶予期間後のバッチ処理で物理削除するまでこの値で判定する
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 })
+
+// qrcodes: QRコードリソース(docs/architecture.md 第7節)のテーブル定義
+export const qrcodes = sqliteTable('qrcodes', {
+  // qrcodeリソースの一意なID(主キー)
+  id: text('id').primaryKey(),
+  // QRコードの対象種別。'link'なら短縮URL(links)を、'rawUrl'ならtargetUrlに保持した直接URLを対象にする
+  targetType: text('target_type', { enum: ['link', 'rawUrl'] }).notNull(),
+  // targetType='link'の場合に参照するlinks.id。対象のlinkが削除されたらカスケードで削除する
+  targetId: text('target_id').references(() => links.id, { onDelete: 'cascade' }),
+  // targetType='rawUrl'の場合に直接保持する対象URL
+  targetUrl: text('target_url'),
+  // QRコードのスタイル設定をJSON文字列として保持する。今回は保存のみで画像生成には未使用、
+  // 将来のカスタマイズ機能用の受け皿
+  styleOptions: text('style_options'),
+  // レコード作成日時。D1(SQLite)側でunixepoch()により自動設定する
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  // ソフトデリート日時。未削除の場合はnull
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+})

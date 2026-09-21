@@ -22,6 +22,13 @@
       "when": 1790002790189,
       "tag": "0002_perpetual_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790004025718,
+      "tag": "0003_easy_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }
