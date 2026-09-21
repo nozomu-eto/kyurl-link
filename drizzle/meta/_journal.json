@@ -8,6 +8,13 @@
       "when": 1789999212160,
       "tag": "0000_glamorous_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790001919938,
+      "tag": "0001_woozy_blue_blade",
+      "breakpoints": true
     }
   ]
 }
