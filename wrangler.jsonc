@@ -3,7 +3,9 @@
 	"name": "kyurl-link",
 	"compatibility_date": "2025-08-03",
 	// Better Authがnode:crypto等のNode.js組み込みモジュールを使うため有効化する
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"main": "./src/index.tsx",
 	"d1_databases": [
 		{
@@ -12,6 +14,12 @@
 			"database_id": "dce7140f-9c83-4152-b681-aab89f886238",
 			// drizzle-kit generateの出力先(drizzle.config.tsのout)と揃える
 			"migrations_dir": "./drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "kyurl-link-posters",
+			"binding": "kyurl_link_posters"
 		}
 	]
 }
