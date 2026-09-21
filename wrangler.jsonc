@@ -18,8 +18,13 @@
 	],
 	"r2_buckets": [
 		{
-			"bucket_name": "kyurl-link-posters",
-			"binding": "kyurl_link_posters"
+			// docs/architecture.md 第7節・第13節: 掲示物PDF/PNGキャッシュ用のR2バケット
+			"binding": "POSTER_CACHE",
+			"bucket_name": "kyurl-link-posters"
 		}
-	]
+	],
+	// docs/architecture.md 第13節: 掲示物PDF/PNG生成に使うBrowser Rendering
+	"browser": {
+		"binding": "BROWSER"
+	}
 }
