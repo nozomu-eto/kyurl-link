@@ -14,6 +14,17 @@ export const linkSchema = z.object({
   expiresAt: z.string().nullable(),
 })
 
+// link作成APIの入力用スキーマ。
+// linkSchemaはレスポンス(DBに保存された結果)の形を表すのに対し、こちらはリクエストボディの検証に使う。
+// id/shortCode/status/createdAtはクライアントからの入力を受け付けず、サーバー側(POSTハンドラ)で
+// 生成・固定するため、ここには含めない
+export const linkCreateInputSchema = z.object({
+  // 短縮したい元URL。URL形式であることを検証する
+  originalUrl: z.string().url(),
+  // 有効期限(ISO文字列)。省略時はnull(無期限)として扱う
+  expiresAt: z.string().nullable().optional(),
+})
+
 // linkの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)
 export const linkListResponseSchema = z.object({
   // 取得したlinkの配列
