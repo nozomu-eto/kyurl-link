@@ -26,5 +26,10 @@
 	// docs/architecture.md 第13節: 掲示物PDF/PNG生成に使うBrowser Rendering
 	"browser": {
 		"binding": "BROWSER"
+	},
+	// docs/architecture.md 第14.1節で「Workers Logs(observability.enabled = true)を
+	// 原因調査用途として使う」と既に決定されていたが、実装が漏れていたための対応
+	"observability": {
+		"enabled": true
 	}
 }
