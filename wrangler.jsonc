@@ -7,7 +7,9 @@
 		{
 			"binding": "DB",
 			"database_name": "kyurl-link-prod",
-			"database_id": "dce7140f-9c83-4152-b681-aab89f886238"
+			"database_id": "dce7140f-9c83-4152-b681-aab89f886238",
+			// drizzle-kit generateの出力先(drizzle.config.tsのout)と揃える
+			"migrations_dir": "./drizzle"
 		}
 	]
 }
