@@ -8,8 +8,9 @@
     "lib": [
       "ESNext"
     ],
-    // "@cloudflare/vitest-plugin" はVitest上でCloudflare Workersランタイム(cloudflare:testなど)の型を解決するために必要
-    "types": ["vite/client", "@cloudflare/vitest-plugin"],
+    // "@cloudflare/vitest-plugin" はcloudflareTest等のAPI型、"@cloudflare/vitest-plugin/types" は
+    // "cloudflare:test"(env・SELFなど)のアンビエント型を提供するため、両方を型解決対象に含める
+    "types": ["vite/client", "@cloudflare/vitest-plugin", "@cloudflare/vitest-plugin/types"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "paths": {
