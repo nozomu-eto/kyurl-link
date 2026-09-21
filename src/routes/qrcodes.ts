@@ -3,7 +3,12 @@ import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, qrcodes } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
-import { qrcodeCreateInputSchema, qrcodeListResponseSchema, qrcodeSchema } from '@/shared/schemas/qrcode'
+import {
+  qrcodeCreateInputSchema,
+  qrcodeListResponseSchema,
+  qrcodeSchema,
+  qrcodeUpdateInputSchema,
+} from '@/shared/schemas/qrcode'
 
 // DB上のqrcodeレコード(styleOptionsはJSON文字列)を、レスポンス用スキーマの形
 // (styleOptionsをJSON.parseしたオブジェクト)に変換する
@@ -92,6 +97,100 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .returning()
 
     return c.json(toQrcodeResponse(created), 201)
+  })
+  // 詳細取得
+  .get('/:id', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+
+    const [record] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+
+    // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404
+    if (!record || record.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたqrcodeが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    return c.json(toQrcodeResponse(record))
+  })
+  // styleOptionsのみ更新可能
+  .patch('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id')
+
+    const body = await c.req.json().catch(() => null)
+    const parsed = qrcodeUpdateInputSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'リクエストボディが不正です',
+            details: parsed.error.flatten(),
+          },
+        },
+        400,
+      )
+    }
+
+    const db = drizzle(c.env.DB)
+
+    const [existing] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+
+    // 見つからない、またはソフトデリート済みの場合は404
+    if (!existing || existing.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたqrcodeが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    // リクエストで指定されたフィールドのみを更新対象にする。DB保存時はJSON文字列化する
+    const updateValues: Partial<typeof qrcodes.$inferInsert> = {}
+    if (parsed.data.styleOptions !== undefined) {
+      updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
+    }
+
+    const [updated] = await db.update(qrcodes).set(updateValues).where(eq(qrcodes.id, id)).returning()
+
+    return c.json(toQrcodeResponse(updated))
+  })
+  // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
+  .delete('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id')
+    const db = drizzle(c.env.DB)
+
+    const [existing] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+
+    // 見つからない、または既に削除済みの場合は404
+    if (!existing || existing.deletedAt !== null) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたqrcodeが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    await db.update(qrcodes).set({ deletedAt: new Date() }).where(eq(qrcodes.id, id))
+
+    // ボディ無しの204を返す
+    return c.body(null, 204)
   })
 
 export default app
