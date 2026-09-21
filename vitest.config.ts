@@ -35,6 +35,10 @@ export default defineConfig(async () => {
             // 既存の.dev.vars経由の動作(値が設定されているケース)に影響しないようにする
             ...(process.env.BETTER_AUTH_URL ? { BETTER_AUTH_URL: process.env.BETTER_AUTH_URL } : {}),
             ...(process.env.BETTER_AUTH_SECRET ? { BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET } : {}),
+            // posters.test.tsのBrowser Rendering実ブラウザ起動テストをCIでスキップするためのフラグ。
+            // これも同様にprocess.env(Node.js側)からWorker側のprocess.env/envへ明示的に注入しないと
+            // テストコード側のprocess.env.CI_SKIP_BROWSER_TESTからは参照できない
+            ...(process.env.CI_SKIP_BROWSER_TEST ? { CI_SKIP_BROWSER_TEST: process.env.CI_SKIP_BROWSER_TEST } : {}),
           },
         },
       }),
