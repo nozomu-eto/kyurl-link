@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
@@ -31,8 +31,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // リクエストごとのD1バインディングからDrizzleインスタンスを生成する
     const db = drizzle(c.env.DB)
 
-    // linksテーブルの全件を取得する(ページングは未実装のため暫定的に固定値を返す)
-    const items = await db.select().from(links)
+    // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
+    // ページングは未実装のため暫定的に固定値を返す
+    const items = await db.select().from(links).where(isNull(links.deletedAt))
 
     // レスポンス形状をスキーマで検証してから返す。レコードが0件でもitems: []としてそのまま返す(エラーにしない)
     const response = linkListResponseSchema.parse({
