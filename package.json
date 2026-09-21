@@ -5,7 +5,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "$npm_execpath run build && vite preview",
-    "deploy": "$npm_execpath run build && wrangler deploy",
+    "deploy": "wrangler d1 migrations apply DB --remote && vite build && wrangler deploy",
     "test": "vitest",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "db:generate": "drizzle-kit generate",
