@@ -8,7 +8,7 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - Install: `pnpm install`
 - Dev: `pnpm dev`
 - Build: `pnpm build`
-- Deploy: `pnpm deploy`
+- Deploy: `pnpm run deploy`(注意: `pnpm deploy`だとpnpm組み込みのモノレポ用デプロイコマンドが優先され、package.jsonのdeployスクリプトが実行されないpnpmバージョンがあるため、必ず`run`を付ける)
 - Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`。テスト未整備の間はスキップ可)
 - Type check: `pnpm exec tsc --noEmit`
 
