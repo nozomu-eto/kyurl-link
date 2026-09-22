@@ -59,6 +59,28 @@ export const qrcodes = sqliteTable('qrcodes', {
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 })
 
+// accountRequests: アカウント削除申請リソース(docs/architecture.md 第7.1節)のテーブル定義
+export const accountRequests = sqliteTable('account_requests', {
+  // accountRequestリソースの一意なID(主キー)
+  id: text('id').primaryKey(),
+  // 削除を申請したuser。ユーザーが物理削除されれば申請記録も意味を持たなくなるためcascade
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  // 申請の対応状況(申請中・取消済み・完了)
+  status: text('status', { enum: ['pending', 'cancelled', 'completed'] })
+    .notNull()
+    .default('pending'),
+  // 申請日時。D1(SQLite)側でunixepoch()により自動設定する
+  requestedAt: integer('requested_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  // 物理削除予定日時(申請から7日後)。猶予期間中にログインすれば取消可能
+  scheduledDeletionAt: integer('scheduled_deletion_at', { mode: 'timestamp' }).notNull(),
+  // 物理削除バッチの完了日時。未完了の場合はnull
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+})
+
 // reports: 通報リソース(docs/architecture.md 第7節・利用規約第9条)のテーブル定義
 export const reports = sqliteTable('reports', {
   // reportリソースの一意なID(主キー)
