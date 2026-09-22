@@ -182,3 +182,43 @@ describe('POST /api/v1/account-requests', () => {
     expect(response.status).toBe(401)
   })
 })
+
+describe('GET /api/v1/account-requests', () => {
+  it('申請していない状態で実行すると404になる', async () => {
+    const sessionCookie = await signUp()
+
+    const response = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(404)
+
+    const body = await response.json()
+    expect(body).toMatchObject({
+      error: {
+        code: expect.any(String),
+        message: expect.any(String),
+      },
+    })
+  })
+
+  it('申請後に実行すると200で申請内容が返る', async () => {
+    const sessionCookie = await signUp()
+
+    const requestResponse = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({ password: TEST_PASSWORD }),
+    })
+    expect(requestResponse.status).toBe(201)
+    const created = await requestResponse.json()
+
+    const response = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(created)
+  })
+})

@@ -57,6 +57,13 @@
       "when": 1790040937650,
       "tag": "0007_naive_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790042949385,
+      "tag": "0008_charming_rhodey",
+      "breakpoints": true
     }
   ]
 }

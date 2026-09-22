@@ -28,8 +28,11 @@ export const links = sqliteTable('links', {
     .notNull()
     .default(sql`(unixepoch())`),
   // ソフトデリート日時(docs/architecture.md 第7節「削除方針: deletedAtによるソフトデリート」)。
-  // 未削除の場合はnull。猶予期間後のバッチ処理で物理削除するまでこの値で判定する
-  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  // 未削除の場合はnull。猶予期間後のバッチ処理で物理削除するまでこの値で判定する。
+  // アカウント削除申請の取り消し処理(cancelPendingAccountRequestIfAny)がこの値と
+  // accountRequests.requestedAtの完全一致で「申請によって削除されたか」を判定するため、
+  // 秒精度(mode: 'timestamp')だと同一秒内の個別削除と申請が衝突しうる。ミリ秒精度にする
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 })
 
 // qrcodes: QRコードリソース(docs/architecture.md 第7節)のテーブル定義
@@ -55,8 +58,9 @@ export const qrcodes = sqliteTable('qrcodes', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-  // ソフトデリート日時。未削除の場合はnull
-  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  // ソフトデリート日時。未削除の場合はnull。
+  // links.deletedAtと同じ理由でミリ秒精度(mode: 'timestamp_ms')にする
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 })
 
 // accountRequests: アカウント削除申請リソース(docs/architecture.md 第7.1節)のテーブル定義
@@ -71,10 +75,12 @@ export const accountRequests = sqliteTable('account_requests', {
   status: text('status', { enum: ['pending', 'cancelled', 'completed'] })
     .notNull()
     .default('pending'),
-  // 申請日時。D1(SQLite)側でunixepoch()により自動設定する
-  requestedAt: integer('requested_at', { mode: 'timestamp' })
+  // 申請日時。アプリケーション側で常に明示的にnew Date()を渡す(DB側のdefaultは直接SQLで
+  // insertした場合のフォールバック)。links/qrcodes/posters.deletedAtとの完全一致判定に
+  // 使うため、秒精度ではなくミリ秒精度(mode: 'timestamp_ms')にする
+  requestedAt: integer('requested_at', { mode: 'timestamp_ms' })
     .notNull()
-    .default(sql`(unixepoch())`),
+    .default(sql`(unixepoch() * 1000)`),
   // 物理削除予定日時(申請から7日後)。猶予期間中にログインすれば取消可能
   scheduledDeletionAt: integer('scheduled_deletion_at', { mode: 'timestamp' }).notNull(),
   // 物理削除バッチの完了日時。未完了の場合はnull
@@ -130,6 +136,7 @@ export const posters = sqliteTable('posters', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-  // ソフトデリート日時。未削除の場合はnull
-  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  // ソフトデリート日時。未削除の場合はnull。
+  // links.deletedAtと同じ理由でミリ秒精度(mode: 'timestamp_ms')にする
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 })
