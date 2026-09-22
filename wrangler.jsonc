@@ -36,5 +36,13 @@
 	// deletedAt < now() - 7日のレコードを検出し、D1から物理削除するために使う
 	"triggers": {
 		"crons": ["0 0 * * *"]
-	}
+	},
+	// docs/architecture.md 第7.1節「④通知メール」: 申請受付時・完全削除完了時の通知メールを
+	// Cloudflare Email Service(no-reply@kyurl.link)経由で送信するために使う
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"allowed_sender_addresses": ["no-reply@kyurl.link"]
+		}
+	]
 }
