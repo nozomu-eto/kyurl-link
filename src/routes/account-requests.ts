@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { accountRequests, links, posters, qrcodes } from '@/db/schema'
@@ -25,6 +25,34 @@ function toAccountRequestResponse(record: typeof accountRequests.$inferSelect) {
 // c.set('user', ...)するため、Variablesにもuserの型を指定する
 const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser } }>()
   .basePath('/account-requests')
+  // 自分の直近の削除申請状況を取得する。statusが'cancelled'でも直近の申請として返し、
+  // フロントエンド側でstatusを見て表示を切り替える想定
+  .get('/', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
+
+    const [latestRequest] = await db
+      .select()
+      .from(accountRequests)
+      .where(eq(accountRequests.userId, userId))
+      .orderBy(desc(accountRequests.requestedAt))
+      .limit(1)
+
+    // 申請していない状態は正常なので、フロントエンド側で「404なら申請なし」と扱う想定
+    if (!latestRequest) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: 'アカウント削除の申請が見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    return c.json(toAccountRequestResponse(latestRequest))
+  })
   // 削除申請
   .post('/', authMiddleware, async (c) => {
     const body = await c.req.json().catch(() => null)
