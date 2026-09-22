@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { links } from '@/db/schema'
 import { linkListResponseSchema, linkSchema } from '@/shared/schemas/link'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieを取得する
-async function signUpAndGetSessionCookie() {
+// サインアップし、authMiddlewareを通すためのセッションCookieと、作成されたuserのidを取得する
+async function signUp() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
     headers: {
@@ -25,7 +25,10 @@ async function signUpAndGetSessionCookie() {
     throw new Error('サインアップのレスポンスにset-cookieが含まれていません')
   }
   // "better-auth.session_token=...; Max-Age=...; Path=...; ..." からCookieヘッダーに使う先頭の "name=value" だけを取り出す
-  return setCookie.split(';')[0]
+  const sessionCookie = setCookie.split(';')[0]
+
+  const body = await response.json<{ user: { id: string } }>()
+  return { sessionCookie, userId: body.user.id }
 }
 
 // 認証済みlinkを1件作成し、作成結果(id等)を返す
@@ -44,19 +47,21 @@ async function createLink(sessionCookie: string, originalUrl = 'https://example.
 
 describe('GET /api/v1/links', () => {
   it('認証済みの場合、ステータスコード200と、insertした1件を含むitems/total/limit/offsetを返す', async () => {
+    const { sessionCookie, userId } = await signUp()
+
     // このテスト内で完結するよう、都度一意なIDでテスト用D1(env.DB)にデータを1件insertする
-    // (テストファイル内では同一D1インスタンスを使い回すため、他テストと衝突しない値にする)
+    // (テストファイル内では同一D1インスタンスを使い回すため、他テストと衝突しない値にする)。
+    // 一覧はuserIdで絞り込まれるため、サインアップしたユーザー自身のidをuserIdに設定する
     const id = crypto.randomUUID()
     const db = drizzle(env.DB)
     await db.insert(links).values({
       id,
+      userId,
       originalUrl: 'https://example.com',
       shortCode: id,
       status: 'active',
       expiresAt: null,
     })
-
-    const sessionCookie = await signUpAndGetSessionCookie()
 
     const response = await SELF.fetch('https://example.com/api/v1/links', {
       headers: { Cookie: sessionCookie },
@@ -96,7 +101,7 @@ describe('GET /api/v1/links', () => {
 
 describe('links CRUD', () => {
   it('POST /api/v1/links で作成したlinkを、GET /api/v1/links/:idで取得できる', async () => {
-    const sessionCookie = await signUpAndGetSessionCookie()
+    const { sessionCookie } = await signUp()
 
     const created = await createLink(sessionCookie)
     expect(created).toMatchObject({
@@ -113,7 +118,7 @@ describe('links CRUD', () => {
   })
 
   it('PATCH /api/v1/links/:idでstatusを変更すると反映される', async () => {
-    const sessionCookie = await signUpAndGetSessionCookie()
+    const { sessionCookie } = await signUp()
     const created = await createLink(sessionCookie)
 
     const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
@@ -134,7 +139,7 @@ describe('links CRUD', () => {
   })
 
   it('DELETE /api/v1/links/:id実行後、一覧に含まれず、GET /api/v1/links/:idは404になる', async () => {
-    const sessionCookie = await signUpAndGetSessionCookie()
+    const { sessionCookie } = await signUp()
     const created = await createLink(sessionCookie)
 
     const deleteResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
@@ -161,6 +166,36 @@ describe('links CRUD', () => {
         message: expect.any(String),
       },
     })
+  })
+})
+
+describe('所有者チェック(他人のlinkにはアクセスできない)', () => {
+  it('ユーザーAが作成したlinkに対して、ユーザーBがGET /:id・PATCH・DELETEを実行するといずれも404になる', async () => {
+    const userA = await signUp()
+    const created = await createLink(userA.sessionCookie)
+
+    const userB = await signUp()
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      headers: { Cookie: userB.sessionCookie },
+    })
+    expect(getResponse.status).toBe(404)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: userB.sessionCookie,
+      },
+      body: JSON.stringify({ status: 'suspended' }),
+    })
+    expect(patchResponse.status).toBe(404)
+
+    const deleteResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: userB.sessionCookie },
+    })
+    expect(deleteResponse.status).toBe(404)
   })
 })
 

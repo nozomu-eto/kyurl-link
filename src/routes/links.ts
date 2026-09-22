@@ -1,4 +1,4 @@
-import { eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
@@ -30,10 +30,15 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   .get('/', authMiddleware, async (c) => {
     // リクエストごとのD1バインディングからDrizzleインスタンスを生成する
     const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
+    // 他人のlinkが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
     // ページングは未実装のため暫定的に固定値を返す
-    const items = await db.select().from(links).where(isNull(links.deletedAt))
+    const items = await db
+      .select()
+      .from(links)
+      .where(and(isNull(links.deletedAt), eq(links.userId, userId)))
 
     // レスポンス形状をスキーマで検証してから返す。レコードが0件でもitems: []としてそのまま返す(エラーにしない)
     const response = linkListResponseSchema.parse({
@@ -91,11 +96,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // id・status・shortCodeはサーバー側で決定して保存する
+    // id・status・shortCode・userId(所有者)はサーバー側で決定して保存する
     const [created] = await db
       .insert(links)
       .values({
         id: crypto.randomUUID(),
+        userId: c.get('user').id,
         originalUrl: parsed.data.originalUrl,
         shortCode,
         status: 'active',
@@ -112,10 +118,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   .get('/:id', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
-    const [record] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+    const [record] = await db
+      .select()
+      .from(links)
+      .where(and(eq(links.id, id), eq(links.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404
+    // 見つからない、ソフトデリート済み、または他人のlinkの場合は404。
+    // 他人のリソースが存在すること自体を漏らさないため、両者を区別しない
     if (!record || record.deletedAt !== null) {
       return c.json(
         {
@@ -135,6 +147,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // status・expiresAtのみ更新可能
   .patch('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
     const body = await c.req.json().catch(() => null)
     const parsed = linkUpdateInputSchema.safeParse(body)
@@ -154,9 +167,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(links)
+      .where(and(eq(links.id, id), eq(links.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済みの場合は404
+    // 見つからない、ソフトデリート済み、または他人のlinkの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -178,7 +195,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       updateValues.expiresAt = parsed.data.expiresAt
     }
 
-    const [updated] = await db.update(links).set(updateValues).where(eq(links.id, id)).returning()
+    const [updated] = await db
+      .update(links)
+      .set(updateValues)
+      .where(and(eq(links.id, id), eq(links.userId, userId)))
+      .returning()
 
     const response = linkSchema.parse(updated)
 
@@ -187,11 +208,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
   .delete('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(links)
+      .where(and(eq(links.id, id), eq(links.userId, userId)))
+      .limit(1)
 
-    // 見つからない、または既に削除済みの場合は404
+    // 見つからない、既に削除済み、または他人のlinkの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -204,7 +230,10 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    await db.update(links).set({ deletedAt: new Date() }).where(eq(links.id, id))
+    await db
+      .update(links)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(links.id, id), eq(links.userId, userId)))
 
     // ボディ無しの204を返す
     return c.body(null, 204)
