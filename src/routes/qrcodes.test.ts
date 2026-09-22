@@ -175,6 +175,43 @@ describe('qrcode PATCH・DELETE', () => {
   })
 })
 
+describe('所有者チェック(他人のリソースにはアクセスできない)', () => {
+  it('ユーザーAが作成したqrcodeに対して、ユーザーBがアクセスすると404になる', async () => {
+    const cookieA = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(cookieA)
+
+    const cookieB = await signUpAndGetSessionCookie()
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      headers: { Cookie: cookieB },
+    })
+    expect(response.status).toBe(404)
+  })
+
+  it('ユーザーBが、ユーザーAのlinkのidをtargetIdに指定してqrcode作成を試みると400になる', async () => {
+    const cookieA = await signUpAndGetSessionCookie()
+    const linkA = await createLink(cookieA)
+
+    const cookieB = await signUpAndGetSessionCookie()
+    const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieB,
+      },
+      body: JSON.stringify({ targetType: 'link', targetId: linkA.id }),
+    })
+    expect(response.status).toBe(400)
+
+    const body = await response.json()
+    expect(body).toMatchObject({
+      error: {
+        code: expect.any(String),
+        message: expect.any(String),
+      },
+    })
+  })
+})
+
 describe('未認証アクセス', () => {
   it('GET /api/v1/qrcodesは401を返す', async () => {
     const response = await SELF.fetch('https://example.com/api/v1/qrcodes')

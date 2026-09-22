@@ -133,6 +133,44 @@ describe('GET /api/v1/posters/:id/export', () => {
   }, 30000)
 })
 
+describe('所有者チェック(他人のリソースにはアクセスできない)', () => {
+  it('ユーザーAが作成したposterに対して、ユーザーBがアクセスすると404になる', async () => {
+    const cookieA = await signUpAndGetSessionCookie()
+    const qrcodeA = await createQrcode(cookieA)
+    const poster = await createPoster(cookieA, qrcodeA.id)
+
+    const cookieB = await signUpAndGetSessionCookie()
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      headers: { Cookie: cookieB },
+    })
+    expect(response.status).toBe(404)
+  })
+
+  it('ユーザーBが、ユーザーAのqrcodeのidをqrCodeIdに指定してposter作成を試みると400になる', async () => {
+    const cookieA = await signUpAndGetSessionCookie()
+    const qrcodeA = await createQrcode(cookieA)
+
+    const cookieB = await signUpAndGetSessionCookie()
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieB,
+      },
+      body: JSON.stringify({ title: 'テスト掲示物', size: 'A6', qrCodeId: qrcodeA.id }),
+    })
+    expect(response.status).toBe(400)
+
+    const body = await response.json()
+    expect(body).toMatchObject({
+      error: {
+        code: expect.any(String),
+        message: expect.any(String),
+      },
+    })
+  })
+})
+
 describe('未認証アクセス', () => {
   it('GET /api/v1/postersは401を返す', async () => {
     const response = await SELF.fetch('https://example.com/api/v1/posters')
