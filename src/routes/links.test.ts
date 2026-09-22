@@ -229,14 +229,16 @@ describe('GET /api/v1/links/:id/clicks', () => {
     const { sessionCookie } = await signUp()
     const created = await createLink(sessionCookie)
 
-    // globalThis.fetchを一時的に差し替え、実際のSQL API呼び出しをせずに固定のレスポンスを返す
+    // globalThis.fetchを一時的に差し替え、実際のSQL API呼び出しをせずに固定のレスポンスを返す。
+    // 実際のAnalytics Engine SQL APIはclicksを文字列型("3"等)で返すため、モックもそれに合わせる
+    // (以前clicksを数値型でモックしていたために型変換漏れのバグを検知できなかったため)
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () =>
       new Response(
         JSON.stringify({
           data: [
-            { day: '2026-09-20', clicks: 3 },
-            { day: '2026-09-21', clicks: 5 },
+            { day: '2026-09-20', clicks: '3' },
+            { day: '2026-09-21', clicks: '5' },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -248,7 +250,7 @@ describe('GET /api/v1/links/:id/clicks', () => {
       })
       expect(response.status).toBe(200)
 
-      const body = await response.json()
+      const body = await response.json<{ totalClicks: number; dailyClicks: { day: string; clicks: number }[] }>()
       expect(body).toEqual({
         totalClicks: 8,
         dailyClicks: [
@@ -256,6 +258,12 @@ describe('GET /api/v1/links/:id/clicks', () => {
           { day: '2026-09-21', clicks: 5 },
         ],
       })
+
+      // totalClicks・dailyClicks[].clicksがいずれも数値型(文字列のままではない)であることを確認する
+      expect(typeof body.totalClicks).toBe('number')
+      for (const item of body.dailyClicks) {
+        expect(typeof item.clicks).toBe('number')
+      }
     } finally {
       // テスト後は必ず元のfetchに戻す
       globalThis.fetch = originalFetch

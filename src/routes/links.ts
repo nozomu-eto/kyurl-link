@@ -288,8 +288,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    const result = await analyticsResponse.json<{ data: { day: string; clicks: number }[] }>()
-    const dailyClicks = result.data
+    // Analytics Engine SQL APIはclicksを文字列型("6"等)で返すため、Number()で数値に変換してから扱う
+    const result = await analyticsResponse.json<{ data: { day: string; clicks: string }[] }>()
+    const dailyClicks = result.data.map((item) => ({ day: item.day, clicks: Number(item.clicks) }))
     const totalClicks = dailyClicks.reduce((sum, item) => sum + item.clicks, 0)
 
     return c.json({ totalClicks, dailyClicks })
