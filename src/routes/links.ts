@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
+import { buildLinkClicksSql } from '@/lib/link-clicks-query'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
@@ -237,6 +238,61 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // ボディ無しの204を返す
     return c.body(null, 204)
+  })
+  // クリック統計(Analytics Engine SQL APIへの問い合わせ、docs/architecture.md 第7節・第12節)
+  .get('/:id/clicks', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+    const userId = c.get('user').id
+
+    // 既存のGET /:idと同じ絞り込み(所有者チェック含む)で対象linkの存在を確認する
+    const [record] = await db
+      .select({ id: links.id })
+      .from(links)
+      .where(and(eq(links.id, id), eq(links.userId, userId), isNull(links.deletedAt)))
+      .limit(1)
+
+    if (!record) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '指定されたlinkが見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    const sql = buildLinkClicksSql(id)
+
+    // Analytics Engine SQL APIへ問い合わせる。認証はACCOUNT_ID(アカウントを特定するID)と
+    // ANALYTICS_API_TOKEN(APIトークン、wrangler secretで設定済み)の組み合わせで行う
+    const analyticsResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${c.env.ACCOUNT_ID}/analytics_engine/sql`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${c.env.ANALYTICS_API_TOKEN}`,
+      },
+      body: sql,
+    })
+
+    if (analyticsResponse.status !== 200) {
+      return c.json(
+        {
+          error: {
+            code: 'ANALYTICS_QUERY_FAILED',
+            message: 'クリック統計の取得に失敗しました',
+          },
+        },
+        502,
+      )
+    }
+
+    const result = await analyticsResponse.json<{ data: { day: string; clicks: number }[] }>()
+    const dailyClicks = result.data
+    const totalClicks = dailyClicks.reduce((sum, item) => sum + item.clicks, 0)
+
+    return c.json({ totalClicks, dailyClicks })
   })
 
 export default app
