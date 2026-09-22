@@ -1,0 +1,29 @@
+import { z } from 'zod'
+
+// report作成APIの入力用スキーマ。
+// 通報者(未ログインの一般利用者もありうる)はlinkの内部ID(linkId)を知り得ず、
+// 実際に目にするのは短縮URLのshortCodeのみのため、入力はshortCodeで受け付ける。
+// サーバー側(POSTハンドラ)でshortCodeからlinkIdを解決してからreportsテーブルに保存する
+export const reportCreateInputSchema = z.object({
+  // 通報対象のlinkを特定するための短縮コード
+  shortCode: z.string(),
+  // 通報理由の自由記述。空文字は不可とする
+  reason: z.string().min(1),
+})
+
+// reportリソース1件分のレスポンス用スキーマ。
+// レスポンスでは、DBに保存された内部ID(linkId)をそのまま返す
+// (reportCreateInputSchemaのshortCodeとは異なり、こちらは通報を受け付けた後の
+// 管理・照合用の表現のため、外部向けの識別子ではなく内部IDで表現する)
+export const reportSchema = z.object({
+  // reportリソースの一意なID
+  id: z.string(),
+  // 通報対象のlinkの内部ID(links.id)
+  linkId: z.string(),
+  // 通報理由の自由記述
+  reason: z.string(),
+  // 通報の対応状況(未対応・確認済み・却下・対応済み)
+  status: z.enum(['pending', 'reviewed', 'dismissed', 'actioned']),
+  // レコード作成日時(ISO文字列)
+  createdAt: z.string(),
+})
