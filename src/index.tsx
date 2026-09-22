@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links as linksTable } from '@/db/schema'
+import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
 import { goneePageHtml, notFoundPageHtml } from '@/lib/redirect-pages'
 import accountRequests from '@/routes/account-requests'
@@ -62,8 +63,11 @@ app.get('/:shortCode', async (c) => {
 
 export default {
   fetch: app.fetch,
+  // 1日1回(docs/architecture.md 第7.1節)、猶予期間を過ぎたアカウント削除申請を処理する
   scheduled: async (event, env, ctx) => {
-    // 実装は次のタスクで追加
+    const processedCount = await runAccountDeletionBatch(env)
+    // observability.enabled(Workers Logs)で本番ログを確認できるよう出力する
+    console.log(`account-deletion-batch: ${processedCount}件処理しました`)
   },
 } satisfies ExportedHandler<CloudflareBindings>
 // Hono RPCクライアントの型推論に使うアプリ全体の型
