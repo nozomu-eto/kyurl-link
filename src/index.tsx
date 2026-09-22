@@ -57,6 +57,21 @@ app.get('/:shortCode', async (c) => {
     return c.html(goneePageHtml(), 410)
   }
 
+  // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する
+  // (docs/architecture.md 第7節・第12節)。404・410では記録しない。
+  // writeDataPointは同期APIで、戻り値もvoid(Promiseではない)ため、awaitせず
+  // fire-and-forgetで呼び出してよい
+  c.env.LINK_CLICKS.writeDataPoint({
+    // blobs: 検索・表示用の詳細データ。ここではlinkIdをそのまま格納する
+    blobs: [record.id],
+    // doubles: 集計対象の数値データ。1クリックにつき1を記録し、SUMでクリック数を集計する
+    doubles: [1],
+    // indexes: 集計・サンプリングの軸となるキー。link単位で問い合わせる(GET /links/:id/clicks)
+    // ため、linkIdをindex1に設定する。Analytics Engineは大量データ時にindexes単位で
+    // サンプリングするため、link単位で偏りなく集計できるようにする役割も持つ
+    indexes: [record.id],
+  })
+
   // 上記以外(有効期限内・active)の場合のみ、元URLへリダイレクトする
   return c.redirect(record.originalUrl, 302)
 })
