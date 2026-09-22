@@ -106,6 +106,15 @@ describe('runAccountDeletionBatch', () => {
       const qrcode = await createQrcode(sessionCookie)
       const poster = await createPoster(sessionCookie, qrcode.id)
 
+      // env.EMAIL.send()を差し替えて、送信されたメールを記録する。
+      // 申請受付メール(POST /api/v1/account-requests)と完全削除完了メール(バッチ内)の
+      // 両方がこの過程で送信されるため、後段でsubjectを見て区別する
+      const sentEmails: { subject?: string }[] = []
+      env.EMAIL.send = async (message) => {
+        sentEmails.push(message as { subject?: string })
+        return { messageId: 'test-message-id' }
+      }
+
       // R2に掲示物のキャッシュを作っておく(削除対象があることを確認するため)
       const exportResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf`, {
         headers: { Cookie: sessionCookie },
@@ -147,6 +156,12 @@ describe('runAccountDeletionBatch', () => {
       // R2(POSTER_CACHE)から該当posterのオブジェクトが消えていること
       const listAfter = await env.POSTER_CACHE.list({ prefix: `${poster.id}/` })
       expect(listAfter.objects.length).toBe(0)
+
+      // 完全削除完了メールが送信されたことを確認する(申請受付メールと合わせて2通のはず)
+      expect(sentEmails).toHaveLength(2)
+      expect(sentEmails).toContainEqual(
+        expect.objectContaining({ subject: '【kyurl.link】アカウント削除が完了しました' }),
+      )
     },
     30000,
   )

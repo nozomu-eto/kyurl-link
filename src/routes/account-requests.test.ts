@@ -79,6 +79,15 @@ describe('POST /api/v1/account-requests', () => {
     const qrcode = await createQrcode(sessionCookie)
     const poster = await createPoster(sessionCookie, qrcode.id)
 
+    // env.EMAIL.send()を差し替えて、申請受付メールが送信されたことを直接検証する。
+    // @cloudflare/vitest-pluginには送信メールを直接検証する組み込みAPIが無いため、
+    // env.EMAIL.send自体を差し替えて呼び出し内容を記録する方式で代用する
+    const sentEmails: { to?: unknown; subject?: string }[] = []
+    env.EMAIL.send = async (message) => {
+      sentEmails.push(message as { to?: unknown; subject?: string })
+      return { messageId: 'test-message-id' }
+    }
+
     const response = await SELF.fetch('https://example.com/api/v1/account-requests', {
       method: 'POST',
       headers: {
@@ -88,6 +97,12 @@ describe('POST /api/v1/account-requests', () => {
       body: JSON.stringify({ password: TEST_PASSWORD }),
     })
     expect(response.status).toBe(201)
+
+    // 申請受付メールが1通送信されたことを確認する
+    expect(sentEmails).toHaveLength(1)
+    expect(sentEmails[0]).toMatchObject({
+      subject: '【kyurl.link】アカウント削除申請を受け付けました',
+    })
 
     const body = await response.json()
     expect(body).toMatchObject({
