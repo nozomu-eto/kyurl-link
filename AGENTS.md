@@ -12,6 +12,10 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`。テスト未整備の間はスキップ可)
 - Type check: `pnpm exec tsc --noEmit`
 
+## Setup
+
+- 初回のみ: `.dev.vars.example` をコピーして `.dev.vars` を作成し、`BETTER_AUTH_SECRET` をランダムな値に変更する(`.dev.vars`はgitignore対象、コミットしない)
+
 ## Definition of Done
 
 - `pnpm exec tsc --noEmit` がエラーなく通ること
