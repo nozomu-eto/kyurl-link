@@ -1,10 +1,17 @@
 import { sql } from 'drizzle-orm'
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { user } from './auth-schema'
 
 // links: 短縮URLリソース(docs/architecture.md 第7節)のテーブル定義
 export const links = sqliteTable('links', {
   // linkリソースの一意なID(主キー)
   id: text('id').primaryKey(),
+  // このリソースの所有者。一覧・詳細・更新・削除の全操作で、ログインユーザー自身の
+  // リソースのみに絞り込むために使う。ユーザーが物理削除されれば、そのユーザーが
+  // 作成したリソースも意味を持たなくなるためonDelete: 'cascade'とする
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
   // 短縮元の元URL
   originalUrl: text('original_url').notNull(),
   // 短縮URLに使われるコード(例: kyurl.link/{shortCode})。リダイレクト解決に使うため一意制約を付与する
@@ -29,6 +36,12 @@ export const links = sqliteTable('links', {
 export const qrcodes = sqliteTable('qrcodes', {
   // qrcodeリソースの一意なID(主キー)
   id: text('id').primaryKey(),
+  // このリソースの所有者。一覧・詳細・更新・削除の全操作で、ログインユーザー自身の
+  // リソースのみに絞り込むために使う。ユーザーが物理削除されれば、そのユーザーが
+  // 作成したリソースも意味を持たなくなるためonDelete: 'cascade'とする
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
   // QRコードの対象種別。'link'なら短縮URL(links)を、'rawUrl'ならtargetUrlに保持した直接URLを対象にする
   targetType: text('target_type', { enum: ['link', 'rawUrl'] }).notNull(),
   // targetType='link'の場合に参照するlinks.id。対象のlinkが削除されたらカスケードで削除する
@@ -70,6 +83,12 @@ export const reports = sqliteTable('reports', {
 export const posters = sqliteTable('posters', {
   // posterリソースの一意なID(主キー)
   id: text('id').primaryKey(),
+  // このリソースの所有者。一覧・詳細・更新・削除の全操作で、ログインユーザー自身の
+  // リソースのみに絞り込むために使う。ユーザーが物理削除されれば、そのユーザーが
+  // 作成したリソースも意味を持たなくなるためonDelete: 'cascade'とする
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
   // 掲示物のタイトル
   title: text('title').notNull(),
   // 掲示物のサブタイトル。無い場合はnull

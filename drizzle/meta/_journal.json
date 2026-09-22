@@ -43,6 +43,13 @@
       "when": 1790039283182,
       "tag": "0005_tough_nightcrawler",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790039849067,
+      "tag": "0006_common_living_mummy",
+      "breakpoints": true
     }
   ]
 }
