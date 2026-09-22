@@ -199,6 +199,70 @@ describe('所有者チェック(他人のlinkにはアクセスできない)', (
   })
 })
 
+describe('GET /api/v1/links/:id/clicks', () => {
+  it('存在しないlinkに対しては404になる', async () => {
+    const { sessionCookie } = await signUp()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links/not-existing-id/clicks', {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(404)
+  })
+
+  it('他人のlinkに対しては404になる', async () => {
+    const userA = await signUp()
+    const created = await createLink(userA.sessionCookie)
+
+    const userB = await signUp()
+    const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks`, {
+      headers: { Cookie: userB.sessionCookie },
+    })
+    expect(response.status).toBe(404)
+  })
+
+  it('未認証の場合401になる', async () => {
+    const response = await SELF.fetch('https://example.com/api/v1/links/dummy-id/clicks')
+    expect(response.status).toBe(401)
+  })
+
+  it('Analytics Engine SQL APIの呼び出し(fetch)をモックし、totalClicks/dailyClicksが期待通りの形で返る', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    // globalThis.fetchを一時的に差し替え、実際のSQL API呼び出しをせずに固定のレスポンスを返す
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { day: '2026-09-20', clicks: 3 },
+            { day: '2026-09-21', clicks: 5 },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )) as typeof fetch
+
+    try {
+      const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks`, {
+        headers: { Cookie: sessionCookie },
+      })
+      expect(response.status).toBe(200)
+
+      const body = await response.json()
+      expect(body).toEqual({
+        totalClicks: 8,
+        dailyClicks: [
+          { day: '2026-09-20', clicks: 3 },
+          { day: '2026-09-21', clicks: 5 },
+        ],
+      })
+    } finally {
+      // テスト後は必ず元のfetchに戻す
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
 describe('未認証アクセス', () => {
   it('POST /api/v1/linksは401を返す', async () => {
     const response = await SELF.fetch('https://example.com/api/v1/links', {
