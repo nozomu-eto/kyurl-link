@@ -5,7 +5,12 @@ import { accountRequests, links, posters, qrcodes } from '@/db/schema'
 // 猶予期間中(accountRequestsがstatus='pending'の間)にログインした場合、アカウント削除申請を
 // 取り消し、申請時にソフトデリートされたリソースを復元する(docs/architecture.md 第7.1節
 // 「③猶予期間: この間にログインすれば deletedAt をクリアして削除を取り消し可能」)
-export async function cancelPendingAccountRequestIfAny(db: DrizzleD1Database, userId: string): Promise<void> {
+// dbはdrizzle(env.DB)由来のインスタンスを受け取る。呼び出し元(auth.ts)ではBetter Authの
+// テーブルも含めたschema付きインスタンスを渡すため、任意のTSchemaを受け付けられるようにする
+export async function cancelPendingAccountRequestIfAny<TSchema extends Record<string, unknown>>(
+  db: DrizzleD1Database<TSchema>,
+  userId: string,
+): Promise<void> {
   // 1. pending状態の申請を1件取得する。無ければ取り消す対象が無いため何もしない
   const [pendingRequest] = await db
     .select()
