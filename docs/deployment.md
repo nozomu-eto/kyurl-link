@@ -19,6 +19,16 @@ CLIでの`wrangler deploy`手動実行や、GitHub Actionsによる独自CI構�
 - `main`ブランチへのpushをトリガーに、Cloudflareが自動的に`ビルドコマンド → デプロイコマンド(デフォルト`npx wrangler deploy`)`を実行する
 - `package.json`に`deploy`スクリプトがあれば、Cloudflareはそれを検出しデプロイコマンドとして使用できる
 
+## 1.5 ビルドコマンドの設定(テストゲート)
+
+ダッシュボードの「ビルド コマンド」を`pnpm test && pnpm run build`に設定する。これにより、テストが1件でも失敗すればビルドが失敗し、その後のデプロイ(マイグレーション適用含む)が実行されない。
+
+以下を「ビルド変数」として設定する(ランタイム用のVariables and Secretsとは別):
+
+- `CI_SKIP_BROWSER_TEST=true`(理由: Workers Buildsのビルドコンテナにはヘッドレスブラウザ実行に必要な共有ライブラリが無く、apt-get等でのインストールも許可されていないため。`posters.test.ts`のexportテストをこの変数でスキップする)
+- `BETTER_AUTH_URL=https://example.com`(テスト実行時のBetter Authオリジン検証を通すためのダミー値。ランタイム用の値とは別で構わない)
+- `BETTER_AUTH_SECRET=test-secret-for-ci-do-not-use-in-prod`
+
 ## 2. compatibility_date は現状維持(変更しない)
 
 `wrangler.jsonc`の`compatibility_date`は`2025-08-03`のまま変更しない。
@@ -61,13 +71,19 @@ CLIでの`wrangler deploy`手動実行や、GitHub Actionsによる独自CI構�
 
 ## 5. 初回セットアップ手順
 
+0. `wrangler d1 create kyurl-link-prod`を実行し、出力されたbinding設定を`wrangler.jsonc`に追加する
+0.5. `wrangler r2 bucket create kyurl-link-posters`を実行し、`wrangler.jsonc`に`r2_buckets`と`browser`のbinding設定を追加する
 1. `package.json`の`deploy`スクリプトを上記(第4節)の内容に更新してpush
 2. Cloudflareダッシュボード → Workers & Pages → 対象Worker → Settings → Builds → Connect でリポジトリを接続する
 3. 接続後の初回自動デプロイでWorkerのURL(`https://kyurl-link.<サブドメイン>.workers.dev`)が確定する
 4. ダッシュボードの Settings > Variables and Secrets で `BETTER_AUTH_SECRET`(ランダムな値)・`BETTER_AUTH_URL`(手順3で確認したURL)を設定する
 5. 以降は`main`ブランチへのpushのみで、マイグレーション適用を含むデプロイが自動的に行われる
 
-## 6. 今後の発展候補(未着手)
+## 6. ロールバック
+
+Cloudflareダッシュボードの Deployments タブから、過去のバージョンにロールバックできることを確認済み(2026-09-22)。ロールバックは新しいデプロイメントを作成する形で行われるため、何度でもやり直せる。DBスキーマを変更したデプロイをロールバックする場合、コードは古くなってもD1のスキーマは新しいままになる点に注意する(今回検証した2つのデプロイ間にはスキーマ変更が無かったため、この問題は発生しなかった)。
+
+## 7. 今後の発展候補(未着手)
 
 - チーム開発になった場合、GitHub ActionsをPR検証(型チェック・lint・テスト)専用に追加し、実デプロイはWorkers Buildsに任せるハイブリッド構成への移行
 - リスクの高いマイグレーションが発生した場合、「マイグレーション適用」と「デプロイ」を分離する構成への変更(その際はWorkers BuildsからGitHub Actionsへの乗り換えも検討)
