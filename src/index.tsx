@@ -63,17 +63,28 @@ app.get('/:shortCode', async (c) => {
 
   const [record] = await db.select().from(linksTable).where(eq(linksTable.shortCode, shortCode)).limit(1)
 
-  // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404。
+  // レコード自体が存在しない場合のみ404。
   // 存在しないリソースなので「見つからない」ことを案内する
-  if (!record || record.deletedAt !== null) {
+  if (!record) {
     return c.html(notFoundPageHtml(), 404)
   }
 
   // 明示的に停止・期限切れとされたか、有効期限(expiresAt)を過ぎている場合は410。
-  // 404と違い「かつて存在したが今は使えない」ことを案内する
+  // 404と違い「かつて存在したが今は使えない」ことを案内する。
+  // アカウント削除申請時のカスケード処理(POST /api/v1/account-requests)は、
+  // deletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.md 第7.1節②
+  // 「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)ため、この判定を
+  // deletedAtのチェックより先に行う必要がある(先にdeletedAtで404にしてしまうと、
+  // カスケード停止によるものか個別削除によるものかを区別できず、常に404になってしまうため)
   const isExpiredByDate = record.expiresAt !== null && new Date(record.expiresAt) < new Date()
   if (record.status === 'suspended' || record.status === 'expired' || isExpiredByDate) {
     return c.html(goneePageHtml(), 410)
+  }
+
+  // 上記のstatus/expiresAtによる410判定に該当せず、ソフトデリート済み(deletedAtが設定されている)
+  // 場合は404。個別削除(DELETE /links/:id)はstatusを変更しないため、このケースに該当する
+  if (record.deletedAt !== null) {
+    return c.html(notFoundPageHtml(), 404)
   }
 
   // 悪意あるURL検知(docs/architecture.md 第4節)でflagged(不審)と判定されている場合、

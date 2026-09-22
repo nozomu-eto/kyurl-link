@@ -126,4 +126,47 @@ describe('GET /:shortCode', () => {
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe('http://192.168.1.1/phishing-target')
   })
+
+  it('アカウント削除申請によりカスケードでソフトデリートされたlinkにアクセスすると、404ではなく410になる(docs/architecture.md 第7.1節②)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // 通常通り302でリダイレクトされることを確認しておく(申請前は正常動作)
+    const beforeResponse = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(beforeResponse.status).toBe(302)
+
+    const accountRequestResponse = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({ password: 'password1234' }),
+    })
+    expect(accountRequestResponse.status).toBe(201)
+
+    // 410ページの表示自体は認証不要のため、Cookie無しでアクセスする
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(410)
+
+    const body = await response.text()
+    expect(body).toContain('ご利用いただけません')
+  })
+
+  it('個別削除(DELETE /api/v1/links/:id)後のlinkにアクセスすると、引き続き404になる(回帰防止)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    const deleteResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(deleteResponse.status).toBe(204)
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(404)
+
+    const body = await response.text()
+    expect(body).toContain('見つかりませんでした')
+  })
 })

@@ -123,9 +123,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 個別に実行すると、途中で失敗した場合に「リソースは止まったが申請記録が残らない」
     // ような中途半端な状態になりうるため
     const [, , , insertedAccountRequests] = await db.batch([
+      // linksはdeletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.md 第7.1節②
+      // 「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)。既存のqrcodes/postersには
+      // statusという概念(active/expired/suspended)自体が無いため、deletedAtのみで良い
       db
         .update(links)
-        .set({ deletedAt: now })
+        .set({ deletedAt: now, status: 'suspended' })
         .where(and(eq(links.userId, userId), isNull(links.deletedAt))),
       db
         .update(qrcodes)

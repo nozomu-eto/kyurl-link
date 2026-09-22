@@ -31,9 +31,15 @@ export async function cancelPendingAccountRequestIfAny<TSchema extends Record<st
   // deletedAtが別の時刻になっているため、この条件には一致せず復元されない
   // (=個別削除したリソースを取り消し操作で誤って復活させてしまう取り違えを防ぐ)
   await db.batch([
+    // linksはdeletedAtのクリアと同時に、申請時のカスケード処理(POST /api/v1/account-requests)が
+    // セットしたstatus: 'suspended'も'active'に戻す。
+    // 既知の限定的なエッジケース: 申請前にユーザー自身が個別にsuspendedへ変更していたlinkも
+    // 区別できず'active'に戻ってしまう(statusの変更前の値を別途保持していないため)。
+    // 申請の取り消しという操作の主目的(削除前の状態への復元)を優先し、発生頻度・影響とも
+    // 限定的なこのケースは許容する
     db
       .update(links)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, status: 'active' })
       .where(and(eq(links.userId, userId), eq(links.deletedAt, pendingRequest.requestedAt))),
     db
       .update(qrcodes)

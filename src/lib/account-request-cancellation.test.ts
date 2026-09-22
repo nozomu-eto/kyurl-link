@@ -129,14 +129,26 @@ describe('猶予期間中の再ログインによる自動取り消し(databaseH
     })
     expect(linkAfterRequestResponse.status).toBe(404)
 
+    // 申請直後は、公開リダイレクトも410(カスケードによるstatus: 'suspended')になっている
+    const redirectAfterRequestResponse = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(redirectAfterRequestResponse.status).toBe(410)
+
     // 再サインイン(=新規セッション作成)により、databaseHooks経由で自動的に取り消される
     const newSessionCookie = await signIn(email)
 
-    // 申請によって削除されたlink・qrcode・posterは、deletedAtがnullに戻り再び200になる
+    // 申請によって削除されたlink・qrcode・posterは、deletedAtがnullに戻り再び200になる。
+    // linkはdeletedAtに加えてstatusも'suspended'から'active'に戻っていることを確認する
+    // (このstatusの復元が無いと、deletedAtが復元されても公開リダイレクトが410のまま
+    // になってしまう。account-request-cancellation.tsのバグ修正で追加した挙動)
     const linkResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
       headers: { Cookie: newSessionCookie },
     })
     expect(linkResponse.status).toBe(200)
+    expect(await linkResponse.json()).toMatchObject({ status: 'active' })
+
+    // 公開リダイレクトも302に戻っていることを確認する
+    const redirectAfterCancelResponse = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(redirectAfterCancelResponse.status).toBe(302)
 
     const qrcodeResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
       headers: { Cookie: newSessionCookie },
