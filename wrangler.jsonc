@@ -31,5 +31,10 @@
 	// 原因調査用途として使う」と既に決定されていたが、実装が漏れていたための対応
 	"observability": {
 		"enabled": true
+	},
+	// docs/architecture.md 第7.1節「⑤物理削除バッチ」: 1日1回のCron Triggerで
+	// deletedAt < now() - 7日のレコードを検出し、D1から物理削除するために使う
+	"triggers": {
+		"crons": ["0 0 * * *"]
 	}
 }

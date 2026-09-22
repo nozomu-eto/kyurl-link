@@ -60,6 +60,11 @@ app.get('/:shortCode', async (c) => {
   return c.redirect(record.originalUrl, 302)
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  scheduled: async (event, env, ctx) => {
+    // 実装は次のタスクで追加
+  },
+} satisfies ExportedHandler<CloudflareBindings>
 // Hono RPCクライアントの型推論に使うアプリ全体の型
 export type AppType = typeof routes
