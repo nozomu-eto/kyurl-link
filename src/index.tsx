@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { links as linksTable } from '@/db/schema'
 import { auth } from '@/lib/auth'
 import { goneePageHtml, notFoundPageHtml } from '@/lib/redirect-pages'
+import accountRequests from '@/routes/account-requests'
 import links from '@/routes/links'
 import posters from '@/routes/posters'
 import qrcodes from '@/routes/qrcodes'
@@ -22,10 +23,17 @@ app.get('/', (c) => {
 // /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth(c.env).handler(c.req.raw))
 
-// links・qrcodes・posters・reportsルートを/api/v1配下にマウントする
-// (各ルート側のbasePath('/links')・basePath('/qrcodes')・basePath('/posters')・basePath('/reports')と
-// 合わせて /api/v1/links・/api/v1/qrcodes・/api/v1/posters・/api/v1/reports になる)
-const routes = app.basePath('/api/v1').route('/', links).route('/', qrcodes).route('/', posters).route('/', reports)
+// links・qrcodes・posters・reports・account-requestsルートを/api/v1配下にマウントする
+// (各ルート側のbasePath('/links')・basePath('/qrcodes')・basePath('/posters')・basePath('/reports')・
+// basePath('/account-requests')と合わせて /api/v1/links・/api/v1/qrcodes・/api/v1/posters・
+// /api/v1/reports・/api/v1/account-requests になる)
+const routes = app
+  .basePath('/api/v1')
+  .route('/', links)
+  .route('/', qrcodes)
+  .route('/', posters)
+  .route('/', reports)
+  .route('/', accountRequests)
 
 // 公開リダイレクト(docs/architecture.md 第7節: 認証不要)。
 // '/api/v1'等の既存ルートと衝突しないよう、必ずそれらのマウントより後に登録する
