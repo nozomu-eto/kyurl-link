@@ -2,6 +2,7 @@ import { and, eq, lt } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { user } from '@/db/auth-schema'
 import { accountRequests, posters } from '@/db/schema'
+import { buildDeletionCompletedEmail } from '@/lib/account-deletion-emails'
 
 // R2(POSTER_CACHE)からobjectKeyのprefixに一致する全オブジェクトを削除する。
 // 1回のlist()では最大1000件までしか返らないため、truncated(まだ続きがある)な間はcursorで
@@ -46,10 +47,21 @@ export async function runAccountDeletionBatch(env: CloudflareBindings): Promise<
     // すべてonDelete: 'cascade'で連動削除されるため、個別に削除する必要はない
     const [deletedUser] = await db.delete(user).where(eq(user.id, target.userId)).returning({ email: user.email })
 
-    // 2d. TODO: 完全削除完了メールの送信をここに追加する(メール機能は別タスクで実装予定)。
-    // 現時点では、observability(Workers Logs)で確認できるよう対象メールアドレスを出力するのみ
+    // 2d. observability(Workers Logs)で確認できるよう対象メールアドレスを出力し、
+    // 完全削除完了メールを送信する。メール送信の失敗は物理削除そのもの(=既にDB/R2の削除は
+    // 完了している)を妨げないよう、必ずtry/catchで囲む
     if (deletedUser) {
       console.log(`アカウント削除完了: ${deletedUser.email}`)
+
+      try {
+        await env.EMAIL.send({
+          from: 'no-reply@kyurl.link',
+          to: deletedUser.email,
+          ...buildDeletionCompletedEmail(),
+        })
+      } catch (error) {
+        console.error('完全削除完了メールの送信に失敗しました', error)
+      }
     }
   }
 

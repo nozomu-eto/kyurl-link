@@ -2,6 +2,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { accountRequests, links, posters, qrcodes } from '@/db/schema'
+import { buildRequestReceivedEmail } from '@/lib/account-deletion-emails'
 import { auth } from '@/lib/auth'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { accountRequestCreateInputSchema, accountRequestSchema } from '@/shared/schemas/account-request'
@@ -147,6 +148,18 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     ])
 
     const [created] = insertedAccountRequests
+
+    // 申請受付メールを送信する。メール送信の失敗が退会申請そのもの(=既にDB更新は完了している)
+    // を妨げないよう、必ずtry/catchで囲み、失敗してもAPIレスポンス自体は201のまま返す
+    try {
+      await c.env.EMAIL.send({
+        from: 'no-reply@kyurl.link',
+        to: c.get('user').email,
+        ...buildRequestReceivedEmail(scheduledDeletionAt),
+      })
+    } catch (error) {
+      console.error('申請受付メールの送信に失敗しました', error)
+    }
 
     return c.json(toAccountRequestResponse(created), 201)
   })
