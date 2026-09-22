@@ -44,5 +44,18 @@
 			"name": "EMAIL",
 			"allowed_sender_addresses": ["no-reply@kyurl.link"]
 		}
-	]
+	],
+	// docs/architecture.md 第7節・第12節: linkClicksリソース(クリック統計)を
+	// Workers Analytics Engineデータセットとして記録するために使う
+	"analytics_engine_datasets": [
+		{
+			"binding": "LINK_CLICKS",
+			"dataset": "link_clicks"
+		}
+	],
+	"vars": {
+		// docs/architecture.md 第7節「GET /links/:id/clicks: クリック統計(Analytics Engine SQL
+		// APIへの問い合わせ)」で、SQL APIのエンドポイントURLを組み立てるために使うアカウントID
+		"ACCOUNT_ID": "919b89c551eef0eed83ef419caf397de"
+	}
 }
