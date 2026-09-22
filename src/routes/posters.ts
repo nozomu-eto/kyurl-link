@@ -33,10 +33,15 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // 一覧取得は認証必須(docs/architecture.md 第7節)
   .get('/', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
+    // 他人のposterが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
     // ページングは未実装のため暫定的に固定値を返す
-    const items = await db.select().from(posters).where(isNull(posters.deletedAt))
+    const items = await db
+      .select()
+      .from(posters)
+      .where(and(isNull(posters.deletedAt), eq(posters.userId, userId)))
 
     const response = posterListResponseSchema.parse({
       items: items.map((item) => toPosterResponse(item)),
@@ -67,15 +72,19 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
 
-    // 指定されたqrCodeIdが実在し、かつソフトデリートされていないqrcodeであることを確認する
+    // 指定されたqrCodeIdが実在し、ソフトデリートされておらず、かつログインユーザー自身の
+    // qrcodeであることを確認する。userIdの条件を付けないと、他人のqrcodeにも自由に
+    // 掲示物を紐付けられてしまうため必須
     const [targetQrcode] = await db
       .select({ id: qrcodes.id })
       .from(qrcodes)
-      .where(and(eq(qrcodes.id, parsed.data.qrCodeId), isNull(qrcodes.deletedAt)))
+      .where(and(eq(qrcodes.id, parsed.data.qrCodeId), isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
       .limit(1)
 
     if (!targetQrcode) {
+      // 他人のqrcodeが存在すること自体を漏らさないよう、「存在しないqrCodeId」と同じエラーにする
       return c.json(
         {
           error: {
@@ -87,12 +96,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // id・layoutTemplate・styleOptionsはサーバー側で決定して保存する
+    // id・userId(所有者)・layoutTemplate・styleOptionsはサーバー側で決定して保存する
     // (layoutTemplateは今回'default'固定、styleOptionsは作成時null固定)
     const [created] = await db
       .insert(posters)
       .values({
         id: crypto.randomUUID(),
+        userId,
         title: parsed.data.title,
         subtitle: parsed.data.subtitle ?? null,
         layoutTemplate: DEFAULT_LAYOUT_TEMPLATE,
@@ -108,10 +118,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   .get('/:id', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
-    const [record] = await db.select().from(posters).where(eq(posters.id, id)).limit(1)
+    const [record] = await db
+      .select()
+      .from(posters)
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404
+    // 見つからない、ソフトデリート済み、または他人のposterの場合は404。
+    // 他人のリソースが存在すること自体を漏らさないため、区別しない
     if (!record || record.deletedAt !== null) {
       return c.json(
         {
@@ -129,6 +145,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // title/subtitle/styleOptionsのみ更新可能
   .patch('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
     const body = await c.req.json().catch(() => null)
     const parsed = posterUpdateInputSchema.safeParse(body)
@@ -148,9 +165,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(posters).where(eq(posters.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(posters)
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済みの場合は404
+    // 見つからない、ソフトデリート済み、または他人のposterの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -175,18 +196,27 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
     }
 
-    const [updated] = await db.update(posters).set(updateValues).where(eq(posters.id, id)).returning()
+    const [updated] = await db
+      .update(posters)
+      .set(updateValues)
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
+      .returning()
 
     return c.json(toPosterResponse(updated))
   })
   // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
   .delete('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(posters).where(eq(posters.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(posters)
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
+      .limit(1)
 
-    // 見つからない、または既に削除済みの場合は404
+    // 見つからない、既に削除済み、または他人のposterの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -199,7 +229,10 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    await db.update(posters).set({ deletedAt: new Date() }).where(eq(posters.id, id))
+    await db
+      .update(posters)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
 
     // ボディ無しの204を返す
     return c.body(null, 204)
@@ -208,14 +241,19 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   .get('/:id/export', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
-    // 1. まず対象posterに対する認可チェック(存在確認・ソフトデリート確認)を行う。
+    // 1. まず対象posterに対する認可チェック(存在確認・ソフトデリート確認・所有者確認)を行う。
     // docs/architecture.md 第9節「掲示物PDFキャッシュ(R2)の認可チェックは、必ずWorkerの
     // コード内で所有者チェックを行ってからキャッシュを参照する設計」に従い、この確認を
     // R2キャッシュの参照よりも必ず先に行う。もしキャッシュ確認を先にしてしまうと、
     // 本来アクセスできないはずのposterのidさえ知っていれば、認可チェックをすり抜けて
     // キャッシュ済みのPDF/PNGの中身を直接読めてしまうため
-    const [poster] = await db.select().from(posters).where(eq(posters.id, id)).limit(1)
+    const [poster] = await db
+      .select()
+      .from(posters)
+      .where(and(eq(posters.id, id), eq(posters.userId, userId)))
+      .limit(1)
 
     if (!poster || poster.deletedAt !== null) {
       return c.json(
