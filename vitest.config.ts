@@ -15,16 +15,23 @@ export default defineConfig(async () => {
     test: {
       // テストごとに使い捨てD1インスタンスへマイグレーションを適用するセットアップファイル
       setupFiles: ['./test/apply-migrations.ts'],
-      // better-auth の auth.api.verifyPassword() を誤ったパスワードで呼び出した際、
-      // better-auth/better-call内部の多段のPromiseチェーン(handler呼び出し→.catch→
-      // dispatch側の.catchという複数階層)のどこかで、実際にはこちら側のtry/await/catchで
-      // 正しく捕捉できているにもかかわらず、Miniflare側の診断レイヤーが同じAPIError
-      // (INVALID_PASSWORD)を「未処理のrejection」として二重に報告してしまう事象を確認した。
-      // アプリ側の挙動(401・共通エラー形式・対象リソースが削除されないこと)はテストの
-      // アサーションで検証済みで実害は無いため、CI失敗を避けるためにここで無視する。
-      // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この抑制が
-      // まだ必要か再確認すること
-      dangerouslyIgnoreUnhandledErrors: true,
+      onUnhandledError(error: unknown) {
+        // better-auth/better-call内部の多段のPromiseチェーンが、auth.api.verifyPassword()を
+        // 誤ったパスワードで呼び出した際のAPIErrorを、未処理のrejectionとして二重に報告して
+        // しまう既知の挙動を除外する。アプリ側の挙動(401・共通エラー形式・対象リソースが
+        // 削除されないこと)はテストのアサーションで検証済みで実害は無い。
+        // 自由記述のmessageではなく、より安定した識別子であるBetter Authのエラーコード
+        // (body.code === 'INVALID_PASSWORD')とname('APIError')の両方が一致する場合のみ
+        // 除外することで、他の予期しないエラーまで誤って握りつぶさないようにする。
+        // (実際に発生するエラーオブジェクトの形は console.log で確認した:
+        //  { name: 'APIError', message: 'Invalid password', body: { code: 'INVALID_PASSWORD', ... }, ... })
+        // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この除外が
+        // まだ必要か再確認すること
+        const err = error as { name?: string; body?: { code?: string } }
+        if (err.name === 'APIError' && err.body?.code === 'INVALID_PASSWORD') {
+          return false
+        }
+      },
     },
     plugins: [
       cloudflareTest({
