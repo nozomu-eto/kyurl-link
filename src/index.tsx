@@ -4,7 +4,8 @@ import { Hono } from 'hono'
 import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
-import { goneePageHtml, notFoundPageHtml } from '@/lib/redirect-pages'
+import { runLinkSecurityFullScan, runLinkSecurityTrackingScan } from '@/lib/link-security-scan-batch'
+import { goneePageHtml, notFoundPageHtml, securityWarningPageHtml } from '@/lib/redirect-pages'
 import accountRequests from '@/routes/account-requests'
 import links from '@/routes/links'
 import posters from '@/routes/posters'
@@ -75,6 +76,16 @@ app.get('/:shortCode', async (c) => {
     return c.html(goneePageHtml(), 410)
   }
 
+  // 悪意あるURL検知(docs/architecture.md 第4節)でflagged(不審)と判定されている場合、
+  // 通常の302リダイレクトの代わりに警告インターステシャルを表示する。
+  // ただし警告画面の「このまま進む」リンク(?proceed=1)経由のアクセスでは、この分岐を
+  // スキップし通常通りリダイレクトを実行する(利用者自身の意思での続行は妨げない、
+  // 利用規約第11条2項「検知に努めるが完全性を保証しない」方針に対応する)
+  const hasProceeded = c.req.query('proceed') === '1'
+  if (record.securityStatus === 'flagged' && !hasProceeded) {
+    return c.html(securityWarningPageHtml(shortCode), 200)
+  }
+
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する
   // (docs/architecture.md 第7節・第12節)。404・410では記録しない。
   // writeDataPointは同期APIで、戻り値もvoid(Promiseではない)ため、awaitせず
@@ -100,13 +111,41 @@ app.get('/:shortCode', async (c) => {
 // 実在しうる短縮コード(英数字1セグメント)を横取りする心配は無い
 app.get('*', serveSpaShell)
 
+// 週次(毎週月曜3時)の悪意あるURL全件再スキャン用cron式。wrangler.jsoncのtriggers.cronsと
+// 値を揃える。event.cronでこの値かどうかを見て、日次ジョブと週次ジョブを振り分ける
+const WEEKLY_LINK_SECURITY_FULL_SCAN_CRON = '0 3 * * 1'
+
 export default {
   fetch: app.fetch,
-  // 1日1回(docs/architecture.md 第7.1節)、猶予期間を過ぎたアカウント削除申請を処理する
   scheduled: async (event, env, ctx) => {
-    const processedCount = await runAccountDeletionBatch(env)
-    // observability.enabled(Workers Logs)で本番ログを確認できるよう出力する
-    console.log(`account-deletion-batch: ${processedCount}件処理しました`)
+    // 週次cron: 悪意あるURL検知(docs/architecture.md 第4節「第3段階」)の全件再スキャンのみ行う
+    if (event.cron === WEEKLY_LINK_SECURITY_FULL_SCAN_CRON) {
+      try {
+        const scannedCount = await runLinkSecurityFullScan(env)
+        console.log(`link-security-full-scan: ${scannedCount}件処理しました`)
+      } catch (error) {
+        console.error('link-security-full-scanに失敗しました', error)
+      }
+      return
+    }
+
+    // 日次cron: アカウント削除バッチ(第7.1節)と、悪意あるURL検知の24時間以内追跡スキャン
+    // (第4節「第2段階」)を両方実行する。一方が失敗しても他方の処理を止めないよう、
+    // それぞれ独立したtry/catchで囲む
+    try {
+      const processedCount = await runAccountDeletionBatch(env)
+      // observability.enabled(Workers Logs)で本番ログを確認できるよう出力する
+      console.log(`account-deletion-batch: ${processedCount}件処理しました`)
+    } catch (error) {
+      console.error('account-deletion-batchに失敗しました', error)
+    }
+
+    try {
+      const trackingScanCount = await runLinkSecurityTrackingScan(env)
+      console.log(`link-security-tracking-scan: ${trackingScanCount}件処理しました`)
+    } catch (error) {
+      console.error('link-security-tracking-scanに失敗しました', error)
+    }
   },
 } satisfies ExportedHandler<CloudflareBindings>
 // Hono RPCクライアントの型推論に使うアプリ全体の型

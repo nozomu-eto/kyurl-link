@@ -33,6 +33,26 @@ export const links = sqliteTable('links', {
   // accountRequests.requestedAtの完全一致で「申請によって削除されたか」を判定するため、
   // 秒精度(mode: 'timestamp')だと同一秒内の個別削除と申請が衝突しうる。ミリ秒精度にする
   deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+  // 悪意あるURL検知の結果(docs/architecture.md 第4節)。既存のstatus(active/expired/suspended、
+  // 「意図的な停止」を表す)とは意味が異なる別フィールドとして持つ:
+  // - 'unscanned': 未検査、またはURLhaus照会がタイムアウト・失敗しfail-openした(第4節の方針通り、
+  //   「不審」とはせず通常のリダイレクトを許可する。次回の定期スキャンで再検査される)
+  // - 'clean': ヒューリスティック・URLhaus照合のいずれでも問題が検出されなかった
+  // - 'flagged': ヒューリスティックまたはURLhaus照合で不審と判定された(リダイレクト時に
+  //   警告インターステシャルを表示する対象)
+  // 既存rowは移行(マイグレーション)時点で'unscanned'として扱われ、週次の全件再スキャンで
+  // 順次検査される
+  securityStatus: text('security_status', { enum: ['unscanned', 'clean', 'flagged'] })
+    .notNull()
+    .default('unscanned'),
+  // 最終検査日時(作成時のヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週次の
+  // 全件再スキャンのいずれかを最後に試みた日時)。24時間スキャン・週次スキャンの対象抽出に使う。
+  // 既存rowは移行時点の日時がDBのdefaultで入るが、週次の全件再スキャンはlastScannedAtに関わらず
+  // 全active linkを対象にするため、次の週次スキャンで正しく検査される。
+  // createdAt(秒精度)と比較するクエリがあるため、比較時の単位ズレに注意(該当箇所にコメントあり)
+  lastScannedAt: integer('last_scanned_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
 })
 
 // qrcodes: QRコードリソース(docs/architecture.md 第7節)のテーブル定義

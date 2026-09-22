@@ -1,6 +1,10 @@
-# kyurl.link アーキテクチャドキュメント(更新版7)
+# kyurl.link アーキテクチャドキュメント(更新版8)
 
-2026-09-21 · @Someone
+2026-09-22 · @Someone
+
+**更新版8での変更点(2026-09-22のセッションで確定)**
+- 悪意あるURL検知(ヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)を実装完了(第4節)
+- 第15節 Open Itemsを上記に合わせて更新
 
 **更新版7での変更点(2026-09-21のセッションで確定)**
 - 悪意あるURL検知: Cloudflare URL Scanner APIの活用を実装見送りで確定(第4節)。あわせてGoogle Safe Browsing Lookup APIの追加導入も検討したが見送り
@@ -46,9 +50,19 @@
 
 D1の1台体制、DB設計、短縮コード生成・衝突処理、リダイレクト処理、QRコード生成方式、掲示物(ポスター)機能のスコープ(A6縦・A5縦の2サイズ)、認証(Better Auth・メール+パスワードのみ)、デプロイ手法についての決定事項は変更ありません。
 
-## 4. 悪意あるURLの検知(更新版7で結論確定)
+## 4. 悪意あるURLの検知(更新版8で実装完了)
 
 3段階構成(作成時のヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)の大枠は変更ありません。URLhaus照会がタイムアウト・エラーとなった場合はfail-openとする方針も変更なしです。
+
+**実装概要(更新版8)**
+
+- **検知結果の保持**: `links`テーブルに`securityStatus`('unscanned'(未検査・fail-open) / 'clean'(問題なし) / 'flagged'(不審))と`lastScannedAt`(最終検査日時)を追加。既存の`status`(active/expired/suspended、意図的な停止を表す)とは意味の異なる別フィールドとした
+- **ヒューリスティック**(`src/lib/url-heuristics.ts`、ネットワーク呼び出し無しの純粋関数): ホスト名がIPアドレスリテラル・URLに'@'を含む(authority混乱攻撃)・ホスト名がPunycode(IDN、ホモグラフ攻撃の疑い)・既知の短縮URLサービスへの再短縮・URL全体が異常に長い(2000文字超)・サブドメイン階層が異常に多い(6階層超)、のいずれか1つでも該当すればflagged
+- **URLhaus照合**(`src/lib/urlhaus-client.ts`): `POST https://urlhaus-api.abuse.ch/v1/url/`にAuth-Keyヘッダー(`URLHAUS_API_KEY`、wrangler secretで設定)を付与して照会する。短いタイムアウト(デフォルト3秒、AbortController)を設け、タイムアウト・エラー・Auth-Key未設定の場合は必ずfail-open(securityStatus: 'unscanned')とし、失敗はログに残す。`src/lib/link-security-check.ts`の`determineLinkSecurityStatus()`がヒューリスティック→URLhaus照合の順で判定を組み立て、作成時チェック・24時間以内スキャン・週次スキャンの3段階すべてから共通で呼び出される
+- **作成時チェック(第1段階)**: `POST /links`(`src/routes/links.ts`)内で同期的に実行し、結果を`securityStatus`とともに保存する
+- **定期スキャン(第2・第3段階)**: 既存の日次Cron Trigger(`0 0 * * *`、アカウント削除バッチと共用)内で24時間以内の追跡スキャン(`runLinkSecurityTrackingScan()`)を実行し、新規追加した週次Cron Trigger(`0 3 * * 1`)で全active linkを対象にした全件再スキャン(`runLinkSecurityFullScan()`)を実行する(`src/lib/link-security-scan-batch.ts`)。いずれも`src/index.tsx`の`scheduled`ハンドラが`event.cron`で振り分け、一方が失敗しても他方の処理を止めないようtry/catchで独立させている
+- **リダイレクト時の警告表示**: `GET /:shortCode`(`src/index.tsx`)で`securityStatus === 'flagged'`かつ`?proceed=1`が付いていない場合、302の代わりに警告インターステシャル(第6.3節の確定文言、`src/lib/redirect-pages.ts`の`securityWarningPageHtml()`)をHTTP 200で返す。「このまま進む」は同一パスへ`?proceed=1`を付けた相対リンクで実現し、これが付いている場合は通常通り302リダイレクトする。通報導線は既存の`POST /api/v1/reports`をそのまま流用し、警告ページ内の簡易フォーム+インラインスクリプトから呼び出す
+- **スコープ外(未実装のまま)**: `qrcodes.targetType: 'rawUrl'`(短縮URLを経由しない直接URL)は検知対象に含めていない
 
 **Cloudflare URL Scanner APIの活用は実装しないことで確定しました。** 理由は以下の通りです。
 
@@ -296,7 +310,7 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 - **委託先(Cloudflare)経由の事故**: インフラ起因であっても報告義務は委託元であるkyurl.link運営者側が原則負う
 - **本マニュアルの位置づけ**: 利用規約・プライバシーポリシー本体には含めず、別管理の内部運用文書として保管する方針で確定(規約・ポリシー側の文言変更は行わない)
 
-## 15. Open Items(未決定・要検討)— 更新版7
+## 15. Open Items(未決定・要検討)— 更新版8
 
 ### 解決済み(更新版3までの検討で確定)
 
@@ -328,6 +342,10 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 - ~~漏えい時の対応体制~~ → 4類型判定・速報3〜5日/確報30〜60日・本人通知の手順を確定。別紙「漏えい等対応マニュアル」を作成、規約・ポリシー本体には含めない方針(第14.3節)
 - ~~障害対応フロー(エスカレーション先・対応時間帯)~~ → 重大度分類・UptimeRobotによる外形監視・Cloudflareサポートへのエスカレーション基準を確定。別紙「障害対応フロー」を作成(第14.1節)
 - ~~D1 Time Travelの具体的な運用手順~~ → `wrangler d1 time-travel info/restore`コマンドとテストDBへの事前復元手順を確定(第14.2節)
+
+### 解決済み(更新版8の検討で確定)
+
+- ~~悪意あるURL検知(ヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)の実装~~ → 実装完了。`links.securityStatus`/`lastScannedAt`の追加、`POST /links`での作成時チェック、既存日次cron(24時間以内スキャン)+新規週次cron(全件再スキャン)、`GET /:shortCode`での警告インターステシャル表示まで含む(第4節)
 
 ### 解決済み(更新版7の検討で確定)
 

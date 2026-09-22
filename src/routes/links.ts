@@ -3,8 +3,18 @@ import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
 import { buildLinkClicksSql } from '@/lib/link-clicks-query'
+import { determineLinkSecurityStatus } from '@/lib/link-security-check'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
+
+// DB上のlinkレコード(lastScannedAtはDateオブジェクト)を、レスポンス用スキーマの形
+// (lastScannedAtをISO文字列化したもの)に変換する
+function toLinkResponse(record: typeof links.$inferSelect) {
+  return linkSchema.parse({
+    ...record,
+    lastScannedAt: record.lastScannedAt.toISOString(),
+  })
+}
 
 // shortCode生成に使う文字種(英数字)
 const SHORT_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -43,7 +53,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // レスポンス形状をスキーマで検証してから返す。レコードが0件でもitems: []としてそのまま返す(エラーにしない)
     const response = linkListResponseSchema.parse({
-      items,
+      items: items.map(toLinkResponse),
       total: items.length,
       limit: 20,
       offset: 0,
@@ -97,7 +107,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // id・status・shortCode・userId(所有者)はサーバー側で決定して保存する
+    // 悪意あるURL検知(docs/architecture.md 第4節「作成時のヒューリスティック+URLhaus照合」)。
+    // POST /links全体が長時間ブロックされないよう、checkUrlAgainstUrlhaus側で短いタイムアウトを
+    // 設けている(URLhaus照会が失敗・タイムアウトした場合はfail-open、securityStatus: 'unscanned')
+    const securityStatus = await determineLinkSecurityStatus(parsed.data.originalUrl, c.env.URLHAUS_API_KEY)
+
+    // id・status・shortCode・userId(所有者)・securityStatus・lastScannedAtはサーバー側で決定して保存する
     const [created] = await db
       .insert(links)
       .values({
@@ -107,11 +122,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
         shortCode,
         status: 'active',
         expiresAt: parsed.data.expiresAt ?? null,
+        securityStatus,
+        lastScannedAt: new Date(),
       })
       .returning()
 
     // レスポンス形状をスキーマで検証してから201で返す
-    const response = linkSchema.parse(created)
+    const response = toLinkResponse(created)
 
     return c.json(response, 201)
   })
@@ -141,7 +158,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    const response = linkSchema.parse(record)
+    const response = toLinkResponse(record)
 
     return c.json(response)
   })
@@ -202,7 +219,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .where(and(eq(links.id, id), eq(links.userId, userId)))
       .returning()
 
-    const response = linkSchema.parse(updated)
+    const response = toLinkResponse(updated)
 
     return c.json(response)
   })

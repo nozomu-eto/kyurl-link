@@ -101,4 +101,29 @@ describe('GET /:shortCode', () => {
     const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
     expect(response.status).toBe(410)
   })
+
+  it('securityStatusがflaggedのlinkにアクセスすると、302の代わりに警告インターステシャルが表示される(認証不要)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    // ヒューリスティック(IPアドレスリテラル)によりPOST /links時点でflaggedと判定されるURLを使う
+    const link = await createLink(sessionCookie, 'http://192.168.1.1/phishing-target')
+    expect(link.securityStatus).toBe('flagged')
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(200)
+
+    const body = await response.text()
+    expect(body).toContain('このリンク先の安全性を確認できませんでした')
+    expect(body).toContain('このまま進む')
+    expect(body).toContain('このリンクに問題があると思われる場合はこちらから報告')
+  })
+
+  it('flaggedなlinkでも?proceed=1を付けてアクセスすると、302でoriginalUrlにリダイレクトされる(認証不要)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie, 'http://192.168.1.1/phishing-target')
+    expect(link.securityStatus).toBe('flagged')
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}?proceed=1`, { redirect: 'manual' })
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('http://192.168.1.1/phishing-target')
+  })
 })

@@ -1,2 +1,5 @@
 BETTER_AUTH_URL=http://localhost:5173
 BETTER_AUTH_SECRET=change-me-to-a-random-string
+# https://auth.abuse.ch/ で無料発行されるURLhaus APIのAuth-Key。未設定でも動作するが、
+# その場合はURLhaus照会が常にスキップされfail-open(securityStatus: 'unscanned')になる
+URLHAUS_API_KEY=

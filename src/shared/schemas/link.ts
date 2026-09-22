@@ -12,6 +12,11 @@ export const linkSchema = z.object({
   status: z.enum(['active', 'expired', 'suspended']),
   // 有効期限(ISO文字列)。無期限の場合はnull
   expiresAt: z.string().nullable(),
+  // 悪意あるURL検知の結果(docs/architecture.md 第4節)。statusとは意味が異なる別フィールド。
+  // unscanned: 未検査またはURLhaus照会がfail-openした / clean: 問題なし / flagged: 不審と判定された
+  securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
+  // 最終検査日時(ISO文字列)
+  lastScannedAt: z.string(),
 })
 
 // link作成APIの入力用スキーマ。

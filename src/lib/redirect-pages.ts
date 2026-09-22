@@ -50,3 +50,69 @@ export function goneePageHtml(): string {
 </body>
 </html>`
 }
+
+// 警告インターステシャル(悪意あるURL検知フラグ)用のページHTMLを返す。
+// shortCodeはgenerateShortCode()(src/routes/links.ts)がSHORT_CODE_CHARS(英数字)のみから
+// 生成するサーバー制御の値であり、利用者入力ではないためHTMLへの直接埋め込みでも安全だが、
+// 念のためJSON.stringifyで文字列リテラルとしてエスケープしてから埋め込む。
+// 「このまま進む」は現在のパスに?proceed=1を付けた相対リンクのみで実現し(サーバー側で
+// index.tsxがこのクエリパラメータを見て通常の302リダイレクトに切り替える)、
+// 「戻る」はトップページに戻す(404/410ページと同じ導線に揃える)。
+// 通報導線(利用規約第9条)は、reports.ts側を変更せず既存のPOST /api/v1/reportsをそのまま
+// 流用するため、<details>で折りたたんだ簡易フォーム+インラインスクリプトからfetchで呼び出す
+export function securityWarningPageHtml(shortCode: string): string {
+  const shortCodeJson = JSON.stringify(shortCode)
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>このリンク先の安全性を確認できませんでした</title>
+<style>${PAGE_STYLE}
+  details { margin-top: 1.5rem; font-size: 0.875rem; }
+  summary { cursor: pointer; color: #0057ff; }
+  form { margin-top: 0.75rem; }
+  input[type="text"] { width: 100%; box-sizing: border-box; padding: 0.4rem; }
+  button { margin-top: 0.5rem; }
+  .actions a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>このリンク先の安全性を確認できませんでした</h1>
+<p>このリンクは、自動チェックにより注意が必要と判定されました。個人情報の入力やファイルのダウンロードを求められた場合は、内容を十分にご確認ください。</p>
+<p class="note">この判定は自動処理によるもので、誤って表示される場合があります。</p>
+<p class="actions">
+<a href="?proceed=1">このまま進む</a>
+<a href="/">戻る</a>
+</p>
+<details>
+<summary>このリンクに問題があると思われる場合はこちらから報告</summary>
+<form id="report-form">
+<label>報告理由: <input type="text" name="reason" required /></label>
+<button type="submit">送信する</button>
+</form>
+<p id="report-result" hidden></p>
+</details>
+<script>
+document.getElementById('report-form').addEventListener('submit', async function (event) {
+  event.preventDefault()
+  var reason = event.target.elements.reason.value
+  var resultEl = document.getElementById('report-result')
+  try {
+    var response = await fetch('/api/v1/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shortCode: ${shortCodeJson}, reason: reason }),
+    })
+    resultEl.textContent = response.ok ? '報告を受け付けました。ご協力ありがとうございます。' : '送信に失敗しました。時間をおいて再度お試しください。'
+  } catch (error) {
+    resultEl.textContent = '送信に失敗しました。時間をおいて再度お試しください。'
+  }
+  resultEl.hidden = false
+})
+</script>
+</main>
+</body>
+</html>`
+}

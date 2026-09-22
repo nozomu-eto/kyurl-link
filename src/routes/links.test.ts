@@ -77,6 +77,8 @@ describe('GET /api/v1/links', () => {
           shortCode: id,
           status: 'active',
           expiresAt: null,
+          securityStatus: 'unscanned',
+          lastScannedAt: expect.any(String),
         },
       ]),
       total: expect.any(Number),
@@ -196,6 +198,23 @@ describe('所有者チェック(他人のlinkにはアクセスできない)', (
       headers: { Cookie: userB.sessionCookie },
     })
     expect(deleteResponse.status).toBe(404)
+  })
+})
+
+describe('POST /api/v1/links の悪意あるURL検知(docs/architecture.md 第4節)', () => {
+  it('ヒューリスティックに該当するURL(IPアドレスリテラル)で作成すると、securityStatus: flaggedで返る', async () => {
+    const { sessionCookie } = await signUp()
+
+    const created = await createLink(sessionCookie, 'http://192.168.1.1/login')
+    expect(created.securityStatus).toBe('flagged')
+    expect(typeof created.lastScannedAt).toBe('string')
+  })
+
+  it('通常のURLで作成すると、URLHAUS_API_KEY未設定のテスト環境ではfail-openし、securityStatus: unscannedで返る', async () => {
+    const { sessionCookie } = await signUp()
+
+    const created = await createLink(sessionCookie, 'https://example.com/normal-page')
+    expect(created.securityStatus).toBe('unscanned')
   })
 })
 

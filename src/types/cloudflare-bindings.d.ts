@@ -13,4 +13,8 @@ interface __BaseEnv_CloudflareBindings {
   BETTER_AUTH_SECRET: string
   // Analytics Engine SQL API(GET /api/v1/links/:id/clicks)への問い合わせに使うAPIトークン
   ANALYTICS_API_TOKEN: string
+  // URLhaus API(悪意あるURL検知、docs/architecture.md 第4節)への問い合わせに使うAuth-Key。
+  // https://auth.abuse.ch/ で無料発行される。未設定の場合、URLhaus照会はスキップされ
+  // fail-open(securityStatus: 'unscanned')として扱われる
+  URLHAUS_API_KEY: string
 }
