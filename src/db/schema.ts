@@ -46,6 +46,26 @@ export const qrcodes = sqliteTable('qrcodes', {
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 })
 
+// reports: 通報リソース(docs/architecture.md 第7節・利用規約第9条)のテーブル定義
+export const reports = sqliteTable('reports', {
+  // reportリソースの一意なID(主キー)
+  id: text('id').primaryKey(),
+  // 通報対象のlink(links.id)。対象linkが削除されれば通報記録も一緒に削除して構わないためcascade
+  linkId: text('link_id')
+    .notNull()
+    .references(() => links.id, { onDelete: 'cascade' }),
+  // 通報理由の自由記述
+  reason: text('reason').notNull(),
+  // 通報の対応状況(未対応・確認済み・却下・対応済み)
+  status: text('status', { enum: ['pending', 'reviewed', 'dismissed', 'actioned'] })
+    .notNull()
+    .default('pending'),
+  // レコード作成日時。D1(SQLite)側でunixepoch()により自動設定する
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
 // posters: 掲示物リソース(docs/architecture.md 第7節)のテーブル定義
 export const posters = sqliteTable('posters', {
   // posterリソースの一意なID(主キー)
