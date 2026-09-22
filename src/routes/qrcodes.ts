@@ -28,10 +28,15 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // 一覧取得は認証必須(docs/architecture.md 第7節)
   .get('/', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
+    // 他人のqrcodeが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
     // ページングは未実装のため暫定的に固定値を返す
-    const items = await db.select().from(qrcodes).where(isNull(qrcodes.deletedAt))
+    const items = await db
+      .select()
+      .from(qrcodes)
+      .where(and(isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
 
     const response = qrcodeListResponseSchema.parse({
       items: items.map((item) => toQrcodeResponse(item)),
@@ -62,17 +67,20 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
 
-    // targetType='link'の場合、指定されたtargetIdが実在し、かつソフトデリートされていない
-    // linkであることを確認する
+    // targetType='link'の場合、指定されたtargetIdが実在し、ソフトデリートされておらず、
+    // かつログインユーザー自身のlinkであることを確認する。
+    // userIdの条件を付けないと、他人のlinkにも自由にQRコードを紐付けられてしまうため必須
     if (parsed.data.targetType === 'link') {
       const [targetLink] = await db
         .select({ id: links.id })
         .from(links)
-        .where(and(eq(links.id, parsed.data.targetId), isNull(links.deletedAt)))
+        .where(and(eq(links.id, parsed.data.targetId), isNull(links.deletedAt), eq(links.userId, userId)))
         .limit(1)
 
       if (!targetLink) {
+        // 他人のlinkが存在すること自体を漏らさないよう、「存在しないtargetId」と同じエラーにする
         return c.json(
           {
             error: {
@@ -85,11 +93,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       }
     }
 
-    // id・styleOptionsはサーバー側で決定して保存する(styleOptionsは作成時はnull固定)
+    // id・userId(所有者)・styleOptionsはサーバー側で決定して保存する(styleOptionsは作成時はnull固定)
     const [created] = await db
       .insert(qrcodes)
       .values({
         id: crypto.randomUUID(),
+        userId,
         targetType: parsed.data.targetType,
         targetId: parsed.data.targetType === 'link' ? parsed.data.targetId : null,
         targetUrl: parsed.data.targetType === 'rawUrl' ? parsed.data.targetUrl : null,
@@ -103,10 +112,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   .get('/:id', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
-    const [record] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+    const [record] = await db
+      .select()
+      .from(qrcodes)
+      .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済み(deletedAtが設定されている)場合は404
+    // 見つからない、ソフトデリート済み、または他人のqrcodeの場合は404。
+    // 他人のリソースが存在すること自体を漏らさないため、区別しない
     if (!record || record.deletedAt !== null) {
       return c.json(
         {
@@ -124,6 +139,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
   // styleOptionsのみ更新可能
   .patch('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
 
     const body = await c.req.json().catch(() => null)
     const parsed = qrcodeUpdateInputSchema.safeParse(body)
@@ -143,9 +159,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(qrcodes)
+      .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
+      .limit(1)
 
-    // 見つからない、またはソフトデリート済みの場合は404
+    // 見つからない、ソフトデリート済み、または他人のqrcodeの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -164,18 +184,27 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
     }
 
-    const [updated] = await db.update(qrcodes).set(updateValues).where(eq(qrcodes.id, id)).returning()
+    const [updated] = await db
+      .update(qrcodes)
+      .set(updateValues)
+      .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
+      .returning()
 
     return c.json(toQrcodeResponse(updated))
   })
   // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
   .delete('/:id', authMiddleware, async (c) => {
     const id = c.req.param('id')
+    const userId = c.get('user').id
     const db = drizzle(c.env.DB)
 
-    const [existing] = await db.select().from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
+    const [existing] = await db
+      .select()
+      .from(qrcodes)
+      .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
+      .limit(1)
 
-    // 見つからない、または既に削除済みの場合は404
+    // 見つからない、既に削除済み、または他人のqrcodeの場合は404
     if (!existing || existing.deletedAt !== null) {
       return c.json(
         {
@@ -188,12 +217,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    await db.update(qrcodes).set({ deletedAt: new Date() }).where(eq(qrcodes.id, id))
+    await db
+      .update(qrcodes)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
 
     // ボディ無しの204を返す
     return c.body(null, 204)
   })
-  // QRコード画像(SVG)。リダイレクト等と同様、認証不要の公開エンドポイントとする(docs/architecture.md 第7節)
+  // QRコード画像(SVG)。リダイレクト等と同様、認証不要の公開エンドポイントとする(docs/architecture.md 第7節)。
+  // 所有者チェックの対象外(誰でもQRコードを読み取れる必要があるため)
   .get('/:id/image', async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
