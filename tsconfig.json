@@ -5,8 +5,14 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "skipLibCheck": true,
+    // DOMは、React Router(data mode)のフロントエンドコード(src/frontend配下)が
+    // window/document等のブラウザAPIを使うために必要。skipLibCheck: trueにより、
+    // ワーカーランタイム側の型定義(worker-configuration.d.ts)との間でRequest/Response等の
+    // 重複宣言があっても、ライブラリ定義同士の型チェックはスキップされ衝突しない
     "lib": [
-      "ESNext"
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
     ],
     // "@cloudflare/vitest-plugin" はcloudflareTest等のAPI型、"@cloudflare/vitest-plugin/types" は
     // "cloudflare:test"(env・SELFなど)のアンビエント型を提供するため、両方を型解決対象に含める

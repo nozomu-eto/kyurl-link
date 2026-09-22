@@ -7,6 +7,22 @@
 		"nodejs_compat"
 	],
 	"main": "./src/index.tsx",
+	// React Router(data mode)によるフロントエンドSPAの静的アセット配信設定。
+	// directoryはvite buildのクライアント側出力先(@cloudflare/vite-pluginのデフォルト)。
+	// not_found_handling: "single-page-application" により、ASSETS binding経由で
+	// 一致する静的ファイルが無いパスを問い合わせるとindex.html(SPAのシェル)にフォールバックする。
+	// run_worker_first: trueにより、静的アセットへの振り分けより先に必ずWorker(Hono)の
+	// fetchハンドラを通す。これが無いと、/api/v1/linksのようなAPIパスも「一致する
+	// 静的ファイルが無い」と判定されてindex.htmlに直接フォールバックされ、Workerに
+	// 一切届かなくなってしまう(/:shortCodeのリダイレクトも同様)。
+	// Worker側(src/index.tsx)では、/api/*・/:shortCode(短縮コードとして解釈できるもの)
+	// 以外の全パスをASSETS bindingへ委譲する(詳細はsrc/index.tsxのコメントを参照)
+	"assets": {
+		"directory": "./dist/client",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": true
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

@@ -10,15 +10,8 @@ import links from '@/routes/links'
 import posters from '@/routes/posters'
 import qrcodes from '@/routes/qrcodes'
 import reports from '@/routes/reports'
-import { renderer } from './renderer'
 
 const app = new Hono<{ Bindings: CloudflareBindings }>()
-
-app.use(renderer)
-
-app.get('/', (c) => {
-  return c.render(<h1>Hello!</h1>)
-})
 
 // Better Authのサインアップ・サインイン等のエンドポイントを/api/auth配下にマウントする。
 // /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
@@ -36,11 +29,36 @@ const routes = app
   .route('/', reports)
   .route('/', accountRequests)
 
+// React Router(data mode)のフロントエンドSPAがルート直下の1セグメントパスとして使う
+// 予約語(/login・/app等)。shortCode生成(generateShortCode、links.ts)は英数字のみを
+// 使うため、これらの単語がshortCodeとして実在のlinkに割り当てられることは無いが、
+// URLのパターンとしては下の/:shortCodeと区別できないため、ハンドラ内で明示的に除外する。
+// 複数セグメントのパス(/app/links/new・/reset-password/confirm等)は/:shortCodeに
+// (1セグメントしかマッチしないため)そもそも一致せず、後述のcatch-allへ流れるので
+// ここに列挙する必要は無い
+const RESERVED_SINGLE_SEGMENT_PATHS = new Set(['login', 'signup', 'verify-email', 'reset-password', 'terms', 'privacy', 'app'])
+
+// SPAのシェル(index.html)や、favicon等の静的アセットをASSETS bindingへ委譲して返す。
+// wrangler.jsoncのassets.not_found_handling: "single-page-application"により、
+// 静的ファイルに一致しないパスに対してはindex.html(SPAのシェル)が返る
+function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request } }) {
+  return c.env.ASSETS.fetch(c.req.raw)
+}
+
 // 公開リダイレクト(docs/architecture.md 第7節: 認証不要)。
-// '/api/v1'等の既存ルートと衝突しないよう、必ずそれらのマウントより後に登録する
+// '/api/v1'等の既存ルートと衝突しないよう、必ずそれらのマウントより後に登録する。
+// Honoのルーティングは登録順が優先されるため(静的パスであっても、動的パラメータより
+// 後に登録すると負ける)、この後ろに登録する`*`(catch-all)より必ず先に登録する必要がある
 app.get('/:shortCode', async (c) => {
   const db = drizzle(c.env.DB)
   const shortCode = c.req.param('shortCode')
+
+  // 予約語、または「.」を含む(favicon.ico等、ルート直下の静的ファイルへの
+  // リクエストと判断できる。shortCodeは英数字のみで生成されるため「.」を含むことは無い)
+  // 場合は、短縮コードとしてDB照会せずSPA/静的アセットの配信に委譲する
+  if (RESERVED_SINGLE_SEGMENT_PATHS.has(shortCode) || shortCode.includes('.')) {
+    return serveSpaShell(c)
+  }
 
   const [record] = await db.select().from(linksTable).where(eq(linksTable.shortCode, shortCode)).limit(1)
 
@@ -75,6 +93,12 @@ app.get('/:shortCode', async (c) => {
   // 上記以外(有効期限内・active)の場合のみ、元URLへリダイレクトする
   return c.redirect(record.originalUrl, 302)
 })
+
+// 上記のどのルートにも一致しなかった残り全パス(トップページ・複数セグメントの
+// フロントエンド画面・静的アセット等)をSPAシェル/ASSETS bindingへ委譲する。
+// /:shortCodeは1セグメントのパスにしかマッチしないため、これより後ろに登録しても
+// 実在しうる短縮コード(英数字1セグメント)を横取りする心配は無い
+app.get('*', serveSpaShell)
 
 export default {
   fetch: app.fetch,

@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
 import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
+import { buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
 
 // linksテーブルとBetter Authのテーブル(user/session/account/verification)をまとめたスキーマ。
 // drizzle()とdrizzleAdapter()の両方に同じものを明示的に渡す
@@ -22,9 +23,34 @@ export function auth(env: CloudflareBindings) {
     // ローカルは.dev.vars、本番はwrangler secretで設定する値を使う
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
-    // docs/architecture.md: 認証はBetter Auth・メール+パスワードのみの方針
+    // docs/architecture.md: 認証はBetter Auth・メール+パスワードのみの方針。
+    // requireEmailVerificationはあえて設定しない(ソフト確認方式)。trueにすると
+    // Better Authの仕様上サインアップ時にセッションCookieが発行されなくなり
+    // (token: nullが返る)、既存の全テストファイルのsignUpヘルパーが前提とする
+    // 「サインアップ直後にセッションが張られる」挙動が壊れるため。未確認ユーザーでも
+    // ログイン・機能利用は継続でき、確認メール送信と「メール確認待ち」画面の表示のみ行う
     emailAndPassword: {
       enabled: true,
+      // パスワードリセットメールの送信。既存のEMAIL バインディング(Cloudflare Email
+      // Service)を使い、account-deletion-emails.tsと同じ送信元(no-reply@kyurl.link)にする
+      sendResetPassword: async ({ user, url }) => {
+        await env.EMAIL.send({
+          from: 'no-reply@kyurl.link',
+          to: user.email,
+          ...buildPasswordResetEmail(url),
+        })
+      },
+    },
+    emailVerification: {
+      // サインアップ時に自動でメール確認メールを送信する
+      sendOnSignUp: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        await env.EMAIL.send({
+          from: 'no-reply@kyurl.link',
+          to: user.email,
+          ...buildEmailVerificationEmail(url),
+        })
+      },
     },
     databaseHooks: {
       session: {

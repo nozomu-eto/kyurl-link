@@ -1,10 +1,14 @@
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { defineConfig } from 'vite'
-import ssrPlugin from 'vite-ssr-components/plugin'
 
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [cloudflare(), ssrPlugin()]
+  // @cloudflare/vite-pluginは、ルートのindex.html(クライアントSPAのエントリ)と
+  // wrangler.jsoncのmain(Workerのエントリ)の両方を検出し、client/workerの2環境を
+  // まとめてビルドする。ssrPlugin(vite-ssr-components)はrenderer.tsx(hono/jsx-renderer)を
+  // 使ったSSR方式専用のプラグインだったため、React Router(data mode)導入に伴い
+  // renderer.tsxごと廃止し、こちらも取り除く
+  plugins: [cloudflare()],
 })

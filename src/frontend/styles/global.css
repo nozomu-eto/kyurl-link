@@ -1,0 +1,258 @@
+/*
+ * デザイントークンおよび全画面共通のベーススタイル。
+ * 色の値はdocs/architecture.md 第6.2節で最終決定済みのため、ここでの変更は禁止
+ * (ベース: オフホワイト#F7F5F0 / メイン: 紺#2F5A93 / アクセント: 朱#D03E2F、大面積用#D44E40)
+ */
+:root {
+  --color-base: #f7f5f0;
+  --color-main: #2f5a93;
+  --color-main-dark: #24466f;
+  --color-accent: #d03e2f;
+  --color-accent-large: #d44e40;
+  --color-text: #222222;
+  --color-text-muted: #5a5a5a;
+  --color-border: #d8d4c9;
+  --color-surface: #ffffff;
+  --color-error: #b3261e;
+  --color-error-bg: #fbeae8;
+  --color-success: #1f7a4d;
+  --color-success-bg: #e8f4ee;
+
+  --font-family-base:
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
+  --radius-base: 8px;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-text);
+  font-family: var(--font-family-base);
+  line-height: 1.7;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-main);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.4;
+}
+
+/* 画面の最大幅を揃えるための共通コンテナ */
+.page-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* カード状のまとまり(フォーム・詳細情報等) */
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-card);
+  padding: 1.5rem;
+}
+
+/* フォーム1行分(ラベル+入力欄+エラー文言) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1.25rem;
+}
+
+.field__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.field__input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.field__input:focus {
+  outline: 2px solid var(--color-main);
+  outline-offset: 1px;
+}
+
+.field__error {
+  color: var(--color-error);
+  font-size: 0.85rem;
+}
+
+.field__hint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ボタンの基本形。--primaryはメイン色、--accentはアクセント色(大きな面積になりうる
+   ボタンではaccent-largeを使い、AAコントラスト基準を保つ) */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-base);
+  border: 1px solid transparent;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background-color: var(--color-main);
+  color: #ffffff;
+}
+
+.button--danger {
+  background-color: var(--color-accent-large);
+  color: #ffffff;
+}
+
+.button--secondary {
+  background-color: transparent;
+  color: var(--color-main);
+  border-color: var(--color-main);
+}
+
+.button--text {
+  background-color: transparent;
+  color: var(--color-main);
+  padding: 0.25rem 0.5rem;
+}
+
+/* 成否メッセージ表示。フォーム送信エラー・確認完了等の共通見た目 */
+.alert {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-base);
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.alert--error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.alert--success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+/* ヘッダー・ナビゲーション(公開画面・アプリ画面で共有) */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.site-header__brand {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-main-dark);
+  text-decoration: none;
+}
+
+.site-header__nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* /app配下の2カラムレイアウト(サイドナビ+メインコンテンツ) */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-shell__sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: 1.5rem 1rem;
+}
+
+.app-shell__nav-link {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-base);
+  color: var(--color-text);
+  text-decoration: none;
+  margin-bottom: 0.25rem;
+}
+
+.app-shell__nav-link.is-active {
+  background-color: var(--color-main);
+  color: #ffffff;
+}
+
+.app-shell__main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 960px;
+}
+
+/* 一覧テーブルの共通見た目(link/qrcode/poster一覧で使い回す) */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge--active {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.status-badge--expired,
+.status-badge--suspended {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}

@@ -1,0 +1,29 @@
+/** @jsxImportSource react */
+import { Link } from 'react-router'
+
+// TopPage: 未ログインの訪問者が最初に見るトップページ。
+// サービスの概要を説明し、新規登録・ログインへの導線を示すだけの静的な画面
+export function TopPage() {
+  return (
+    <div className="page-container">
+      <h1 style={{ fontSize: '1.75rem' }}>URLを短くして、QRコードと掲示物まで。</h1>
+      <p>
+        kyurl.linkは、URL短縮・QRコード生成・店舗掲示物(ポスター)づくりをまとめてできるサービスです。
+        飲食店・カフェ・美容室・整体院など、小規模な店舗・施設でのご利用を想定しています。
+      </p>
+      <ul>
+        <li>1つの元URLから複数の短縮URLを発行できます</li>
+        <li>短縮URL・元URLどちらにもQRコードを紐づけられます</li>
+        <li>QRコードを含む掲示物(A6・A5サイズ)をそのまま印刷用に書き出せます</li>
+      </ul>
+      <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+        <Link to="/signup" className="button button--primary">
+          無料で新規登録
+        </Link>
+        <Link to="/login" className="button button--secondary">
+          ログイン
+        </Link>
+      </div>
+    </div>
+  )
+}
