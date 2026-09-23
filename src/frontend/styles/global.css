@@ -481,7 +481,6 @@ h1 {
 .button--cta {
   background-color: var(--color-cta);
   color: var(--color-on-cta);
-  box-shadow: 0 3px 0 var(--color-cta-shade);
 }
 
 .button--cta:hover {
@@ -501,14 +500,14 @@ h1 {
 }
 
 .button--outline {
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  background-color: var(--color-brand-strong);
+  color: var(--color-surface);
+  border: none;
 }
 
 .button--outline:hover {
-  border-color: var(--color-brand);
-  color: var(--color-brand);
+  background-color: var(--color-brand);
+  color: var(--color-surface);
 }
 
 .button--danger {
@@ -528,17 +527,6 @@ h1 {
   min-height: 56px;
   padding: 0 var(--space-8);
   font-size: 1.1rem;
-}
-
-/* 右向きの「›」を付ける修飾子(エックスサーバー風のCTA)。currentColorで文字色に追従する */
-.button--arrow::after {
-  content: '';
-  width: 0.45em;
-  height: 0.45em;
-  margin-left: var(--space-1);
-  border-top: 2px solid currentColor;
-  border-right: 2px solid currentColor;
-  transform: rotate(45deg);
 }
 
 /* フォーム1行分(ラベル+入力欄+エラー文言) */

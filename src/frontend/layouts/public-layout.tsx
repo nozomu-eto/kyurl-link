@@ -32,8 +32,8 @@ export function PublicLayout() {
                 ログイン
               </Link>
               {/* 画面内で最も押してほしい導線のため、朱(CTA色)のボタンにする */}
-              <Link to="/signup" className="button button--cta button--arrow">
-                無料で新規登録
+              <Link to="/signup" className="button button--cta">
+                新規登録
               </Link>
             </>
           )}
@@ -58,7 +58,7 @@ export function PublicLayout() {
             <p className="site-footer__heading">アカウント</p>
             <ul className="site-footer__links">
               <li>
-                <Link to="/signup">無料で新規登録</Link>
+                <Link to="/signup">新規登録</Link>
               </li>
               <li>
                 <Link to="/login">ログイン</Link>

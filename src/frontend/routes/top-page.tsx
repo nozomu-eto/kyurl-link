@@ -19,10 +19,10 @@ export function TopPage() {
         <li>QRコードを含む掲示物(A6・A5サイズ)をそのまま印刷用に書き出せます</li>
       </ul>
       <div className="button-group">
-        <Link to="/signup" className="button button--cta button--arrow button--large">
-          無料で新規登録
+        <Link to="/signup" className="button button--cta button--large">
+          新規登録
         </Link>
-        <Link to="/login" className="button button--secondary button--large">
+        <Link to="/login" className="button button--outline button--large">
           ログイン
         </Link>
       </div>
