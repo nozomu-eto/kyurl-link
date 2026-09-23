@@ -136,18 +136,18 @@ export function TermsPage() {
         本利用規約(以下「本規約」といいます。)は、kyurl.link(以下「本サービス」といいます。)の利用条件を定めるものです。本サービスを利用する方(以下「利用者」といいます。)は、本規約の内容を確認し、同意した上で本サービスを利用するものとします。
       </p>
       {TERMS_ARTICLES.map((article) => (
-        <section key={article.title} style={{ marginTop: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.05rem' }}>{article.title}</h2>
+        <section key={article.title} className="legal-article">
+          <h2 className="legal-article__title">{article.title}</h2>
           {article.paragraphs.map((paragraph, index) => (
             // 条文本文は改行(\n)を含むプレーンテキストなので、whiteSpace: 'pre-wrap'で
             // 改行をそのまま画面表示に反映する
-            <p key={index} style={{ whiteSpace: 'pre-wrap' }}>
+            <p key={index} className="legal-article__body">
               {paragraph}
             </p>
           ))}
         </section>
       ))}
-      <p className="field__hint" style={{ marginTop: '2rem' }}>
+      <p className="field__hint">
         制定日:2026年9月18日
       </p>
     </div>

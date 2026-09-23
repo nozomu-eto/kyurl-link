@@ -63,12 +63,14 @@ export function LoginPage() {
           {isSubmitting ? 'ログイン中…' : 'ログイン'}
         </button>
       </form>
-      <p className="field__hint" style={{ marginTop: '1rem' }}>
-        <Link to="/reset-password">パスワードをお忘れの方</Link>
-      </p>
-      <p className="field__hint">
-        アカウントをお持ちでない方は<Link to="/signup">新規登録</Link>
-      </p>
+      <div className="form-links">
+        <p>
+          <Link to="/reset-password">パスワードをお忘れの方</Link>
+        </p>
+        <p>
+          アカウントをお持ちでない方は<Link to="/signup">新規登録</Link>
+        </p>
+      </div>
     </div>
   )
 }

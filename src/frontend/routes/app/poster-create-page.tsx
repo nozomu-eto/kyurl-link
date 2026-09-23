@@ -60,7 +60,7 @@ export function PosterCreatePage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>掲示物を作成</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       <form className="card" onSubmit={handleSubmit}>

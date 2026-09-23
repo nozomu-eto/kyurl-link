@@ -37,8 +37,8 @@ export function AppLayout() {
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
-        <Link to="/" className="site-header__brand" style={{ display: 'block', marginBottom: '1.5rem' }}>
-          kyurl.link
+        <Link to="/" className="brand-logo app-shell__brand">
+          kyurl<span className="brand-logo__dot">.</span>link
         </Link>
         <nav>
           <NavLink to="/app" end className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
@@ -54,7 +54,7 @@ export function AppLayout() {
             アカウント設定
           </NavLink>
         </nav>
-        <p className="field__hint" style={{ marginTop: '2rem' }}>
+        <p className="app-shell__account">
           {currentUser.email}
         </p>
         <button type="button" className="button button--text" onClick={handleSignOutClick}>

@@ -51,7 +51,7 @@ export function AccountDeletionPage() {
   }
 
   return (
-    <div className="page-container" style={{ padding: 0 }}>
+    <div className="page">
       <h1>アカウントを削除</h1>
       <AlertMessage tone="error">
         この操作を行うと、短縮URL・QRコード・掲示物を含むすべてのデータへのアクセスが即座に停止します。7日間の猶予期間中にログインすれば取り消せますが、それ以降は元に戻せません。

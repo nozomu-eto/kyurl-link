@@ -37,9 +37,9 @@ export function DashboardPage() {
   const { linkListItems } = useLoaderData<typeof dashboardLoader>()
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0 }}>短縮URL一覧</h1>
+    <div className="page">
+      <div className="page-header">
+        <h1>短縮URL一覧</h1>
         <Link to="/app/links/new" className="button button--primary">
           新しい短縮URLを作成
         </Link>
@@ -62,7 +62,7 @@ export function DashboardPage() {
             {linkListItems.map((linkListItem: LinkListItem) => (
               <tr key={linkListItem.id}>
                 <td>{`${window.location.origin}/${linkListItem.shortCode}`}</td>
-                <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linkListItem.originalUrl}</td>
+                <td className="data-table__cell--truncate">{linkListItem.originalUrl}</td>
                 <td>
                   <span className={`status-badge status-badge--${linkListItem.status}`}>{statusLabel(linkListItem.status)}</span>
                 </td>

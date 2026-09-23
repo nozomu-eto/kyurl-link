@@ -79,20 +79,20 @@ export function QrCodeEditorPage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>QRコードの詳細</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       {successMessage && <AlertMessage tone="success">{successMessage}</AlertMessage>}
 
-      <section className="card" style={{ marginBottom: '1.5rem' }}>
+      <section className="card">
         {/* GET /api/v1/qrcodes/:id/imageは認証不要の公開エンドポイントなので、
             そのまま<img src>に指定してSVGを表示できる */}
         <img src={`/api/v1/qrcodes/${qrcode.id}/image`} alt="QRコード" width={200} height={200} />
         <p className="field__hint">対象種別: {qrcode.targetType === 'link' ? '短縮URL' : '直接URL'}</p>
       </section>
 
-      <section className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>スタイル設定</h2>
+      <section className="card">
+        <h2 className="card__title">スタイル設定</h2>
         <p className="field__hint">※現在はスタイル設定の保存のみ対応しており、QR画像自体への反映は今後対応予定です。</p>
         <form onSubmit={handleStyleSubmit}>
           <div className="field">
@@ -125,11 +125,11 @@ export function QrCodeEditorPage() {
         </form>
       </section>
 
-      <section className="card">
+      <section className="card button-group">
         <button type="button" className="button button--secondary" onClick={() => navigate(`/app/qrcodes/${qrcode.id}/posters/new`)}>
           この QR コードで掲示物を作成
         </button>
-        <button type="button" className="button button--danger" style={{ marginLeft: '0.75rem' }} disabled={isDeleting} onClick={handleDeleteClick}>
+        <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
           {isDeleting ? '削除中…' : 'このQRコードを削除'}
         </button>
       </section>

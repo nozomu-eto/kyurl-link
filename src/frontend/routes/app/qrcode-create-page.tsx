@@ -65,7 +65,7 @@ export function QrCodeCreatePage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>QRコードを作成</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       <form className="card" onSubmit={handleSubmit}>

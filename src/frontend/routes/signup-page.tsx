@@ -88,12 +88,14 @@ export function SignupPage() {
           {isSubmitting ? '登録中…' : '登録する'}
         </button>
       </form>
-      <p className="field__hint" style={{ marginTop: '1rem' }}>
-        すでにアカウントをお持ちの方は<Link to="/login">ログイン</Link>
-      </p>
-      <p className="field__hint">
-        登録することで、<Link to="/terms">利用規約</Link>および<Link to="/privacy">プライバシーポリシー</Link>に同意したものとみなされます。
-      </p>
+      <div className="form-links">
+        <p>
+          すでにアカウントをお持ちの方は<Link to="/login">ログイン</Link>
+        </p>
+        <p>
+          登録することで、<Link to="/terms">利用規約</Link>および<Link to="/privacy">プライバシーポリシー</Link>に同意したものとみなされます。
+        </p>
+      </div>
     </div>
   )
 }

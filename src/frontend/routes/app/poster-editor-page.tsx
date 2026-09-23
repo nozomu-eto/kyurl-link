@@ -85,13 +85,13 @@ export function PosterEditorPage() {
   const previewScale = 2
 
   return (
-    <div>
+    <div className="page">
       <h1>掲示物の編集({poster.size}縦)</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       {successMessage && <AlertMessage tone="success">{successMessage}</AlertMessage>}
 
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        <form className="card" style={{ flex: '1 1 320px' }} onSubmit={handleSubmit}>
+      <div className="editor-layout">
+        <form className="card editor-layout__form" onSubmit={handleSubmit}>
           <div className="field">
             <label className="field__label" htmlFor="poster-editor-title">
               タイトル
@@ -109,44 +109,35 @@ export function PosterEditorPage() {
           </button>
         </form>
 
-        {/* 簡易プレビュー。A6/A5の縦横比をmm値そのままpx換算(previewScale倍)して再現する */}
+        {/* 簡易プレビュー。A6/A5の縦横比をmm値そのままpx換算(previewScale倍)して再現する。
+            幅・高さは掲示物サイズから計算する動的な値のため、例外的にインラインstyleで指定する */}
         <div
-          className="card"
+          className="card poster-preview"
           style={{
             width: previewSize.width * previewScale,
             height: previewSize.height * previewScale,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.75rem',
-            flexShrink: 0,
           }}
         >
           <img src={`/api/v1/qrcodes/${poster.qrCodeId}/image`} alt="QRコード" width={120} height={120} />
-          <strong style={{ textAlign: 'center' }}>{title}</strong>
-          {subtitle && <span style={{ textAlign: 'center' }}>{subtitle}</span>}
+          <strong>{title}</strong>
+          {subtitle && <span>{subtitle}</span>}
         </div>
       </div>
 
-      <section className="card" style={{ marginTop: '1.5rem' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>書き出し</h2>
+      <section className="card">
+        <h2 className="card__title">書き出し</h2>
         <p className="field__hint">PDF/PNGの生成には数秒かかる場合があります。別タブで開きます。</p>
-        <a href={`/api/v1/posters/${poster.id}/export?format=pdf`} target="_blank" rel="noreferrer" className="button button--secondary">
-          PDFで書き出す
-        </a>
-        <a
-          href={`/api/v1/posters/${poster.id}/export?format=png`}
-          target="_blank"
-          rel="noreferrer"
-          className="button button--secondary"
-          style={{ marginLeft: '0.75rem' }}
-        >
-          PNGで書き出す
-        </a>
+        <div className="button-group">
+          <a href={`/api/v1/posters/${poster.id}/export?format=pdf`} target="_blank" rel="noreferrer" className="button button--secondary">
+            PDFで書き出す
+          </a>
+          <a href={`/api/v1/posters/${poster.id}/export?format=png`} target="_blank" rel="noreferrer" className="button button--secondary">
+            PNGで書き出す
+          </a>
+        </div>
       </section>
 
-      <button type="button" className="button button--danger" style={{ marginTop: '1.5rem' }} disabled={isDeleting} onClick={handleDeleteClick}>
+      <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
         {isDeleting ? '削除中…' : 'この掲示物を削除'}
       </button>
     </div>

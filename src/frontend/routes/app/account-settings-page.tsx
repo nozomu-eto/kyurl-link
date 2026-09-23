@@ -39,10 +39,10 @@ export function AccountSettingsPage() {
   const { currentUser } = useOutletContext<{ currentUser: AuthUser }>()
 
   return (
-    <div>
+    <div className="page">
       <h1>アカウント設定</h1>
 
-      <section className="card" style={{ marginBottom: '1.5rem' }}>
+      <section className="card">
         <p>
           <strong>メールアドレス:</strong> {currentUser.email}
         </p>
@@ -52,7 +52,7 @@ export function AccountSettingsPage() {
       </section>
 
       <section className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>アカウントの削除</h2>
+        <h2 className="card__title">アカウントの削除</h2>
 
         {pendingDeletionRequest ? (
           <>

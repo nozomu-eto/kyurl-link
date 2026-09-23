@@ -41,7 +41,7 @@ export function LinkCreatePage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>短縮URLを作成</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       <form className="card" onSubmit={handleSubmit}>
