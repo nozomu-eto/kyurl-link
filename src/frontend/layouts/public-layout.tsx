@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { Link, Outlet } from 'react-router'
+import { Link, Outlet, ScrollRestoration } from 'react-router'
 import { authClient } from '@/frontend/lib/auth-client'
 import { HeaderDrawer } from '@/frontend/components/header-drawer'
 
@@ -94,6 +94,10 @@ export function PublicLayout() {
           <span className="site-footer__copyright">© kyurl.link</span>
         </div>
       </footer>
+      {/* 画面遷移のたびにスクロール位置を先頭に戻す(戻る/進むの場合は元の位置を復元する)。
+          無いと、利用規約・プライバシーポリシーのような長いページから別ページに遷移した際、
+          遷移前のスクロール位置が残ってしまう */}
+      <ScrollRestoration />
     </div>
   )
 }
