@@ -17,7 +17,6 @@ export function PublicLayout() {
           <span className="brand-logo">
             kyurl<span className="brand-logo__dot">.</span>link
           </span>
-          <span className="brand-tagline">URL短縮・QRコード・掲示物</span>
         </Link>
         {/* デスクトップナビ(1024px以上) */}
         <nav className="site-header__nav site-header__nav--desktop">

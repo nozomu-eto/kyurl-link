@@ -268,12 +268,6 @@ h1 {
   color: var(--color-cta);
 }
 
-.brand-tagline {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-brand);
-}
-
 /* 濃紺のフッター。ロゴ列+リンク列のグリッド */
 .site-footer {
   padding: var(--space-12) var(--space-6) var(--space-8);
