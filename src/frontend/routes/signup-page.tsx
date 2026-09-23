@@ -2,9 +2,12 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { TurnstileWidget } from '@/frontend/components/turnstile-widget'
 import { authClient, translateAuthErrorCode } from '@/frontend/lib/auth-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // SignupPage: メールアドレス・パスワード・お名前(表示名)を入力して新規登録する画面。
 // 送信するとauthClient.signUp.emailでBetter Auth(/api/auth/sign-up/email)を呼び出す。
@@ -57,10 +60,9 @@ export function SignupPage() {
   }
 
   return (
-    <div className="page-container">
-      <h1>新規登録</h1>
+    <Page contained title="新規登録">
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="signup-name"
           label="お名前(表示名)"
@@ -97,10 +99,10 @@ export function SignupPage() {
           }}
         />
         <TurnstileWidget onVerify={setTurnstileToken} />
-        <button type="submit" className="button button--primary" disabled={isSubmitting || !turnstileToken}>
+        <Button type="submit" disabled={isSubmitting || !turnstileToken}>
           {isSubmitting ? '登録中…' : '登録する'}
-        </button>
-      </form>
+        </Button>
+      </FormCard>
       <div className="form-links">
         <p>
           すでにアカウントをお持ちの方は<Link to="/login">ログイン</Link>
@@ -109,6 +111,6 @@ export function SignupPage() {
           登録することで、<Link to="/terms">利用規約</Link>および<Link to="/privacy">プライバシーポリシー</Link>に同意したものとみなされます。
         </p>
       </div>
-    </div>
+    </Page>
   )
 }

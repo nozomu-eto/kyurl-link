@@ -1,4 +1,5 @@
 /** @jsxImportSource react */
+import { LegalDocument } from '@/frontend/components/legal-document'
 
 // 利用規約の条文データ。docs/terms-of-service.md(制定日: 2026年9月18日)の内容を
 // そのまま転記したもの。AGENTS.mdのBoundaries「docs/配下の各ドキュメントは直接編集する」
@@ -130,26 +131,11 @@ const TERMS_ARTICLES: { title: string; paragraphs: string[] }[] = [
 // 条文はTERMS_ARTICLES(docs/terms-of-service.mdの転記)を順に描画するだけの静的画面
 export function TermsPage() {
   return (
-    <div className="page-container">
-      <h1>利用規約</h1>
-      <p className="field__hint">
-        本利用規約(以下「本規約」といいます。)は、kyurl.link(以下「本サービス」といいます。)の利用条件を定めるものです。本サービスを利用する方(以下「利用者」といいます。)は、本規約の内容を確認し、同意した上で本サービスを利用するものとします。
-      </p>
-      {TERMS_ARTICLES.map((article) => (
-        <section key={article.title} className="legal-article">
-          <h2 className="legal-article__title">{article.title}</h2>
-          {article.paragraphs.map((paragraph, index) => (
-            // 条文本文は改行(\n)を含むプレーンテキストなので、whiteSpace: 'pre-wrap'で
-            // 改行をそのまま画面表示に反映する
-            <p key={index} className="legal-article__body">
-              {paragraph}
-            </p>
-          ))}
-        </section>
-      ))}
-      <p className="field__hint">
-        制定日:2026年9月18日
-      </p>
-    </div>
+    <LegalDocument
+      title="利用規約"
+      lead="本利用規約(以下「本規約」といいます。)は、kyurl.link(以下「本サービス」といいます。)の利用条件を定めるものです。本サービスを利用する方(以下「利用者」といいます。)は、本規約の内容を確認し、同意した上で本サービスを利用するものとします。"
+      articles={TERMS_ARTICLES}
+      dateNote="制定日:2026年9月18日"
+    />
   )
 }

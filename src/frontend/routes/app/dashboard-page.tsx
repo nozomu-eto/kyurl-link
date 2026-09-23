@@ -3,6 +3,9 @@ import { Link, useLoaderData } from 'react-router'
 import { apiClient } from '@/frontend/lib/api-client'
 import type { linkSchema } from '@/shared/schemas/link'
 import type { z } from 'zod'
+import { ButtonLink } from '@/frontend/components/button'
+import { LinkStatusBadge } from '@/frontend/components/link-status-badge'
+import { Page } from '@/frontend/components/page'
 
 type LinkListItem = z.infer<typeof linkSchema>
 
@@ -19,32 +22,13 @@ export async function dashboardLoader() {
   return { linkListItems: body.items }
 }
 
-// linkのstatusを、一覧画面でそのまま表示するための日本語ラベルに変換する
-function statusLabel(status: LinkListItem['status']): string {
-  switch (status) {
-    case 'active':
-      return '有効'
-    case 'expired':
-      return '期限切れ'
-    case 'suspended':
-      return '停止中'
-  }
-}
-
 // DashboardPage: ログインユーザーが作成した短縮URLの一覧画面(docs/architecture.md 第6.1節)。
 // 各行から詳細画面(クリック統計・紐づくQRコード)へ遷移できる
 export function DashboardPage() {
   const { linkListItems } = useLoaderData<typeof dashboardLoader>()
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>短縮URL一覧</h1>
-        <Link to="/app/links/new" className="button button--primary">
-          新しい短縮URLを作成
-        </Link>
-      </div>
-
+    <Page title="短縮URL一覧" actions={<ButtonLink to="/app/links/new">新しい短縮URLを作成</ButtonLink>}>
       {linkListItems.length === 0 ? (
         <p>まだ短縮URLがありません。「新しい短縮URLを作成」から作成してください。</p>
       ) : (
@@ -64,7 +48,7 @@ export function DashboardPage() {
                 <td>{`${window.location.origin}/${linkListItem.shortCode}`}</td>
                 <td className="data-table__cell--truncate">{linkListItem.originalUrl}</td>
                 <td>
-                  <span className={`status-badge status-badge--${linkListItem.status}`}>{statusLabel(linkListItem.status)}</span>
+                  <LinkStatusBadge status={linkListItem.status} />
                 </td>
                 <td>{linkListItem.expiresAt ? new Date(linkListItem.expiresAt).toLocaleDateString('ja-JP') : '無期限'}</td>
                 <td>
@@ -75,6 +59,6 @@ export function DashboardPage() {
           </tbody>
         </table>
       )}
-    </div>
+    </Page>
   )
 }

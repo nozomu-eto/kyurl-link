@@ -2,8 +2,11 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { authClient, translateAuthErrorCode } from '@/frontend/lib/auth-client'
+import { Button, ButtonLink } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // ResetPasswordConfirmPage: メール内のリセットリンクから遷移してくる、新しいパスワードを
 // 入力する画面。Better Authはリンククリック時に/api/auth/reset-password/:tokenで
@@ -44,31 +47,28 @@ export function ResetPasswordConfirmPage() {
 
   if (hasError || !token) {
     return (
-      <div className="page-container">
-        <h1>パスワード再設定</h1>
+      <Page contained title="パスワード再設定">
         <AlertMessage tone="error">このリンクは無効か、有効期限が切れています。お手数ですが、もう一度パスワード再設定をお申し込みください。</AlertMessage>
         <Link to="/reset-password">パスワード再設定をやり直す</Link>
-      </div>
+      </Page>
     )
   }
 
   if (isCompleted) {
     return (
-      <div className="page-container">
-        <h1>パスワード再設定</h1>
+      <Page contained title="パスワード再設定">
         <AlertMessage tone="success">パスワードを再設定しました。新しいパスワードでログインしてください。</AlertMessage>
-        <Link to="/login" className="button button--primary">
+        <ButtonLink to="/login">
           ログイン画面へ
-        </Link>
-      </div>
+        </ButtonLink>
+      </Page>
     )
   }
 
   return (
-    <div className="page-container">
-      <h1>新しいパスワードを設定</h1>
+    <Page contained title="新しいパスワードを設定">
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="reset-confirm-new-password"
           label="新しいパスワード"
@@ -82,10 +82,10 @@ export function ResetPasswordConfirmPage() {
             onChange: (e) => setNewPassword(e.target.value),
           }}
         />
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '設定中…' : 'パスワードを設定する'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

@@ -3,6 +3,10 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { Button, buttonClassName } from '@/frontend/components/button'
+import { Card, FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // posterEditorLoader: 掲示物編集画面の表示に必要なposter1件分を取得するloader
@@ -90,44 +94,26 @@ export function PosterEditorPage() {
   const previewScale = 2
 
   return (
-    <div className="page">
-      <h1>掲示物の編集({poster.size}縦)</h1>
+    <Page title={<>掲示物の編集({poster.size}縦)</>}>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       {successMessage && <AlertMessage tone="success">{successMessage}</AlertMessage>}
 
       <div className="editor-layout">
-        <form className="card editor-layout__form" onSubmit={handleSubmit}>
-          <div className="field">
-            <label className="field__label" htmlFor="poster-editor-title">
-              タイトル
-            </label>
-            <input
-              id="poster-editor-title"
-              className="field__input"
-              type="text"
-              required
-              maxLength={POSTER_TITLE_MAX_LENGTH}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="poster-editor-subtitle">
-              サブタイトル(任意)
-            </label>
-            <input
-              id="poster-editor-subtitle"
-              className="field__input"
-              type="text"
-              maxLength={POSTER_SUBTITLE_MAX_LENGTH}
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="button button--primary" disabled={isSaving}>
+        <FormCard className="editor-layout__form" onSubmit={handleSubmit}>
+          <FormField
+            fieldId="poster-editor-title"
+            label="タイトル"
+            inputProps={{ type: 'text', required: true, maxLength: POSTER_TITLE_MAX_LENGTH, value: title, onChange: (e) => setTitle(e.target.value) }}
+          />
+          <FormField
+            fieldId="poster-editor-subtitle"
+            label="サブタイトル(任意)"
+            inputProps={{ type: 'text', maxLength: POSTER_SUBTITLE_MAX_LENGTH, value: subtitle, onChange: (e) => setSubtitle(e.target.value) }}
+          />
+          <Button type="submit" disabled={isSaving}>
             {isSaving ? '保存中…' : '保存する'}
-          </button>
-        </form>
+          </Button>
+        </FormCard>
 
         {/* 簡易プレビュー。A6/A5の縦横比をmm値そのままpx換算(previewScale倍)して再現する。
             幅・高さは掲示物サイズから計算する動的な値のため、例外的にインラインstyleで指定する */}
@@ -144,22 +130,21 @@ export function PosterEditorPage() {
         </div>
       </div>
 
-      <section className="card">
-        <h2 className="card__title">書き出し</h2>
+      <Card title="書き出し">
         <p className="field__hint">PDF/PNGの生成には数秒かかる場合があります。別タブで開きます。</p>
         <div className="button-group">
-          <a href={`/api/v1/posters/${poster.id}/export?format=pdf`} target="_blank" rel="noreferrer" className="button button--secondary">
+          <a href={`/api/v1/posters/${poster.id}/export?format=pdf`} target="_blank" rel="noreferrer" className={buttonClassName({ variant: 'secondary' })}>
             PDFで書き出す
           </a>
-          <a href={`/api/v1/posters/${poster.id}/export?format=png`} target="_blank" rel="noreferrer" className="button button--secondary">
+          <a href={`/api/v1/posters/${poster.id}/export?format=png`} target="_blank" rel="noreferrer" className={buttonClassName({ variant: 'secondary' })}>
             PNGで書き出す
           </a>
         </div>
-      </section>
+      </Card>
 
-      <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
+      <Button variant="danger" disabled={isDeleting} onClick={handleDeleteClick}>
         {isDeleting ? '削除中…' : 'この掲示物を削除'}
-      </button>
-    </div>
+      </Button>
+    </Page>
   )
 }

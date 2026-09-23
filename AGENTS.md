@@ -33,6 +33,7 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - APIレスポンスの一覧形式: `{ items, total, limit, offset }`
 - APIエラー形式: `{ error: { code, message, details? } }`
 - フロントのスタイルは`src/frontend/styles/global.css`のクラスで指定し、JSXのインライン`style`は使わない(画面側で計算する動的な値のみ例外)。色は第2層の役割トークン(`--color-*`)だけを参照し、`--palette-*`やHEX値を部品から直接使わない(`docs/architecture.md` 第6.2節)
+- 画面の骨組みは`src/frontend/components/`の共通部品(`Page`・`Card`/`FormCard`・`Button`/`ButtonLink`・`FormField`/`SelectField`/`Field`等)で組み立て、`page`・`card`・`button`・`field`系のクラスを画面側に直接書かない。新しい見た目のパターンが必要になったら、まず共通部品の追加・拡張を検討する
 
 ## Boundaries
 

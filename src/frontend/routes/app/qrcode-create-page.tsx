@@ -3,6 +3,10 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { Field, FormField, SelectField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // qrcodeCreateLoader: QRコード作成画面のloader。
@@ -71,8 +75,7 @@ export function QrCodeCreatePage() {
   }
 
   return (
-    <div className="page">
-      <h1>QRコードを作成</h1>
+    <Page title="QRコードを作成">
       {errorMessage && (
         <AlertMessage tone="error">
           {errorMessage}
@@ -84,33 +87,25 @@ export function QrCodeCreatePage() {
           )}
         </AlertMessage>
       )}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         {fixedLink ? (
           <p>
             対象の短縮URL: <strong>{`${window.location.origin}/${fixedLink.shortCode}`}</strong>
           </p>
         ) : (
           <>
-            <div className="field">
-              <label className="field__label" htmlFor="qrcode-create-target-kind">
-                対象の種類
-              </label>
-              <select
-                id="qrcode-create-target-kind"
-                className="field__input"
-                value={targetKind}
-                onChange={(e) => setTargetKind(e.target.value as 'link' | 'rawUrl')}
-              >
-                <option value="link">作成済みの短縮URL</option>
-                <option value="rawUrl">直接URLを指定</option>
-              </select>
-            </div>
+            <SelectField
+              fieldId="qrcode-create-target-kind"
+              label="対象の種類"
+              options={[
+                { value: 'link', label: '作成済みの短縮URL' },
+                { value: 'rawUrl', label: '直接URLを指定' },
+              ]}
+              selectProps={{ value: targetKind, onChange: (e) => setTargetKind(e.target.value as 'link' | 'rawUrl') }}
+            />
 
             {targetKind === 'link' ? (
-              <div className="field">
-                <label className="field__label" htmlFor="qrcode-create-link-select">
-                  対象の短縮URL
-                </label>
+              <Field fieldId="qrcode-create-link-select" label="対象の短縮URL">
                 {selectableLinkItems && selectableLinkItems.length > 0 ? (
                   <select
                     id="qrcode-create-link-select"
@@ -127,36 +122,32 @@ export function QrCodeCreatePage() {
                 ) : (
                   <p className="field__hint">まだ短縮URLがありません。先に短縮URLを作成してください。</p>
                 )}
-              </div>
+              </Field>
             ) : (
-              <div className="field">
-                <label className="field__label" htmlFor="qrcode-create-raw-url">
-                  対象URL
-                </label>
-                <input
-                  id="qrcode-create-raw-url"
-                  className="field__input"
-                  type="url"
-                  required
+              <FormField
+                fieldId="qrcode-create-raw-url"
+                label="対象URL"
+                inputProps={{
+                  type: 'url',
+                  required: true,
                   // サーバー側スキーマ(httpUrlSchema)の上限と揃える
-                  maxLength={URL_MAX_LENGTH}
-                  placeholder="https://example.com"
-                  value={rawUrl}
-                  onChange={(e) => setRawUrl(e.target.value)}
-                />
-              </div>
+                  maxLength: URL_MAX_LENGTH,
+                  placeholder: 'https://example.com',
+                  value: rawUrl,
+                  onChange: (e) => setRawUrl(e.target.value),
+                }}
+              />
             )}
           </>
         )}
 
-        <button
+        <Button
           type="submit"
-          className="button button--primary"
           disabled={isSubmitting || (!fixedLink && targetKind === 'link' && !selectedLinkId)}
         >
           {isSubmitting ? '作成中…' : 'QRコードを作成'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

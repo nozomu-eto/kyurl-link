@@ -2,8 +2,11 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { authClient, translateAuthErrorCode } from '@/frontend/lib/auth-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // LoginPage: メールアドレス・パスワードでログインする画面。
 // ログイン成立(セッション作成)のタイミングで、猶予期間中のアカウント削除申請があれば
@@ -33,10 +36,9 @@ export function LoginPage() {
   }
 
   return (
-    <div className="page-container">
-      <h1>ログイン</h1>
+    <Page contained title="ログイン">
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="login-email"
           label="メールアドレス"
@@ -59,10 +61,10 @@ export function LoginPage() {
             onChange: (e) => setPassword(e.target.value),
           }}
         />
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'ログイン中…' : 'ログイン'}
-        </button>
-      </form>
+        </Button>
+      </FormCard>
       <div className="form-links">
         <p>
           <Link to="/reset-password">パスワードをお忘れの方</Link>
@@ -71,6 +73,6 @@ export function LoginPage() {
           アカウントをお持ちでない方は<Link to="/signup">新規登録</Link>
         </p>
       </div>
-    </div>
+    </Page>
   )
 }
