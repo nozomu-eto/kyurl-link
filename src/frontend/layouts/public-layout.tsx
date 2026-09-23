@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import { Link, Outlet } from 'react-router'
 import { authClient } from '@/frontend/lib/auth-client'
+import { HeaderDrawer } from '@/frontend/components/header-drawer'
 
 // PublicLayout: 未ログインでも閲覧できる画面(トップ・利用規約・プライバシーポリシー・
 // 認証系画面)で共有するヘッダー・フッターを持つ外枠(見た目はdocs/architecture.md 第6.5節)。
@@ -18,7 +19,8 @@ export function PublicLayout() {
           </span>
           <span className="brand-tagline">URL短縮・QRコード・掲示物</span>
         </Link>
-        <nav className="site-header__nav">
+        {/* デスクトップナビ(1024px以上) */}
+        <nav className="site-header__nav site-header__nav--desktop">
           {/* セッション確認中(isPending)は状態が確定するまでリンクを出し分けない
               (ログイン済みなのに一瞬「ログイン」リンクが見えるちらつきを避けるため) */}
           {!isPending && session && (
@@ -38,6 +40,11 @@ export function PublicLayout() {
             </>
           )}
         </nav>
+
+        {/* タブレット・モバイルナビ(1024px以下) */}
+        {!isPending && (
+          <HeaderDrawer isLoggedIn={!!session} />
+        )}
       </header>
       <main className="public-shell__main">
         <Outlet />

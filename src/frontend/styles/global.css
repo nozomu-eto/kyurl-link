@@ -209,11 +209,14 @@ h1 {
  * 第3層: ヘッダー・フッター
  * ============================================================ */
 
-/* 白の固定ヘッダー(エックスサーバー風: 右端に塗りのCTAと枠線のログイン) */
+/* 白の固定ヘッダー(エックスサーバー風: 右端に塗りのCTAと枠線のログイン)。
+ * 重なり順(奥から手前): 通常コンテンツ < ドロワーのモーダルオーバーレイ(z-index: 99) <
+ * ドロワーパネル(z-index: 100) < ヘッダー。ドロワー表示中もヘッダー(ハンバーガーボタン含む)が
+ * 隠れないよう、ヘッダーのz-indexをドロワーパネルより大きくする */
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 101;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -235,6 +238,20 @@ h1 {
   display: flex;
   gap: var(--space-3);
   align-items: center;
+}
+
+/* デスクトップナビは1024px以下(タブレット・モバイル)で非表示。1024px自体もハンバーガー側に含める */
+@media (max-width: 1024px) {
+  .site-header__nav--desktop {
+    display: none;
+  }
+}
+
+/* タブレット・モバイル(1024px以下)以外、つまり1025px以上は非表示 */
+@media (min-width: 1025px) {
+  .header-drawer__toggle {
+    display: none;
+  }
 }
 
 /* ロゴ(「kyurl.link」)。ドットだけアクセント色にする */
@@ -667,4 +684,108 @@ h1 {
 
 .legal-article__body {
   white-space: pre-wrap;
+}
+
+/* ========== ハンバーガーメニュー・ドロワー ========== */
+
+/* ハンバーガーボタン(3本線) */
+.header-drawer__toggle {
+  display: none;
+  flex-direction: column;
+  gap: 0.375rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-drawer__toggle-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-brand-strong);
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+/* ハンバーガー(3本線)⇔✗の変形。ヘッダーが最前面に来てドロワーと重ならないため、
+ * ドロワー内に別の閉じるボタンは置かず、このボタン自体で開閉を示す。
+ * 3本線は上から順に-8px/0/+8pxの位置にあるため、開いている間は上下の線を中央に寄せて
+ * 45度ずつ逆向きに回転させ✗を作り、中央の線は透明にする */
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(2) {
+  opacity: 0;
+}
+
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* モーダルオーバーレイ */
+.header-drawer__overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ドロワーパネル。ヘッダー(z-index: 101)がこのパネルの上端(.site-headerの高さ分)を覆うため、
+ * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する。
+ * 開閉は常に手前にあるヘッダー側のハンバーガーボタン(✗に変形する)とオーバーレイのクリックで行う */
+.header-drawer__panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 280px;
+  max-width: 90vw;
+  padding-top: 72px;
+  background-color: var(--color-surface);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 8px rgba(20, 32, 56, 0.12);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.header-drawer__panel--open {
+  transform: translateX(0);
+}
+
+/* ドロワー内のコンテンツ */
+.header-drawer__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.header-drawer__item {
+  width: 100%;
+}
+
+/* タブレット以下(1024px以下)でハンバーガーメニューを表示 */
+@media (max-width: 1024px) {
+  .header-drawer__toggle {
+    display: flex;
+  }
 }
