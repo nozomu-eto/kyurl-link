@@ -64,9 +64,16 @@ export function goneePageHtml(): string {
 // 参照)、フォームにもCloudflare Turnstileのウィジェットを埋め込む。このページは静的な
 // サーバーレンダリングHTMLのため、SPA向けのexplicit renderingではなく、
 // cf-turnstileクラスによる暗黙的レンダリング(implicit rendering)を使う
-export function securityWarningPageHtml(shortCode: string, turnstileSiteKey: string): string {
+// nonce: CSP(Content-Security-Policy-Report-Only、src/index.tsx)のscript-srcに設定した
+// NONCEハンドラが生成する値。このページのインラインscript(下記)のnonce属性に設定することで、
+// 将来enforceモード(Content-Security-Policy、docs/deployment.md参照)に切り替えた際も
+// このインラインscriptだけは実行が許可されるようにする(公開前修正v2 T9)。
+// 外部スクリプト(challenges.cloudflare.comのTurnstile本体)はホスト指定で許可されるため
+// nonceは不要
+export function securityWarningPageHtml(shortCode: string, turnstileSiteKey: string, nonce: string | undefined): string {
   const shortCodeJson = JSON.stringify(shortCode)
   const turnstileSiteKeyAttr = JSON.stringify(turnstileSiteKey)
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : ''
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -101,7 +108,7 @@ export function securityWarningPageHtml(shortCode: string, turnstileSiteKey: str
 <p id="report-result" hidden></p>
 </details>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script>
+<script${nonceAttr}>
 document.getElementById('report-form').addEventListener('submit', async function (event) {
   event.preventDefault()
   var reason = event.target.elements.reason.value

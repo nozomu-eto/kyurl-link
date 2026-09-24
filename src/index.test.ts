@@ -119,6 +119,43 @@ describe('セキュリティヘッダ(hono/secure-headers)', () => {
   })
 })
 
+// CSP(Content-Security-Policy-Report-Only、公開前修正v2 T9)。まだenforceしない
+// (Content-Security-Policyヘッダーではない)ため、既存ページの動作を壊さない前提で導入する
+describe('CSP(Content-Security-Policy-Report-Only)', () => {
+  it('レスポンスにContent-Security-Policy-Report-Onlyヘッダーが付与され、Content-Security-Policyは付与されない', async () => {
+    const response = await SELF.fetch('https://example.com/api/v1/links')
+    const cspReportOnly = response.headers.get('content-security-policy-report-only')
+    expect(cspReportOnly).not.toBeNull()
+    expect(cspReportOnly).toContain("default-src 'self'")
+    expect(cspReportOnly).toContain('https://challenges.cloudflare.com')
+    // 本タスクではenforceしない方針のため、Content-Security-Policy(Report-Only無し)は
+    // 付与されないことも確認する
+    expect(response.headers.get('content-security-policy')).toBeNull()
+  })
+
+  it('悪意あるURL警告インターステシャルのインラインscriptにnonceが設定され、レスポンスヘッダーのCSPのnonceと一致する', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie, 'http://192.168.1.3/phishing-target-for-csp-test')
+    expect(link.securityStatus).toBe('flagged')
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(200)
+
+    const cspReportOnly = response.headers.get('content-security-policy-report-only')
+    expect(cspReportOnly).not.toBeNull()
+    // script-srcディレクティブに含まれる'nonce-<値>'を取り出す
+    const nonceMatch = cspReportOnly?.match(/'nonce-([^']+)'/)
+    expect(nonceMatch).not.toBeNull()
+    const nonceFromHeader = nonceMatch?.[1]
+
+    const body = await response.text()
+    // インラインscriptタグ(通報フォームの送信処理)にnonce属性が付いていることを確認する
+    const scriptMatch = body.match(/<script nonce="([^"]+)">/)
+    expect(scriptMatch).not.toBeNull()
+    expect(scriptMatch?.[1]).toBe(nonceFromHeader)
+  })
+})
+
 describe('フロントエンドの予約パスが/:shortCodeに奪われないこと', () => {
   it.each(['/', '/login', '/signup', '/terms', '/privacy', '/verify-email', '/reset-password', '/app', '/app/links/new'])(
     '%s は短縮コード用の404ページ(「見つかりませんでした」)を返さない',

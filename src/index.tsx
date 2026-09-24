@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
-import { secureHeaders } from 'hono/secure-headers'
+import { NONCE, secureHeaders, type SecureHeadersVariables } from 'hono/secure-headers'
 import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
@@ -13,7 +13,9 @@ import posters from '@/routes/posters'
 import qrcodes from '@/routes/qrcodes'
 import reports from '@/routes/reports'
 
-const app = new Hono<{ Bindings: CloudflareBindings }>()
+// secureHeadersのNONCE(下記CSP設定)がc.set('secureHeadersNonce', ...)する値を
+// c.get()で型付きで取得できるよう、VariablesにSecureHeadersVariablesを加える
+const app = new Hono<{ Bindings: CloudflareBindings; Variables: SecureHeadersVariables }>()
 
 // セキュリティヘッダ(公開前修正v2 T8)。app.use('*', ...)で全ルート(API・リダイレクト・
 // 404/410/警告インターステシャル・SPA/静的アセット)に一律で付与する。
@@ -36,6 +38,37 @@ app.use(
     referrerPolicy: 'strict-origin-when-cross-origin',
     // クリックジャッキング対策。他サイトのiframeに埋め込まれることを一切許可しない
     xFrameOptions: 'DENY',
+    // CSP(公開前修正v2 T9)。既存ページを壊すリスクを避けるため、まずはContent-Security-Policy
+    // ではなくContent-Security-Policy-Report-Only(違反はブロックせずレポートのみ)で導入する。
+    // 本番で強制する(Content-Security-Policyへの切り替え)手順はdocs/deployment.md参照
+    contentSecurityPolicyReportOnly: {
+      // 既定値はself(同一オリジン)のみ。フォント方針(docs/architecture.md第6.6節)により
+      // フォントもFontsourceで自前配信(同一オリジン)のため、Google Fonts等の外部ホストは
+      // 一切加えない
+      defaultSrc: ["'self'"],
+      // 警告インターステシャル(src/lib/redirect-pages.ts)のインラインscriptにはNONCEを使う。
+      // 加えて、サインアップ画面(SPA、turnstile-widget.tsx)・警告インターステシャルの
+      // 通報フォームの両方がCloudflare Turnstileの外部スクリプト(challenges.cloudflare.com)を
+      // 読み込むため、そのホストも許可する
+      scriptSrc: ["'self'", 'https://challenges.cloudflare.com', NONCE],
+      // Turnstileウィジェットは検証用のiframeをchallenges.cloudflare.comから読み込む
+      frameSrc: ['https://challenges.cloudflare.com'],
+      // Turnstileウィジェットの検証時の通信先
+      connectSrc: ["'self'", 'https://challenges.cloudflare.com'],
+      // フォントは自前配信(同一オリジン)のみ
+      fontSrc: ["'self'"],
+      // 画像は自ドメインのAPI(QRコード画像等)のみ
+      imgSrc: ["'self'"],
+      // 404・410・警告インターステシャル(redirect-pages.ts)は<style>タグでインラインCSSを
+      // 埋め込む静的な文言のみで利用者入力を含まないため、'unsafe-inline'を許容する
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      // <object>・<embed>によるプラグイン埋め込みは使っていないため明示的に禁止する
+      objectSrc: ["'none'"],
+      // <base>タグによるベースURL差し替え攻撃を防ぐ
+      baseUri: ["'self'"],
+      // フォーム送信先を自ドメインのみに制限する
+      formAction: ["'self'"],
+    },
   }),
 )
 
@@ -133,7 +166,11 @@ app.get('/:shortCode', async (c) => {
   // 利用規約第11条2項「検知に努めるが完全性を保証しない」方針に対応する)
   const hasProceeded = c.req.query('proceed') === '1'
   if (record.securityStatus === 'flagged' && !hasProceeded) {
-    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY), 200)
+    // このリクエストのCSP(Content-Security-Policy-Report-Only、上のsecureHeaders設定)が
+    // script-srcに設定したNONCEにより、この時点でc.set('secureHeadersNonce', ...)済みのため、
+    // 同じ値をページ内のインラインscriptタグのnonce属性にも使う(公開前修正v2 T9)
+    const nonce = c.get('secureHeadersNonce')
+    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY, nonce), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する

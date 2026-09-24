@@ -13,7 +13,7 @@
 - [x] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
 - [x] T7: フロントエンドへの上限適用(maxLength)
 - [x] T8: セキュリティヘッダ(CSP以外)の付与
-- [ ] T9: CSPをContent-Security-Policy-Report-Onlyで導入
+- [x] T9: CSPをContent-Security-Policy-Report-Onlyで導入
 
 ## 作業環境に関する記録
 
@@ -150,3 +150,31 @@
   新しいHeadersインスタンスとして複製される)。
 - テストは`src/index.test.ts`に追加し、302(リダイレクト)・404・410・警告インターステシャル
   (200)・APIレスポンス(401)・ASSETS委譲(SPA)の6パターンすべてで4項目のヘッダー値を確認した。
+
+### T9: CSP(Content-Security-Policy-Report-Only)
+
+- T8で追加した`secureHeaders(...)`呼び出しに`contentSecurityPolicyReportOnly`を追加した。
+  `Content-Security-Policy`(enforce)ではなく`-Report-Only`のみにし、既存ページを壊さない
+  よう指示通り導入した。
+- 許可したホスト: 自ドメイン(`'self'`)と、サインアップ画面(SPA、turnstile-widget.tsx)・
+  警告インターステシャルの通報フォームの両方が使うCloudflare Turnstile
+  (`https://challenges.cloudflare.com`、script-src・frame-src・connect-src)のみ。
+  architecture.md第6.6節の方針(フォントは自前配信・Google Fonts等の外部フォントホストは
+  使わない)に従い、`fontSrc`は`'self'`のみとした。
+- nonce対応: `hono/secure-headers`がエクスポートする`NONCE`ハンドラをscript-srcに含め、
+  ミドルウェアの実装(`headersToSetForReq`の算出が`await next()`より前に行われる、
+  `node_modules/hono/dist/middleware/secure-headers/secure-headers.js`で確認済み)により、
+  ハンドラ実行時点で`c.get('secureHeadersNonce')`が既に設定されていることを確認して利用した。
+  `src/lib/redirect-pages.ts`の`securityWarningPageHtml()`に`nonce`引数を追加し、
+  通報フォームのインラインscriptタグに`nonce`属性として埋め込んだ。外部スクリプト
+  (Turnstile本体の`<script src="https://challenges.cloudflare.com/...">`)はホスト一致で
+  許可されるため、nonceの付与は不要と判断した。
+- `styleSrc`は`'self' 'unsafe-inline'`とした。404/410/警告ページ(redirect-pages.ts)が
+  静的な(利用者入力を含まない)インライン`<style>`タグを使っているため。nonce化も可能だが、
+  タスク指示がnonce対応を明示していたのはscriptタグのみだったため、styleは
+  `'unsafe-inline'`で許容する判断とした。
+- `docs/deployment.md`に第9節として、将来Report-OnlyからContent-Security-Policy(enforce)へ
+  切り替える際の手順(違反確認→ヘッダー名変更→ロールバック手段)を追記した。
+- テストは`src/index.test.ts`に追加し、(a) `Content-Security-Policy-Report-Only`ヘッダーが
+  付与され`Content-Security-Policy`(enforce)は付与されないこと、(b) 警告インターステシャルの
+  インラインscriptのnonce属性値とレスポンスヘッダー中のnonce値が一致することを確認した。
