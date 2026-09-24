@@ -4,6 +4,7 @@
 
 **更新版10での変更点(2026-09-25のセッションで確定)**
 - セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
+- セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -304,6 +305,28 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
   - `/send-verification-email`(確認メール再送): 上記と同じ理由でwindow 300秒・max 3回
 
 既存データの確認・対応が必要な場合の運用手順は無し(新規追加のテーブルのため、移行対象データは無い)。
+
+### 9.2 APIエンドポイントのレート制限(更新版10で追加)
+
+以下のエンドポイントには回数制限が無く、濫用やコスト増加のリスクがあったため、Cloudflare Workers Rate Limiting API(`ratelimits`バインディング、2025-09-19にGA)を`src/middleware/rate-limit.ts`のHonoミドルウェアとして導入した。
+
+- `POST /api/v1/links`・`POST /api/v1/qrcodes`・`POST /api/v1/posters`(大量作成対策)
+- `GET /api/v1/posters/:id/export`(Browser Renderingが動き、内容が変わるたびにR2キャッシュのキーも変わるため、従量課金が直接増える)
+- `POST /api/v1/reports`(未ログインで利用可能)
+
+**バインディング構成**(`wrangler.jsonc`の`ratelimits`)。`namespace_id`はD1の`database_id`やR2の`bucket_name`と異なり、ダッシュボードでの事前作成が不要な「アカウント内で一意な整数値を自分で決めるだけでよい」値(Cloudflare公式ドキュメントで確認済み)。`period`は10または60秒のみ指定可能なため60秒を採用した。
+
+| バインディング名 | 対象 | 上限 | 理由 |
+| --- | --- | --- | --- |
+| `WRITE_RATE_LIMITER` | POST /links・POST /qrcodes・POST /posters | 60秒あたり30回 | 通常利用では十分な余裕を持たせつつ、スクリプトによる大量作成を抑止する回数として設定 |
+| `POSTER_EXPORT_RATE_LIMITER` | GET /posters/:id/export | 60秒あたり10回 | Browser Rendering起動を伴いコストが高いため、書き込み系より厳しくする |
+| `REPORT_RATE_LIMITER` | POST /reports | 60秒あたり5回 | 未ログインで叩けるため、通報を装ったIPアドレス単位の荒らし・DoS的濫用を抑止する回数として設定 |
+
+**キーの選び方**: ログイン必須のエンドポイント(書き込み系・export)はユーザーID単位、未ログインのreportsはCloudflareの`cf-connecting-ip`ヘッダー(Better Authのレート制限、第9.1節と同じ理由)によるIPアドレス単位でカウントする。IPアドレス単位にすると同一ネットワーク(オフィス・カフェ等)の複数ユーザーを誤って巻き込んでしまうため、ログイン済みの場合はユーザーID単位を優先する。
+
+**超過時のレスポンス**: 既存のエラー形式に合わせ、`429`で`{ error: { code: 'RATE_LIMITED', message: '...' } }`を返す。フロントエンドは429受信時に日本語の案内メッセージ(「リクエストが多すぎます。しばらく時間をおいてから再度お試しください」)を表示する。
+
+**テストでの扱い**: `@cloudflare/vitest-pool-workers`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
 
 ## 10. テスト設計(変更なし)
 

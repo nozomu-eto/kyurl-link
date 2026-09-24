@@ -76,5 +76,31 @@
 		// docs/architecture.md 第7節「GET /links/:id/clicks: クリック統計(Analytics Engine SQL
 		// APIへの問い合わせ)」で、SQL APIのエンドポイントURLを組み立てるために使うアカウントID
 		"ACCOUNT_ID": "919b89c551eef0eed83ef419caf397de"
-	}
+	},
+	// docs/architecture.md 第9.2節: Cloudflare Workers Rate Limiting API(ratelimitsバインディング)。
+	// namespace_idはアカウント内で一意な整数値を自分で決めるだけでよく、D1/R2等と異なり
+	// ダッシュボードでの事前作成は不要(Cloudflare公式ドキュメントで確認済み)。
+	// periodは10または60のみ指定可能。用途別に3つのバインディングを分け、書き込み系より
+	// コストの高いexport・未ログインで叩けるreportsをより厳しくする
+	"ratelimits": [
+		{
+			// POST /links・POST /qrcodes・POST /postersに適用。1分あたり30回まで
+			"name": "WRITE_RATE_LIMITER",
+			"namespace_id": "1001",
+			"simple": { "limit": 30, "period": 60 }
+		},
+		{
+			// GET /posters/:id/exportに適用。Browser Renderingが動きR2キャッシュキーも
+			// 内容によって変わるため従量課金が直接増える。1分あたり10回までと厳しくする
+			"name": "POSTER_EXPORT_RATE_LIMITER",
+			"namespace_id": "1002",
+			"simple": { "limit": 10, "period": 60 }
+		},
+		{
+			// POST /reportsに適用。未ログインでも叩けるため、IPアドレス単位で1分あたり5回までとする
+			"name": "REPORT_RATE_LIMITER",
+			"namespace_id": "1003",
+			"simple": { "limit": 5, "period": 60 }
+		}
+	]
 }

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, reports } from '@/db/schema'
+import { reportRateLimitMiddleware } from '@/middleware/rate-limit'
 import { reportCreateInputSchema, reportSchema } from '@/shared/schemas/report'
 
 // DB上のreportレコード(createdAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -19,7 +20,7 @@ function toReportResponse(record: typeof reports.$inferSelect) {
 const app = new Hono<{ Bindings: CloudflareBindings }>()
   .basePath('/reports')
   // 通報受付
-  .post('/', async (c) => {
+  .post('/', reportRateLimitMiddleware, async (c) => {
     // リクエストボディをJSONとして読み取り、reportCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = reportCreateInputSchema.safeParse(body)

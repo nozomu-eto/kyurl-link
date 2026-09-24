@@ -6,6 +6,7 @@ import QRCode from 'qrcode-svg'
 import { links, posters, qrcodes } from '@/db/schema'
 import { generatePosterHtml } from '@/lib/poster-template'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
+import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import {
   posterCreateInputSchema,
   posterListResponseSchema,
@@ -53,7 +54,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, async (c) => {
+  .post('/', authMiddleware, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
     // リクエストボディをJSONとして読み取り、posterCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = posterCreateInputSchema.safeParse(body)
@@ -238,7 +239,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.body(null, 204)
   })
   // PDF/PNG書き出し(Browser Rendering生成 + R2内容ハッシュキャッシュ、docs/architecture.md 第13節)
-  .get('/:id/export', authMiddleware, async (c) => {
+  .get('/:id/export', authMiddleware, userRateLimitMiddleware('POSTER_EXPORT_RATE_LIMITER'), async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
     const userId = c.get('user').id

@@ -5,6 +5,7 @@ import { links } from '@/db/schema'
 import { buildLinkClicksSql } from '@/lib/link-clicks-query'
 import { determineLinkSecurityStatus } from '@/lib/link-security-check'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
+import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
 // DB上のlinkレコード(lastScannedAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -62,7 +63,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, async (c) => {
+  .post('/', authMiddleware, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
     // リクエストボディをJSONとして読み取り、linkCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = linkCreateInputSchema.safeParse(body)
