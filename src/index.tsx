@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
+import { secureHeaders } from 'hono/secure-headers'
 import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
@@ -13,6 +14,30 @@ import qrcodes from '@/routes/qrcodes'
 import reports from '@/routes/reports'
 
 const app = new Hono<{ Bindings: CloudflareBindings }>()
+
+// セキュリティヘッダ(公開前修正v2 T8)。app.use('*', ...)で全ルート(API・リダイレクト・
+// 404/410/警告インターステシャル・SPA/静的アセット)に一律で付与する。
+// hono/secure-headersのミドルウェアはHono側のResponse(ctx.res)に対してヘッダーを
+// 後付けで設定する実装のため、ハンドラの実装がc.html()・c.json()・c.redirect()・
+// c.env.ASSETS.fetch()の委譲のいずれであっても、返り値がResponseである限り同じ仕組みで
+// 適用される想定(実際にASSETS委譲のレスポンスでも付与されることをsrc/index.test.tsxで確認済み)。
+// 明示的に値を指定した4項目以外はhono/secure-headersの既定値(Cross-Origin-Resource-Policy等)
+// をそのまま使う。CSP(Content-Security-Policy-Report-Only)はT9で別途追加する
+app.use(
+  '*',
+  secureHeaders({
+    // HSTS: 1年間(31536000秒)、サブドメインを含めて有効化する
+    strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+    // MIMEタイプスニッフィング対策。値は既定と同じ'nosniff'だが、要件を明示するためtrueではなく
+    // 文字列で指定する
+    xContentTypeOptions: 'nosniff',
+    // Referrerポリシー。hono/secure-headersの既定値は'no-referrer'だが、他サイトへの遷移時に
+    // オリジンのみは送りたい(アクセス解析・リンク元の把握のため)ため、要件通りの値を明示する
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    // クリックジャッキング対策。他サイトのiframeに埋め込まれることを一切許可しない
+    xFrameOptions: 'DENY',
+  }),
+)
 
 // Better Authのサインアップ・サインイン等のエンドポイントを/api/auth配下にマウントする。
 // /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
@@ -42,8 +67,15 @@ const RESERVED_SINGLE_SEGMENT_PATHS = new Set(['login', 'signup', 'verify-email'
 // SPAのシェル(index.html)や、favicon等の静的アセットをASSETS bindingへ委譲して返す。
 // wrangler.jsoncのassets.not_found_handling: "single-page-application"により、
 // 静的ファイルに一致しないパスに対してはindex.html(SPAのシェル)が返る
-function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request } }) {
-  return c.env.ASSETS.fetch(c.req.raw)
+async function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request } }) {
+  const assetsResponse = await c.env.ASSETS.fetch(c.req.raw)
+
+  // ASSETS bindingが返すResponseはheadersが読み取り専用(immutable)になっており、
+  // app.use('*', secureHeaders(...))(公開前修正v2 T8)がヘッダーを後付けしようとすると
+  // "Can't modify immutable headers."で例外になる(実際にsrc/index.test.tsxで確認済み)。
+  // new Response(body, init)で作り直すと、bodyはそのままにheadersだけ新しい
+  // (書き込み可能な)Headersインスタンスとして複製されるため、この問題を回避できる
+  return new Response(assetsResponse.body, assetsResponse)
 }
 
 // 公開リダイレクト(docs/architecture.md 第7節: 認証不要)。

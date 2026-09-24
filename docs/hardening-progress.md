@@ -12,7 +12,7 @@
 - [x] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
 - [x] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
 - [x] T7: フロントエンドへの上限適用(maxLength)
-- [ ] T8: セキュリティヘッダ(CSP以外)の付与
+- [x] T8: セキュリティヘッダ(CSP以外)の付与
 - [ ] T9: CSPをContent-Security-Policy-Report-Onlyで導入
 
 ## 作業環境に関する記録
@@ -133,3 +133,20 @@
   掲示物編集画面(poster-editor-page.tsx)・QRコード編集画面(qrcode-editor-page.tsx)は
   元々固定文言のエラー表示(例:「保存に失敗しました」)のままで、この点は本タスクの
   スコープ(入力欄へのmaxLength付与)外と判断し変更していない。
+
+### T8: セキュリティヘッダ(CSP以外)
+
+- `src/index.tsx`に`app.use('*', secureHeaders({...}))`をルート定義(`/api/auth/*`マウント等)より
+  前に追加し、全ルートに一律で適用した。指定した4項目(HSTS・nosniff・Referrer-Policy・
+  X-Frame-Options)は`hono/secure-headers`の既定値と異なる値だったため、文字列で明示的に指定した
+  (既定はそれぞれ`max-age=15552000; includeSubDomains`・`no-referrer`・`SAMEORIGIN`)。
+  他のヘッダー(Cross-Origin-Resource-Policy等)は既定値のままにした(指示に無く、既定値も
+  妥当なセキュリティ設定のため変更不要と判断)。
+- テストで判明した問題: `c.env.ASSETS.fetch()`が返すResponseの`headers`は読み取り専用
+  (immutable)で、`hono/secure-headers`がミドルウェアとして後付けでヘッダーを設定しようとすると
+  `TypeError: Can't modify immutable headers.`で例外になった(タスク指示で事前に想定されていた
+  問題そのもの)。`serveSpaShell()`を、ASSETS.fetch()の結果を`new Response(body, response)`で
+  複製してから返す実装に変更することで解決した(bodyはそのまま、headersだけ書き込み可能な
+  新しいHeadersインスタンスとして複製される)。
+- テストは`src/index.test.ts`に追加し、302(リダイレクト)・404・410・警告インターステシャル
+  (200)・APIレスポンス(401)・ASSETS委譲(SPA)の6パターンすべてで4項目のヘッダー値を確認した。
