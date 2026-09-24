@@ -8,7 +8,7 @@
 - [x] T1: expiresAtの形式検証(ISO 8601 datetime、offset必須)
 - [x] T2: 過去日時をexpiresAtに設定できないようにする
 - [x] T3: 既存データ確認用SQLをdocs/deployment.mdに追記
-- [ ] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
+- [x] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
 - [ ] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
 - [ ] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
 - [ ] T7: フロントエンドへの上限適用(maxLength)
@@ -75,3 +75,9 @@
 - expiresAtの不正値検出には、SQLiteの`datetime()`組み込み関数が不正な日時文字列(形式不正・
   月日の範囲外等)に対してNULLを返す挙動を利用した(正規表現が使えないSQLite方言でも、
   `2026-13-45`のような値も含めて検出できる)。
+
+### T4: 入力上限の定数
+
+- `src/shared/constants/`ディレクトリを新規作成し、`input-limits.ts`にURL・掲示物タイトル/
+  サブタイトル・通報理由/shortCodeの上限値を定数として定義した。値自体はタスク指示に明記された
+  数値(2048/60/120/1000/32)をそのまま採用した。
