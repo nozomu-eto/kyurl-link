@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
 const TEST_PASSWORD = 'password1234'
 
-// サインアップし、セッションCookie・userId・emailを取得する(emailは再サインインに使う)
+// サインアップし、セッションCookie・userId・emailを取得する(emailは再サインインに使う)。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUp() {
   const email = `test-${crypto.randomUUID()}@example.com`
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
@@ -26,7 +28,9 @@ async function signUp() {
   const sessionCookie = setCookie.split(';')[0]
 
   const body = await response.json<{ user: { id: string } }>()
-  return { email, sessionCookie, userId: body.user.id }
+  const userId = body.user.id
+  await markEmailVerified(userId)
+  return { email, sessionCookie, userId }
 }
 
 // 再サインインし、新しいセッションCookieを取得する。

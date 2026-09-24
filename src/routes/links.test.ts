@@ -3,8 +3,10 @@ import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { links } from '@/db/schema'
 import { linkListResponseSchema, linkSchema } from '@/shared/schemas/link'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieと、作成されたuserのidを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieと、作成されたuserのidを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUp() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -28,7 +30,9 @@ async function signUp() {
   const sessionCookie = setCookie.split(';')[0]
 
   const body = await response.json<{ user: { id: string } }>()
-  return { sessionCookie, userId: body.user.id }
+  const userId = body.user.id
+  await markEmailVerified(userId)
+  return { sessionCookie, userId }
 }
 
 // 認証済みlinkを1件作成し、作成結果(id等)を返す

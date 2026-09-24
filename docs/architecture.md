@@ -5,6 +5,7 @@
 **更新版10での変更点(2026-09-25のセッションで確定)**
 - セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
 - セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
+- セキュリティ: メール未確認ユーザーによる書き込み系エンドポイントの濫用を防ぐため、requireVerifiedEmailミドルウェアを追加(第9.3節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -327,6 +328,22 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 **超過時のレスポンス**: 既存のエラー形式に合わせ、`429`で`{ error: { code: 'RATE_LIMITED', message: '...' } }`を返す。フロントエンドは429受信時に日本語の案内メッセージ(「リクエストが多すぎます。しばらく時間をおいてから再度お試しください」)を表示する。
 
 **テストでの扱い**: `@cloudflare/vitest-pool-workers`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
+
+### 9.3 メール未確認ユーザーの書き込み制限(更新版10で追加)
+
+`src/lib/auth.ts`では既存テストとの兼ね合いから`requireEmailVerification`をあえてオフにしている(ソフト確認方式、第9.1節・emailVerification設定のコメント参照)。そのため、捨てアドレスで作成したアカウントでフィッシング用短縮URLを量産できてしまう懸念があった。
+
+これに対し、ログイン済みかつ`user.emailVerified`がtrueであることを要求する`requireVerifiedEmail`ミドルウェア(`src/middleware/require-verified-email.ts`)を追加し、以下の書き込み系エンドポイントに適用した(`authMiddleware`の直後、レート制限ミドルウェアより前に置く)。
+
+- `POST /links`・`PATCH /links/:id`
+- `POST /qrcodes`・`PATCH /qrcodes/:id`
+- `POST /posters`・`PATCH /posters/:id`・`GET /posters/:id/export`
+
+未確認の場合は既存のエラー形式で403(`code: 'EMAIL_NOT_VERIFIED'`)を返す。一覧・詳細の取得、削除、アカウント削除申請(`POST /account-requests`)には適用しない。未確認ユーザーでも自分のデータの閲覧・削除・退会は行えるようにするためで、退会申請時のカスケード停止処理(第7.1節)の挙動にも変更は無い。
+
+フロントエンドの`AlertMessage`表示は既存のエラーハンドリング(`error.message`をそのまま表示する実装、第9.2節参照)にそのまま乗るため追加改修は不要。ただし、書き込み系フォームで403(`EMAIL_NOT_VERIFIED`)を受け取った場合は、汎用のエラーメッセージ表示に加えて、既存の「メール確認待ち」画面(`verify-email-pending-page.tsx`)への導線リンクを併記するよう各作成ページ(`link-create-page.tsx`・`qrcode-create-page.tsx`・`poster-create-page.tsx`)を修正した。
+
+**テストへの影響**: 既存のテストファイルのsignUpヘルパーは、サインアップ直後は`emailVerified: false`のユーザーを返す。上記エンドポイントの正常系テストが403で失敗しないよう、テスト用ヘルパー`test/mark-email-verified.ts`(`markEmailVerified(userId)`、DBの`emailVerified`を直接trueに更新する)を追加し、書き込み系エンドポイントを呼ぶ既存テストファイルのsignUpヘルパー内でサインアップ直後に呼び出すよう統一した。`requireVerifiedEmail`自体の403判定は`src/middleware/require-verified-email.test.ts`で、あえて確認済みにしない未確認ユーザーを使って検証する。
 
 ## 10. テスト設計(変更なし)
 

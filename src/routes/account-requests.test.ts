@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
 // サインアップに使う固定パスワード(verifyPasswordの正誤を確認するテストで参照する)
 const TEST_PASSWORD = 'password1234'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUp() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -27,6 +29,8 @@ async function signUp() {
   if (!setCookie) {
     throw new Error('サインアップのレスポンスにset-cookieが含まれていません')
   }
+  const body = await response.json<{ user: { id: string } }>()
+  await markEmailVerified(body.user.id)
   return setCookie.split(';')[0]
 }
 

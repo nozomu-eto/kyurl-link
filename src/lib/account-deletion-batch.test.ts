@@ -8,10 +8,12 @@ import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
 const TEST_PASSWORD = 'password1234'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieと、作成されたuserのidを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieと、作成されたuserのidを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUp() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -34,7 +36,9 @@ async function signUp() {
   const sessionCookie = setCookie.split(';')[0]
 
   const body = await response.json<{ user: { id: string } }>()
-  return { sessionCookie, userId: body.user.id }
+  const userId = body.user.id
+  await markEmailVerified(userId)
+  return { sessionCookie, userId }
 }
 
 // 認証済みlinkを1件作成する

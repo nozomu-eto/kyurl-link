@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { type FormEvent, useState } from 'react'
-import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
+import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
 
@@ -37,11 +37,15 @@ export function QrCodeCreatePage() {
   const [selectedLinkId, setSelectedLinkId] = useState(selectableLinkItems?.[0]?.id ?? '')
   const [rawUrl, setRawUrl] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // メール未確認によるエラー(EMAIL_NOT_VERIFIED)の場合のみ、「メール確認待ち」画面への
+  // 導線を追加で表示するために、エラーコードも別途保持する
+  const [errorCode, setErrorCode] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage(null)
+    setErrorCode(null)
     setIsSubmitting(true)
 
     const requestBody = fixedLink
@@ -57,6 +61,7 @@ export function QrCodeCreatePage() {
     if (!response.ok) {
       const body = await response.json()
       setErrorMessage('error' in body ? body.error.message : 'QRコードの作成に失敗しました')
+      setErrorCode('error' in body ? body.error.code : null)
       return
     }
 
@@ -67,7 +72,17 @@ export function QrCodeCreatePage() {
   return (
     <div className="page">
       <h1>QRコードを作成</h1>
-      {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
+      {errorMessage && (
+        <AlertMessage tone="error">
+          {errorMessage}
+          {errorCode === 'EMAIL_NOT_VERIFIED' && (
+            <>
+              {' '}
+              <Link to="/verify-email">メールアドレスの確認はこちら</Link>
+            </>
+          )}
+        </AlertMessage>
+      )}
       <form className="card" onSubmit={handleSubmit}>
         {fixedLink ? (
           <p>
