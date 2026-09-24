@@ -131,3 +131,37 @@ SELECT id, user_id, short_code, original_url FROM links WHERE moderation_status 
 ```
 
 停止すると、リダイレクトは410(`src/index.tsx`)になり、所有者はPATCH /links/:idでstatusをactiveに戻すことができなくなる(403 `MODERATION_LOCKED`、`src/routes/links.ts`)。
+
+### 8.3 既存データの不正値確認(公開前修正v2で追加)
+
+`expiresAt`の形式検証(`z.iso.datetime({ offset: true })`、docs/architecture.md・公開前修正v2 T1/T2参照)や、
+`originalUrl`/`targetUrl`のスキーム検証(第8.1節)は、導入より前に作成されたデータには遡って適用されない。
+以下は**そうした既存データに不正な値が残っていないかを確認するための参照SQLであり、本タスクの範囲内で
+本番DBに対して実行するものではない**(あくまで運用手順としての記録)。実行が必要になった場合は、
+第8節冒頭の注意(`--remote`実行は内容を十分確認したうえで慎重に行う)に従うこと。
+
+```sql
+-- (a) links.expires_atが有効なISO 8601日時として解釈できないレコードを抽出する。
+-- SQLiteのdatetime()関数は、引数がISO 8601形式(タイムゾーン指定"Z"・"+HH:MM"・"-HH:MM"を含む)
+-- として解釈できない場合(例: 'abc'、月や日の値が範囲外の'2026-13-45'等)にNULLを返すため、
+-- IS NULLで判定できる。expires_atがNULL(無期限)のレコードは対象外とする
+SELECT id, user_id, short_code, expires_at, created_at
+FROM links
+WHERE expires_at IS NOT NULL
+  AND datetime(expires_at) IS NULL;
+
+-- (b) links.original_url / qrcodes.target_urlがhttp://・https://以外のスキームになっている
+-- レコードを抽出する(第8.1節と同じ内容。関連する確認のため本節にも再掲する)
+SELECT id, user_id, original_url, created_at
+FROM links
+WHERE original_url NOT LIKE 'http://%' AND original_url NOT LIKE 'https://%';
+
+SELECT id, user_id, target_url, created_at
+FROM qrcodes
+WHERE target_type = 'rawUrl'
+  AND target_url NOT LIKE 'http://%' AND target_url NOT LIKE 'https://%';
+```
+
+該当レコードが見つかった場合の対応は第8.1節に準じる(内容確認のうえ、linkは`status = 'suspended'`への更新、
+qrcodeは`deletedAt`設定による削除を個別に検討する)。`expiresAt`が不正な値の場合も、判明した時点で
+運営が内容を確認し、`status = 'expired'`への更新や`expiresAt`の修正・無期限化(NULL)を個別に検討する。
