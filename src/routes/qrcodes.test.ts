@@ -172,13 +172,33 @@ describe('qrcode PATCH・DELETE', () => {
         'Content-Type': 'application/json',
         Cookie: sessionCookie,
       },
-      body: JSON.stringify({ styleOptions: { color: '#000000' } }),
+      body: JSON.stringify({ styleOptions: { foregroundColor: '#000000' } }),
     })
     expect(patchResponse.status).toBe(200)
     expect(await patchResponse.json()).toMatchObject({
       id: qrcode.id,
-      styleOptions: { color: '#000000' },
+      styleOptions: { foregroundColor: '#000000' },
     })
+  })
+
+  it('PATCH /api/v1/qrcodes/:idでstyleOptionsに未知のキーを指定すると400(VALIDATION_ERROR)になる', async () => {
+    // styleOptionsはz.strictObject()で実際に使われるキー(foregroundColor/backgroundColor)のみを
+    // 許可するようにしたため、任意のキー(この例ではcolor)を含む場合は拒否されることを確認する
+    // (公開前修正v2 T6)
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({ styleOptions: { color: '#000000' } }),
+    })
+    expect(patchResponse.status).toBe(400)
+    const body = await patchResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
   })
 
   it('DELETE /api/v1/qrcodes/:id実行後、GET /api/v1/qrcodes/:idは404になる', async () => {

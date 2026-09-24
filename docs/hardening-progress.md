@@ -10,7 +10,7 @@
 - [x] T3: 既存データ確認用SQLをdocs/deployment.mdに追記
 - [x] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
 - [x] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
-- [ ] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
+- [x] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
 - [ ] T7: フロントエンドへの上限適用(maxLength)
 - [ ] T8: セキュリティヘッダ(CSP以外)の付与
 - [ ] T9: CSPをContent-Security-Policy-Report-Onlyで導入
@@ -94,3 +94,25 @@
   一意な`cf-connecting-ip`ヘッダー(203.0.113.1〜4、テスト用に予約されたIPレンジ)を
   付与してバケットを分離することで解決した(`src/middleware/rate-limit.test.ts`の
   既存パターンを参考にした)。
+
+### T6: styleOptionsのスキーマ明示
+
+- `qrcode-editor-page.tsx`を確認したところ、実際に送信されるキーは`foregroundColor`・
+  `backgroundColor`の2項目(いずれも`<input type="color">`が返すHEXカラー文字列)のみだった。
+  これに合わせて`qcodeStyleOptionsSchema`(実装上は`qrcodeStyleOptionsSchema`)を
+  `z.strictObject({ foregroundColor: z.string().max(100).optional(), backgroundColor: ... })`
+  として定義した。
+- **判断が必要だった点**: `poster-editor-page.tsx`を確認したところ、現時点ではposterの
+  styleOptionsを送信するUIが一切無い(title/subtitleのみPATCHしている)。そのため
+  「実際に送信されているキー」という基準では対象キーが0件になってしまう。
+  `db/schema.ts`のコメントで「将来のカスタマイズ機能用の受け皿」と説明されており、
+  posterはQRコード画像を埋め込む構成(poster-template.ts)のため、QRコード側と同じ
+  前景色・背景色の2キーに揃える判断をした(ユーザーに確認せず進めるため、この判断根拠を
+  ここに明記する)。空のstrictObject({})にする案も検討したが、それでは「将来のカスタマイズ
+  機能用の受け皿」という既存の設計意図(architecture.md・schema.tsコメント)を実装で
+  先取りして潰してしまうことになり、後で手を入れ直す前提のstrictObjectを今回作る意味が
+  薄れるため見送った。
+- 既存テストのうち、`src/routes/qrcodes.test.ts`が任意キーの例として`{ color: '#000000' }`を
+  使っていたため、有効なキー`{ foregroundColor: '#000000' }`に修正した(strictObjectの導入に伴う
+  必然的な追随修正)。あわせて、未知のキーを指定すると400になることを確認するテストを
+  qrcode・poster双方に追加した。

@@ -158,6 +158,39 @@ describe('POST /api/v1/posters', () => {
   })
 })
 
+describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
+  it('styleOptionsに許可されたキー(foregroundColor)を指定すると反映される', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ styleOptions: { foregroundColor: '#000000' } }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ styleOptions: { foregroundColor: '#000000' } })
+  })
+
+  it('styleOptionsに未知のキーを指定すると400(VALIDATION_ERROR)になる', async () => {
+    // qrcode.tsと同様、styleOptionsはz.strictObject()で実際に使われるキーのみを許可するため、
+    // 任意のキー(この例ではcolor)を含む場合は拒否されることを確認する(公開前修正v2 T6)
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ styleOptions: { color: '#000000' } }),
+    })
+    expect(patchResponse.status).toBe(400)
+    const body = await patchResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+})
+
 describe('GET /api/v1/posters/:id/export', () => {
   // Browser Rendering(ローカルでは初回にブラウザのダウンロードが発生する)を実際に起動するため、
   // デフォルトのテストタイムアウトでは不足することがある
