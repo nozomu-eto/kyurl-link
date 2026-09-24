@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
+import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // posterCreateLoader: 掲示物作成フォームの表示前に、対象となるQRコードが実在するかを
 // 確認するloader(存在しない・他人のqrCodeIdでフォームだけ表示されてしまうのを防ぐ)
@@ -83,13 +84,29 @@ export function PosterCreatePage() {
           <label className="field__label" htmlFor="poster-create-title">
             タイトル
           </label>
-          <input id="poster-create-title" className="field__input" type="text" required value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input
+            id="poster-create-title"
+            className="field__input"
+            type="text"
+            required
+            // サーバー側スキーマ(posterCreateInputSchema)の上限と揃える
+            maxLength={POSTER_TITLE_MAX_LENGTH}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="poster-create-subtitle">
             サブタイトル(任意)
           </label>
-          <input id="poster-create-subtitle" className="field__input" type="text" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+          <input
+            id="poster-create-subtitle"
+            className="field__input"
+            type="text"
+            maxLength={POSTER_SUBTITLE_MAX_LENGTH}
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+          />
         </div>
         <div className="field">
           <label className="field__label" htmlFor="poster-create-size">

@@ -11,7 +11,7 @@
 - [x] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
 - [x] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
 - [x] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
-- [ ] T7: フロントエンドへの上限適用(maxLength)
+- [x] T7: フロントエンドへの上限適用(maxLength)
 - [ ] T8: セキュリティヘッダ(CSP以外)の付与
 - [ ] T9: CSPをContent-Security-Policy-Report-Onlyで導入
 
@@ -116,3 +116,20 @@
   使っていたため、有効なキー`{ foregroundColor: '#000000' }`に修正した(strictObjectの導入に伴う
   必然的な追随修正)。あわせて、未知のキーを指定すると400になることを確認するテストを
   qrcode・poster双方に追加した。
+
+### T7: フロントエンドへの上限適用
+
+- link作成(originalUrl)・QRコード作成(rawUrl)・掲示物作成/編集(title・subtitle)の各入力に
+  `maxLength`(src/shared/constants/input-limits.tsの定数)を設定した。
+- 「上限超えエラーを日本語で、既存のエラー表示パターンに合わせて表示する」という指示について:
+  各作成画面(link-create-page.tsx・qrcode-create-page.tsx・poster-create-page.tsx)は
+  元々サーバーからの400エラー時に`body.error.message`をそのまま`AlertMessage`に表示する
+  実装になっており、この`message`は既に日本語(例:「リクエストボディが不正です」)のため、
+  追加の実装をしなくても既存の仕組みでエラーが日本語表示される。またブラウザの`maxLength`
+  属性自体が、通常の入力操作ではその文字数を超えて入力できないようにするため、実際に
+  サーバー側の上限エラーに到達するのは、貼り付け等でmaxLengthをすり抜けた場合や
+  スキーマ変更前に保存された既存データを編集する場合等に限られる。この判断により、
+  各画面のエラー表示ロジック自体には変更を加えていない(既存の仕組みで要件を満たすため)。
+  掲示物編集画面(poster-editor-page.tsx)・QRコード編集画面(qrcode-editor-page.tsx)は
+  元々固定文言のエラー表示(例:「保存に失敗しました」)のままで、この点は本タスクの
+  スコープ(入力欄へのmaxLength付与)外と判断し変更していない。

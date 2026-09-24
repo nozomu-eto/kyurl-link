@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // posterEditorLoader: 掲示物編集画面の表示に必要なposter1件分を取得するloader
 export async function posterEditorLoader({ params }: LoaderFunctionArgs) {
@@ -96,13 +97,28 @@ export function PosterEditorPage() {
             <label className="field__label" htmlFor="poster-editor-title">
               タイトル
             </label>
-            <input id="poster-editor-title" className="field__input" type="text" required value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input
+              id="poster-editor-title"
+              className="field__input"
+              type="text"
+              required
+              maxLength={POSTER_TITLE_MAX_LENGTH}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
           <div className="field">
             <label className="field__label" htmlFor="poster-editor-subtitle">
               サブタイトル(任意)
             </label>
-            <input id="poster-editor-subtitle" className="field__input" type="text" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+            <input
+              id="poster-editor-subtitle"
+              className="field__input"
+              type="text"
+              maxLength={POSTER_SUBTITLE_MAX_LENGTH}
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+            />
           </div>
           <button type="submit" className="button button--primary" disabled={isSaving}>
             {isSaving ? '保存中…' : '保存する'}
