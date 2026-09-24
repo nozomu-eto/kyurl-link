@@ -1,6 +1,9 @@
-# kyurl.link アーキテクチャドキュメント(更新版9)
+# kyurl.link アーキテクチャドキュメント(更新版10)
 
-2026-09-23 · @Someone
+2026-09-25 · @Someone
+
+**更新版10での変更点(2026-09-25のセッションで確定)**
+- セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -286,6 +289,21 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 ## 9. セキュリティ設計(認証以外、変更なし)
 
 入力検証・インジェクション対策、認可(IDOR対策)、XSS対策、CSRF対策、シークレット管理、管理(通報対応)エンドポイントの保護、および掲示物PDFキャッシュ(R2)の認可チェック(必ずWorkerのコード内で所有者チェックを行ってからキャッシュを参照する設計)については、更新版4の内容から変更ありません。
+
+### 9.1 Better Authのレート制限(更新版10で追加)
+
+Better Authはレート制限の保存先を指定しない場合、既定でメモリ(isolateのプロセス内メモリ)に保存する。Cloudflare Workersはリクエストごとにisolateが分かれ得るため、メモリ保存ではカウンタが共有されず、実質的にレート制限が機能しない。これに対応するため、以下の設定とした(`src/lib/auth.ts`)。
+
+- **保存先**: `rateLimit.storage: 'database'`。D1に`rateLimit`テーブル(`src/db/auth-schema.ts`、マイグレーション`drizzle/0010_last_puppet_master.sql`)を追加し、isolateをまたいでカウンタを共有する
+- **クライアントIPの取得**: `advanced.ipAddress.ipAddressHeaders: ['cf-connecting-ip']`。既定の`x-forwarded-for`はクライアントが値を詐称できるカンマ区切りのチェーンであり、信頼できるプロキシ(Cloudflareのエッジ)を明示的に指定できる`cf-connecting-ip`を使う
+- **有効/無効の判定**: Better Auth自身が「本番モードでは既定で有効(window 60秒・max 100)、開発モードでは既定で無効」と判定する仕組みに委ねる(`enabled`は明示的に指定しない)。ローカル開発(`pnpm dev`)・テスト実行時は開発モードとして扱われ既定で無効になる点に注意。テスト(`src/lib/auth-rate-limit.test.ts`)では、テスト専用の環境変数`RATE_LIMIT_FORCE_ENABLED`(wrangler.jsoncには定義しない、テストファイル内で`cloudflare:test`の`env`を直接書き換えて設定)により、そのテストファイル内でのみ強制的に有効化して検証する
+- **customRules**(一般エンドポイントの既定値window 60秒・max 100より厳しく設定):
+  - `/sign-in/email`: window 60秒・max 5回 — パスワード総当たり対策。入力ミスを数回許容しつつ、総当たりを実質不可能にする回数として5回とした
+  - `/sign-up/email`: window 60秒・max 3回 — 捨てアドレスによる大量アカウント作成(フィッシング用短縮URLの量産)対策
+  - `/request-password-reset`: window 300秒(5分)・max 3回 — メール送信を伴いコストが高く、他人のメールアドレスへの迷惑メール送りつけ(総当たり)にも使われ得るため
+  - `/send-verification-email`(確認メール再送): 上記と同じ理由でwindow 300秒・max 3回
+
+既存データの確認・対応が必要な場合の運用手順は無し(新規追加のテーブルのため、移行対象データは無い)。
 
 ## 10. テスト設計(変更なし)
 

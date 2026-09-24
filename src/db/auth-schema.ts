@@ -87,6 +87,21 @@ export const verification = sqliteTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+// Better Authのレート制限データ保存用テーブル(rateLimit.storage: "database")。
+// src/lib/auth.tsのrateLimit設定に対応する。フィールド名(key/count/lastRequest)は
+// Better Auth側でrateLimit.fieldsを上書きしていないため、既定のフィールド名と揃える必要がある
+// (DBのカラム名自体は他テーブルと同様にsnake_caseで問題ない。Better Authのdrizzleアダプターは
+// TypeScript側のプロパティ名でマッピングするため)
+export const rateLimit = sqliteTable("rateLimit", {
+  id: text("id").primaryKey(),
+  // レート制限の集計単位となるキー(例: "sign-in/email:<IPアドレス>")。IPアドレス+パス単位で一意
+  key: text("key").notNull().unique(),
+  // 現在のウィンドウ内でのリクエスト回数
+  count: integer("count").notNull(),
+  // 直近のリクエスト時刻(エポックミリ秒)。ウィンドウの開始・リセット判定に使う
+  lastRequest: integer("last_request").notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
