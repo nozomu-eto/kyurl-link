@@ -105,11 +105,18 @@ export function LinkDetailPage() {
           <label className="field__label" htmlFor="link-detail-status">
             状態
           </label>
-          <select id="link-detail-status" className="field__input" value={link.status} disabled={isUpdatingStatus} onChange={handleStatusChange}>
+          <select
+            id="link-detail-status"
+            className="field__input"
+            value={link.status}
+            disabled={isUpdatingStatus || link.moderationStatus === 'suspended'}
+            onChange={handleStatusChange}
+          >
             <option value="active">有効</option>
             <option value="expired">期限切れ</option>
             <option value="suspended">停止中</option>
           </select>
+          {link.moderationStatus === 'suspended' && <p className="field__hint">運営により停止されています。</p>}
         </div>
         <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
           {isDeleting ? '削除中…' : 'この短縮URLを削除'}

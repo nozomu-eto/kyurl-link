@@ -175,6 +175,21 @@ describe('GET /:shortCode', () => {
     expect(body).toContain('見つかりませんでした')
   })
 
+  it('moderationStatusが"suspended"(運営による強制停止)のlinkにアクセスすると410になる(認証不要)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // 管理画面・管理APIは無いため、D1への直接更新を模してmoderationStatusを書き換える
+    const db = drizzle(env.DB)
+    await db.update(links).set({ moderationStatus: 'suspended' }).where(eq(links.id, link.id))
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(410)
+
+    const body = await response.text()
+    expect(body).toContain('ご利用いただけません')
+  })
+
   it('個別削除(DELETE /api/v1/links/:id)後のlinkにアクセスすると、引き続き404になる(回帰防止)', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const link = await createLink(sessionCookie)

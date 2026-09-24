@@ -1,0 +1,1 @@
+ALTER TABLE `links` ADD `moderation_status` text DEFAULT 'none' NOT NULL;

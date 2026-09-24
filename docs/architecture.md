@@ -7,6 +7,7 @@
 - セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
 - セキュリティ: メール未確認ユーザーによる書き込み系エンドポイントの濫用を防ぐため、requireVerifiedEmailミドルウェアを追加(第9.3節)
 - セキュリティ: サインアップ・通報APIにCloudflare Turnstileによるbot対策を追加(第9.4節)
+- セキュリティ: `links.moderationStatus`列を追加し、運営による強制停止を所有者が解除できないようにした(第9.5節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -360,7 +361,19 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 
 **テストでの扱い**: ローカル開発・テストでは、公式のテスト用サイトキー・シークレットキー(常に成功: サイトキー`1x00000000000000000000AA`・シークレットキー`1x0000000000000000000000000000000AA`)を`.dev.vars`・`.env`に設定する(`.dev.vars.example`・`.env.example`に手順を記載)。ただし、captchaプラグインが有効なままだと既存の全テストファイルのsignUpヘルパー(`x-captcha-response`を送っていない)が軒並み失敗するため、レート制限(第9.1節の`RATE_LIMIT_FORCE_ENABLED`)と同様に、テスト専用の環境変数`TURNSTILE_DISABLED_FOR_TESTS`(`vitest.config.ts`で全テストに対し常に`'true'`を注入)でcaptchaプラグイン自体をpluginsに含めないようにする。プラグイン自体の動作(トークン無し→400・不正トークン→403・正常トークン→成功)は`src/lib/auth-captcha.test.ts`で、この値を個別に`'false'`に上書きしたうえで検証する。通報APIの`turnstileToken`検証は`src/routes/reports.test.ts`で、siteverifyへのfetchをモックして検証する。
 
-## 10. テスト設計(変更なし)
+### 9.5 運営によるlinkの強制停止(moderationStatus、更新版10で追加)
+
+`PATCH /api/v1/links/:id`では所有者がstatusを自由に変更できるため、通報を受けて運営がリンクを`status: 'suspended'`にしても、所有者が`status: 'active'`に戻すことで停止を解除できてしまう問題があった。
+
+`links`テーブルに`moderationStatus: 'none' | 'suspended'`(既定値`'none'`)列を追加した(drizzleスキーマ・マイグレーションは`src/db/schema.ts`・`drizzle/0011_aspiring_micromacro.sql`)。
+
+- `src/index.tsx`のリダイレクト判定に、既存の`status`/`expiresAt`判定と並べて`moderationStatus === 'suspended'`のチェックを追加し、該当する場合は410を返す
+- レスポンス用の`linkSchema`に`moderationStatus`を追加する一方、`linkUpdateInputSchema`(利用者が変更できる項目)には含めない
+- `PATCH /api/v1/links/:id`では、`moderationStatus === 'suspended'`のlinkに対して`status`を変更しようとした場合のみ403(`code: 'MODERATION_LOCKED'`)を返す。`expiresAt`のみの変更は禁止しない(`moderationStatus`とは独立した項目のため)
+- 運営が停止を実行する手段(管理画面・管理API)は今回作らず、D1への直接SQL実行による運用とする(手順は`docs/deployment.md`第8.2節に追記)
+- フロントエンド(`link-detail-page.tsx`)は、`moderationStatus === 'suspended'`の場合に状態(status)のセレクトボックスを無効化し、「運営により停止されています。」と表示する
+
+**アカウント削除時のカスケード停止(`src/routes/account-requests.ts`)との関係**: 退会申請受付時、対象ユーザーの全linkに`deletedAt`と`status: 'suspended'`を同時にセットする既存の挙動は変更していない。`moderationStatus`ではなく既存の`status`列のまま扱うことにした。理由は、両者が表す意味が異なるため: `status`は「そのアカウント・リソースが利用可能かどうか」という所有者側の状態遷移(かつ猶予期間中の再ログインで取り消し可能)を表すのに対し、`moderationStatus`は「運営が内容を理由に独立して停止した」という所有者の意思と無関係な判定を表す。両者を1つのカラムに統合すると、「アカウント削除申請によるsuspended」と「運営によるモデレーション停止」を区別できなくなり、例えば猶予期間中の取り消し処理やアカウント削除申請のキャンセル時に、運営停止まで誤って解除してしまう危険がある。orthogonalな(直交する)2つのカラムのままにすることで、片方の状態遷移がもう片方に意図せず影響しないようにした。
 
 `@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。コンポーネント別方針・省略してよい範囲・CI方針は更新版4から変更ありません。アカウント削除バッチ(第7.1節)については、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する項目を追加する。
 

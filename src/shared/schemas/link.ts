@@ -18,6 +18,10 @@ export const linkSchema = z.object({
   securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
   // 最終検査日時(ISO文字列)
   lastScannedAt: z.string(),
+  // 運営による強制停止の状態。'suspended'の場合、所有者はstatusを変更できず(PATCHが
+  // 403 MODERATION_LOCKEDになる)、リダイレクトも410になる。linkUpdateInputSchemaには
+  // 含めない(利用者からは変更できない項目のため)
+  moderationStatus: z.enum(['none', 'suspended']),
 })
 
 // link作成APIの入力用スキーマ。

@@ -53,6 +53,14 @@ export const links = sqliteTable('links', {
   lastScannedAt: integer('last_scanned_at', { mode: 'timestamp_ms' })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
+  // 運営による強制停止の状態(docs/architecture.md参照)。既存のstatus(所有者が
+  // active/expired/suspendedを自由に変更できる)とは別に持つフィールドで、通報を受けて
+  // 運営がリンクを停止しても、所有者がstatusをactiveに戻すことで停止を解除できてしまう問題への
+  // 対応。'suspended'の場合、PATCH /links/:idでのstatus変更を拒否し、リダイレクトも410にする。
+  // 管理画面・管理APIは今回作らず、D1へ直接SQLで更新する運用とする(docs/deployment.md参照)
+  moderationStatus: text('moderation_status', { enum: ['none', 'suspended'] })
+    .notNull()
+    .default('none'),
 })
 
 // qrcodes: QRコードリソース(docs/architecture.md 第7節)のテーブル定義

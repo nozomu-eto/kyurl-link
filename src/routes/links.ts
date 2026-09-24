@@ -206,6 +206,21 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
+    // 運営により強制停止(moderationStatus: 'suspended')されている間は、所有者がstatusを
+    // 変更してactiveに戻す(停止を解除する)ことを拒否する。expiresAtの変更は禁止しない
+    // (moderationStatusとは独立した項目のため)
+    if (existing.moderationStatus === 'suspended' && parsed.data.status !== undefined) {
+      return c.json(
+        {
+          error: {
+            code: 'MODERATION_LOCKED',
+            message: 'このlinkは運営により停止されているため、状態を変更できません',
+          },
+        },
+        403,
+      )
+    }
+
     // リクエストで指定されたフィールドのみを更新対象にする
     const updateValues: Partial<typeof links.$inferInsert> = {}
     if (parsed.data.status !== undefined) {

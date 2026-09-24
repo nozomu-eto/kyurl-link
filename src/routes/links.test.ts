@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
@@ -83,6 +84,7 @@ describe('GET /api/v1/links', () => {
           expiresAt: null,
           securityStatus: 'unscanned',
           lastScannedAt: expect.any(String),
+          moderationStatus: 'none',
         },
       ]),
       total: expect.any(Number),
@@ -200,6 +202,63 @@ describe('links CRUD', () => {
         message: expect.any(String),
       },
     })
+  })
+})
+
+describe('運営による強制停止(moderationStatus)', () => {
+  it('moderationStatusがsuspendedのlinkは、所有者がPATCHでstatusを変更しようとすると403(MODERATION_LOCKED)になる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    // 管理画面・管理APIは無いため、D1への直接更新を模してmoderationStatusを書き換える
+    // (docs/deployment.md「D1への直接SQL操作」参照)
+    const db = drizzle(env.DB)
+    await db.update(links).set({ moderationStatus: 'suspended' }).where(eq(links.id, created.id))
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    expect(patchResponse.status).toBe(403)
+    const body = await patchResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('MODERATION_LOCKED')
+
+    // statusは変更されていないことを確認する(既定値のactiveのまま)
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(await getResponse.json()).toMatchObject({ status: 'active', moderationStatus: 'suspended' })
+  })
+
+  it('moderationStatusがsuspendedのlinkでも、statusを含まないPATCH(expiresAtのみ)は成功する', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    await db.update(links).set({ moderationStatus: 'suspended' }).where(eq(links.id, created.id))
+
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt: futureDate }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ expiresAt: futureDate })
+  })
+
+  it('moderationStatusがnone(通常)のlinkは、従来どおりPATCHでstatusを変更できる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+    expect(created.moderationStatus).toBe('none')
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'suspended' }),
+    })
+    expect(patchResponse.status).toBe(200)
   })
 })
 

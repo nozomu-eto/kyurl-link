@@ -81,6 +81,13 @@ app.get('/:shortCode', async (c) => {
     return c.html(goneePageHtml(), 410)
   }
 
+  // 運営による強制停止(moderationStatus: 'suspended')の場合も410。既存のstatus判定とは
+  // 別のフィールドで、所有者がstatusをactiveに戻しても停止を解除できないようにするために持つ
+  // (docs/architecture.md参照)
+  if (record.moderationStatus === 'suspended') {
+    return c.html(goneePageHtml(), 410)
+  }
+
   // 上記のstatus/expiresAtによる410判定に該当せず、ソフトデリート済み(deletedAtが設定されている)
   // 場合は404。個別削除(DELETE /links/:id)はstatusを変更しないため、このケースに該当する
   if (record.deletedAt !== null) {
