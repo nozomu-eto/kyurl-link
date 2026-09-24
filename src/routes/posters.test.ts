@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
@@ -93,6 +94,67 @@ describe('POST /api/v1/posters', () => {
         message: expect.any(String),
       },
     })
+  })
+
+  it(`titleが上限文字数(${POSTER_TITLE_MAX_LENGTH})+1文字の場合、400(VALIDATION_ERROR)になる`, async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'あ'.repeat(POSTER_TITLE_MAX_LENGTH + 1), size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it(`titleがちょうど上限文字数(${POSTER_TITLE_MAX_LENGTH})の場合、作成できる`, async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const title = 'あ'.repeat(POSTER_TITLE_MAX_LENGTH)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title, size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ title })
+  })
+
+  it(`subtitleが上限文字数(${POSTER_SUBTITLE_MAX_LENGTH})+1文字の場合、400(VALIDATION_ERROR)になる`, async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({
+        title: 'テスト掲示物',
+        subtitle: 'あ'.repeat(POSTER_SUBTITLE_MAX_LENGTH + 1),
+        size: 'A6',
+        qrCodeId: qrcode.id,
+      }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it(`subtitleがちょうど上限文字数(${POSTER_SUBTITLE_MAX_LENGTH})の場合、作成できる`, async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const subtitle = 'あ'.repeat(POSTER_SUBTITLE_MAX_LENGTH)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'テスト掲示物', subtitle, size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ subtitle })
   })
 })
 

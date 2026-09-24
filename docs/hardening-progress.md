@@ -9,7 +9,7 @@
 - [x] T2: 過去日時をexpiresAtに設定できないようにする
 - [x] T3: 既存データ確認用SQLをdocs/deployment.mdに追記
 - [x] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
-- [ ] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
+- [x] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
 - [ ] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
 - [ ] T7: フロントエンドへの上限適用(maxLength)
 - [ ] T8: セキュリティヘッダ(CSP以外)の付与
@@ -81,3 +81,16 @@
 - `src/shared/constants/`ディレクトリを新規作成し、`input-limits.ts`にURL・掲示物タイトル/
   サブタイトル・通報理由/shortCodeの上限値を定数として定義した。値自体はタスク指示に明記された
   数値(2048/60/120/1000/32)をそのまま採用した。
+
+### T5: サーバー側スキーマへの上限適用
+
+- `httpUrlSchema`(url.ts)に`.max(URL_MAX_LENGTH)`を追加した。link/qrcodeの両方が
+  このスキーマを再利用しているため、1箇所の変更で両方に適用される。
+- `poster.ts`のtitle/subtitle、`report.ts`のreason/shortCodeにそれぞれ`.max()`を追加した。
+- テスト中、`src/routes/reports.test.ts`にshortCode/reasonの上限テストを追加したところ、
+  `reportRateLimitMiddleware`が`cf-connecting-ip`ヘッダー単位(未指定時は`'unknown'`固定)で
+  60秒5回のレート制限をかけているため、同一テストファイル内の既存テストと合わせて上限を
+  超え、429が返るようになって既存テストが失敗した。新規追加した4件のテストに
+  一意な`cf-connecting-ip`ヘッダー(203.0.113.1〜4、テスト用に予約されたIPレンジ)を
+  付与してバケットを分離することで解決した(`src/middleware/rate-limit.test.ts`の
+  既存パターンを参考にした)。

@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { links } from '@/db/schema'
+import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { linkListResponseSchema, linkSchema } from '@/shared/schemas/link'
 import { markEmailVerified } from '../../test/mark-email-verified'
 
@@ -129,6 +130,35 @@ describe('POST /api/v1/links のoriginalUrlスキーム検証', () => {
 
   it.each(['https://example.com', 'http://example.com'])('originalUrlが%sの場合、作成できる', async (originalUrl) => {
     const { sessionCookie } = await signUp()
+
+    const created = await createLink(sessionCookie, originalUrl)
+    expect(created.originalUrl).toBe(originalUrl)
+  })
+})
+
+describe('POST /api/v1/links のoriginalUrl文字数上限', () => {
+  // 'https://example.com/'(21文字)に続けてパスをパディングし、ちょうど目的の文字数のURLを作る
+  function buildUrlOfLength(length: number) {
+    const prefix = 'https://example.com/'
+    return prefix + 'a'.repeat(length - prefix.length)
+  }
+
+  it(`originalUrlが上限文字数(${URL_MAX_LENGTH})+1文字の場合、400(VALIDATION_ERROR)になる`, async () => {
+    const { sessionCookie } = await signUp()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: buildUrlOfLength(URL_MAX_LENGTH + 1) }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it(`originalUrlがちょうど上限文字数(${URL_MAX_LENGTH})の場合、作成できる`, async () => {
+    const { sessionCookie } = await signUp()
+    const originalUrl = buildUrlOfLength(URL_MAX_LENGTH)
 
     const created = await createLink(sessionCookie, originalUrl)
     expect(created.originalUrl).toBe(originalUrl)

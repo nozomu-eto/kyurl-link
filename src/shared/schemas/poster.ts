@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // 掲示物(poster)リソース1件分のレスポンス用スキーマ。
 // styleOptionsはqrcodeSchemaと同様、DB上はJSON文字列で保存するが、レスポンスでは
@@ -26,10 +27,11 @@ export const posterSchema = z.object({
 // (idはサーバー生成、layoutTemplateは今回'default'固定でサーバー側が設定、
 // styleOptionsは作成時null固定で更新はposterUpdateInputSchema経由でのみ可能)
 export const posterCreateInputSchema = z.object({
-  // 掲示物のタイトル
-  title: z.string(),
+  // 掲示物のタイトル。.max()は掲示物レイアウト上の見た目崩れ・DB圧迫を防ぐための上限
+  // (src/shared/constants/input-limits.ts、公開前修正v2 T5)
+  title: z.string().max(POSTER_TITLE_MAX_LENGTH),
   // 掲示物のサブタイトル。省略時はnull(無し)として扱う
-  subtitle: z.string().nullable().optional(),
+  subtitle: z.string().max(POSTER_SUBTITLE_MAX_LENGTH).nullable().optional(),
   // 掲示物のサイズ(A6縦・A5縦)
   size: z.enum(['A6', 'A5']),
   // 対象とする既存qrcodeのid
@@ -40,9 +42,9 @@ export const posterCreateInputSchema = z.object({
 // 作成後に変更できるのはtitle/subtitle/styleOptionsのみ(size/qrCodeIdは作成後不変のため含めない)
 export const posterUpdateInputSchema = z.object({
   // 掲示物のタイトル。省略時は更新しない
-  title: z.string().optional(),
+  title: z.string().max(POSTER_TITLE_MAX_LENGTH).optional(),
   // 掲示物のサブタイトル。省略時は更新しない。nullを指定するとサブタイトル無しに変更する
-  subtitle: z.string().nullable().optional(),
+  subtitle: z.string().max(POSTER_SUBTITLE_MAX_LENGTH).nullable().optional(),
   // 掲示物のスタイル設定(任意のキー・値を許容する)。省略時は更新しない
   styleOptions: z.record(z.string(), z.unknown()).optional(),
 })
