@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { links } from '@/db/schema'
 import { buildLinkClicksSql } from '@/lib/link-clicks-query'
 import { determineLinkSecurityStatus } from '@/lib/link-security-check'
+import { generateShortCode } from '@/lib/short-code'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
@@ -18,21 +19,8 @@ function toLinkResponse(record: typeof links.$inferSelect) {
   })
 }
 
-// shortCode生成に使う文字種(英数字)
-const SHORT_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-// shortCodeの長さ(6〜8文字程度の目安として7文字固定)
-const SHORT_CODE_LENGTH = 7
 // 重複時の再生成の最大試行回数(簡易実装)
 const SHORT_CODE_MAX_ATTEMPTS = 5
-
-// 英数字7文字のランダムなshortCodeを1件生成する
-function generateShortCode() {
-  let code = ''
-  for (let i = 0; i < SHORT_CODE_LENGTH; i++) {
-    code += SHORT_CODE_CHARS[Math.floor(Math.random() * SHORT_CODE_CHARS.length)]
-  }
-  return code
-}
 
 // link(短縮URL)リソースのルート。型推論を保つためメソッドチェーンで定義する。
 // c.env.DBを使うため、HonoのBindingsにCloudflareBindings(wrangler typesが生成する型)を指定する。
