@@ -121,6 +121,25 @@ describe('POST /api/v1/qrcodes', () => {
       styleOptions: null,
     })
   })
+
+  it.each(['javascript:alert(1)', 'data:text/html,xxx', 'mailto:a@example.com', 'ftp://example.com'])(
+    "targetType: 'rawUrl' + targetUrlが%sの場合、400(VALIDATION_ERROR)になる",
+    async (targetUrl) => {
+      const sessionCookie = await signUpAndGetSessionCookie()
+
+      const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        body: JSON.stringify({ targetType: 'rawUrl', targetUrl }),
+      })
+      expect(response.status).toBe(400)
+      const body = await response.json<{ error: { code: string } }>()
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+    },
+  )
 })
 
 describe('GET /api/v1/qrcodes/:id/image', () => {

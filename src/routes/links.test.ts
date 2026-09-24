@@ -101,6 +101,34 @@ describe('GET /api/v1/links', () => {
   })
 })
 
+describe('POST /api/v1/links のoriginalUrlスキーム検証', () => {
+  it.each(['javascript:alert(1)', 'data:text/html,xxx', 'mailto:a@example.com', 'ftp://example.com'])(
+    'originalUrlが%sの場合、400(VALIDATION_ERROR)になる',
+    async (originalUrl) => {
+      const { sessionCookie } = await signUp()
+
+      const response = await SELF.fetch('https://example.com/api/v1/links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        body: JSON.stringify({ originalUrl }),
+      })
+      expect(response.status).toBe(400)
+      const body = await response.json<{ error: { code: string } }>()
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+    },
+  )
+
+  it.each(['https://example.com', 'http://example.com'])('originalUrlが%sの場合、作成できる', async (originalUrl) => {
+    const { sessionCookie } = await signUp()
+
+    const created = await createLink(sessionCookie, originalUrl)
+    expect(created.originalUrl).toBe(originalUrl)
+  })
+})
+
 describe('links CRUD', () => {
   it('POST /api/v1/links で作成したlinkを、GET /api/v1/links/:idで取得できる', async () => {
     const { sessionCookie } = await signUp()

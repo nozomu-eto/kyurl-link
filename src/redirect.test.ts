@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { links } from '@/db/schema'
 import { linkSchema } from '@/shared/schemas/link'
 
 // サインアップし、authMiddlewareを通すためのセッションCookieを取得する
@@ -151,6 +154,21 @@ describe('GET /:shortCode', () => {
 
     const body = await response.text()
     expect(body).toContain('ご利用いただけません')
+  })
+
+  it('DBに直接http/https以外のスキームのoriginalUrlを保存したlinkにアクセスしても、リダイレクトされず404になる(多層防御)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // POST /linksのスキーマ検証をバイパスし、DB直接操作を模して危険なスキームを保存する
+    const db = drizzle(env.DB)
+    await db.update(links).set({ originalUrl: 'javascript:alert(1)' }).where(eq(links.id, link.id))
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(404)
+
+    const body = await response.text()
+    expect(body).toContain('見つかりませんでした')
   })
 
   it('個別削除(DELETE /api/v1/links/:id)後のlinkにアクセスすると、引き続き404になる(回帰防止)', async () => {

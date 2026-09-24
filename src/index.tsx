@@ -112,6 +112,15 @@ app.get('/:shortCode', async (c) => {
     indexes: [record.id],
   })
 
+  // 多層防御: originalUrlはPOST /links作成時にhttpUrlSchemaでhttp/https以外のスキームを
+  // 拒否しているが、スキーマ変更前に保存された既存データやDB直接操作による混入に備え、
+  // リダイレクト実行の直前でもスキームを再検証する。http/https以外の場合はリダイレクトせず、
+  // 既存の404ページ(notFoundPageHtml)を返す
+  const originalUrlProtocol = URL.parse(record.originalUrl)?.protocol
+  if (originalUrlProtocol !== 'http:' && originalUrlProtocol !== 'https:') {
+    return c.html(notFoundPageHtml(), 404)
+  }
+
   // 上記以外(有効期限内・active)の場合のみ、元URLへリダイレクトする
   return c.redirect(record.originalUrl, 302)
 })
