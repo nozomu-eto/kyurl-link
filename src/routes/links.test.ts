@@ -189,6 +189,64 @@ describe('POST・PATCH /api/v1/links のexpiresAt形式検証', () => {
   })
 })
 
+describe('POST・PATCH /api/v1/links のexpiresAt過去日時拒否', () => {
+  it('POST時にexpiresAtが過去の日時の場合、400(VALIDATION_ERROR)になる', async () => {
+    const { sessionCookie } = await signUp()
+    const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: 'https://example.com', expiresAt: pastDate }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('POST時にexpiresAtが未来の日時の場合、作成できる', async () => {
+    const { sessionCookie } = await signUp()
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: 'https://example.com', expiresAt: futureDate }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ expiresAt: futureDate })
+  })
+
+  it('PATCH時にexpiresAtが過去の日時の場合、400(VALIDATION_ERROR)になる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+    const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt: pastDate }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('PATCH時にexpiresAtが未来の日時の場合、更新できる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+    const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt: futureDate }),
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ expiresAt: futureDate })
+  })
+})
+
 describe('links CRUD', () => {
   it('POST /api/v1/links で作成したlinkを、GET /api/v1/links/:idで取得できる', async () => {
     const { sessionCookie } = await signUp()

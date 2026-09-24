@@ -70,6 +70,21 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
+    // expiresAtが現在時刻以前(過去または現在と同時刻)の場合は、作成した瞬間に無効な
+    // linkが生まれてしまうため拒否する。形式検証(zodのz.iso.datetime)だけでは
+    // 「過去日時かどうか」までは判定できないため、ここで別途チェックする
+    if (parsed.data.expiresAt != null && new Date(parsed.data.expiresAt).getTime() <= Date.now()) {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '有効期限には未来の日時を指定してください',
+          },
+        },
+        400,
+      )
+    }
+
     const db = drizzle(c.env.DB)
 
     // shortCodeをランダム生成し、既存のレコードと重複していないかDBで確認する。
@@ -167,6 +182,19 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
             code: 'VALIDATION_ERROR',
             message: 'リクエストボディが不正です',
             details: parsed.error.flatten(),
+          },
+        },
+        400,
+      )
+    }
+
+    // 作成時と同様、expiresAtが現在時刻以前の場合は拒否する(nullは無期限への変更を意味するため対象外)
+    if (parsed.data.expiresAt != null && new Date(parsed.data.expiresAt).getTime() <= Date.now()) {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '有効期限には未来の日時を指定してください',
           },
         },
         400,
