@@ -32,8 +32,11 @@ export const linkCreateInputSchema = z.object({
   // 短縮したい元URL。http/https形式のURLであることを検証する(javascript:等の危険な
   // スキームをリダイレクト先として保存させないため。src/shared/schemas/url.ts参照)
   originalUrl: httpUrlSchema,
-  // 有効期限(ISO文字列)。省略時はnull(無期限)として扱う
-  expiresAt: z.string().nullable().optional(),
+  // 有効期限。ISO 8601形式かつタイムゾーン情報(offset、'Z'または'+09:00'等)を必須とする
+  // (offsetを必須にしないと、DB上でUTC/ローカルどちらとして解釈すべきかが曖昧になり、
+  // 過去日時判定(第9.6節相当、src/routes/links.ts)がずれる可能性があるため)。
+  // 省略時はnull(無期限)として扱う
+  expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 })
 
 // link更新APIの入力用スキーマ。
@@ -43,8 +46,8 @@ export const linkCreateInputSchema = z.object({
 export const linkUpdateInputSchema = z.object({
   // linkの状態(有効/期限切れ/停止)
   status: z.enum(['active', 'expired', 'suspended']).optional(),
-  // 有効期限(ISO文字列)。nullを指定すると無期限に変更する
-  expiresAt: z.string().nullable().optional(),
+  // 有効期限。作成時と同様、ISO 8601形式かつoffset必須で検証する。nullを指定すると無期限に変更する
+  expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 })
 
 // linkの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)

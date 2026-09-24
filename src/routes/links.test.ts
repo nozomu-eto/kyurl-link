@@ -135,6 +135,60 @@ describe('POST /api/v1/links のoriginalUrlスキーム検証', () => {
   })
 })
 
+describe('POST・PATCH /api/v1/links のexpiresAt形式検証', () => {
+  it.each(['abc', '2026-13-45'])('POST時にexpiresAtが%sの場合、400(VALIDATION_ERROR)になる', async (expiresAt) => {
+    const { sessionCookie } = await signUp()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: 'https://example.com', expiresAt }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('POST時にexpiresAtが有効なISO 8601日時(offset付き)の場合、作成できる', async () => {
+    const { sessionCookie } = await signUp()
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: 'https://example.com', expiresAt: futureDate }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ expiresAt: futureDate })
+  })
+
+  it('POST時にexpiresAtがnullの場合、無期限として作成できる', async () => {
+    const { sessionCookie } = await signUp()
+
+    const response = await SELF.fetch('https://example.com/api/v1/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ originalUrl: 'https://example.com', expiresAt: null }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ expiresAt: null })
+  })
+
+  it.each(['abc', '2026-13-45'])('PATCH時にexpiresAtが%sの場合、400(VALIDATION_ERROR)になる', async (expiresAt) => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+})
+
 describe('links CRUD', () => {
   it('POST /api/v1/links で作成したlinkを、GET /api/v1/links/:idで取得できる', async () => {
     const { sessionCookie } = await signUp()

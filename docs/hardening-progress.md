@@ -5,7 +5,7 @@
 ## タスク一覧
 
 - [x] T0: 進捗管理ファイルの追加(このファイル自体)
-- [ ] T1: expiresAtの形式検証(ISO 8601 datetime、offset必須)
+- [x] T1: expiresAtの形式検証(ISO 8601 datetime、offset必須)
 - [ ] T2: 過去日時をexpiresAtに設定できないようにする
 - [ ] T3: 既存データ確認用SQLをdocs/deployment.mdに追記
 - [ ] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
@@ -40,3 +40,15 @@
   このテストのみが単発で失敗し再実行で通る場合は無視して先へ進む。
 
 ## 判断メモ(各タスク完了時に追記)
+
+### T1: expiresAtの形式検証
+
+- `z.iso.datetime({ offset: true })`をzod v4のソース(`node_modules/zod/v4/classic/iso.d.ts`・
+  `core/schemas.d.ts`の`$ZodISODateTimeDef`)で確認し、`offset: true`でタイムゾーン情報
+  (`Z`または`+09:00`等)を必須にできることを確認して採用した。
+- フロントエンド(`link-create-page.tsx`)は元から`new Date(...).toISOString()`で
+  offset付き('Z'終端)の文字列を送信済みだったため、フロント側の変更は不要だった。
+  `link-detail-page.tsx`はexpiresAtをPATCHで送信していない(statusのみ)ため対象外。
+- テストは既存のAPIレベルテスト(`src/routes/links.test.ts`)に追加した。スキーマ単体の
+  テストファイルはこのプロジェクトに存在しない(既存のURLスキーム検証等もAPI越しにテストする
+  方針のため、それに合わせた)。
