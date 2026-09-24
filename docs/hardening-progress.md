@@ -1,0 +1,42 @@
+# 公開前修正v2 進捗管理(fix/pre-release-hardening-v2)
+
+このファイルは、公開前ハードニング作業(T0〜T9)の進捗と、作業中に行った判断の記録を管理する。
+
+## タスク一覧
+
+- [x] T0: 進捗管理ファイルの追加(このファイル自体)
+- [ ] T1: expiresAtの形式検証(ISO 8601 datetime、offset必須)
+- [ ] T2: 過去日時をexpiresAtに設定できないようにする
+- [ ] T3: 既存データ確認用SQLをdocs/deployment.mdに追記
+- [ ] T4: 入力上限の定数を定義(src/shared/constants/input-limits.ts)
+- [ ] T5: サーバー側スキーマ(URL・掲示物・通報)への上限適用
+- [ ] T6: styleOptionsのスキーマ明示(z.record() → z.strictObject())
+- [ ] T7: フロントエンドへの上限適用(maxLength)
+- [ ] T8: セキュリティヘッダ(CSP以外)の付与
+- [ ] T9: CSPをContent-Security-Policy-Report-Onlyで導入
+
+## 作業環境に関する記録
+
+- 作業に使用しているgit worktreeは当初`fix/pre-release-hardening-v2`ブランチではなく、
+  別名の`worktree-agent-*`ブランチ(コミットb1a5d34、`feat/design-tokens`合流直後)が
+  チェックアウトされた状態だった。`fix/pre-release-hardening-v2`ブランチは別のworktree
+  (リポジトリのメインディレクトリ)で既にチェックアウト済みのため、同一ブランチを
+  このworktreeで重複チェックアウトすることはgitの制約上できない。
+  そのため、このworktree内でローカルブランチ`hardening-v2-work`を
+  `fix/pre-release-hardening-v2`の先端コミット(34ffba7)から作成し、そこで作業する。
+  各タスックのコミット後は `git push origin hardening-v2-work:fix/pre-release-hardening-v2`
+  の形でリモートの`fix/pre-release-hardening-v2`ブランチを更新する(ローカルのブランチ名が
+  異なるのみで、pushの結果としてリモートブランチ名は指示どおりになる)。
+- 作業開始前のworking treeは(このworktree内では)clean。stashされたものは無い。
+
+## テストに関するベースライン記録
+
+- 作業開始前に`pnpm test`をベースラインとして実行した結果、
+  `src/middleware/rate-limit.test.ts`の「同一ユーザーから11回目のexportは429になる」テストが
+  1回失敗した(`Can't call WebSocket send() after close()`というMiniflareのBrowser Rendering
+  バインディングのシミュレーション由来のuncaught exceptionが先行している)。再実行したところ
+  全131件成功した。既存コード・本タスクの変更とは無関係な、ローカル実行環境依存の
+  既知のフレーキーテストと判断し、以後は各タスクごとに`pnpm test`を実行し、
+  このテストのみが単発で失敗し再実行で通る場合は無視して先へ進む。
+
+## 判断メモ(各タスク完了時に追記)
