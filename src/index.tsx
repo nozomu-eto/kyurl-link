@@ -94,7 +94,7 @@ app.get('/:shortCode', async (c) => {
   // 利用規約第11条2項「検知に努めるが完全性を保証しない」方針に対応する)
   const hasProceeded = c.req.query('proceed') === '1'
   if (record.securityStatus === 'flagged' && !hasProceeded) {
-    return c.html(securityWarningPageHtml(shortCode), 200)
+    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する

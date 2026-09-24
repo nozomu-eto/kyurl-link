@@ -59,9 +59,14 @@ export function goneePageHtml(): string {
 // index.tsxがこのクエリパラメータを見て通常の302リダイレクトに切り替える)、
 // 「戻る」はトップページに戻す(404/410ページと同じ導線に揃える)。
 // 通報導線(利用規約第9条)は、reports.ts側を変更せず既存のPOST /api/v1/reportsをそのまま
-// 流用するため、<details>で折りたたんだ簡易フォーム+インラインスクリプトからfetchで呼び出す
-export function securityWarningPageHtml(shortCode: string): string {
+// 流用するため、<details>で折りたたんだ簡易フォーム+インラインスクリプトからfetchで呼び出す。
+// POST /api/v1/reportsはbot対策としてturnstileTokenを必須にしているため(docs/architecture.md
+// 参照)、フォームにもCloudflare Turnstileのウィジェットを埋め込む。このページは静的な
+// サーバーレンダリングHTMLのため、SPA向けのexplicit renderingではなく、
+// cf-turnstileクラスによる暗黙的レンダリング(implicit rendering)を使う
+export function securityWarningPageHtml(shortCode: string, turnstileSiteKey: string): string {
   const shortCodeJson = JSON.stringify(shortCode)
+  const turnstileSiteKeyAttr = JSON.stringify(turnstileSiteKey)
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -90,20 +95,30 @@ export function securityWarningPageHtml(shortCode: string): string {
 <summary>このリンクに問題があると思われる場合はこちらから報告</summary>
 <form id="report-form">
 <label>報告理由: <input type="text" name="reason" required /></label>
+<div class="cf-turnstile" data-sitekey=${turnstileSiteKeyAttr}></div>
 <button type="submit">送信する</button>
 </form>
 <p id="report-result" hidden></p>
 </details>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
 document.getElementById('report-form').addEventListener('submit', async function (event) {
   event.preventDefault()
   var reason = event.target.elements.reason.value
   var resultEl = document.getElementById('report-result')
+  // window.turnstileはcf-turnstileクラスの要素を自動検出してレンダリングされたウィジェットの
+  // トークンを取得する。ウィジェットの検証が完了していない場合は空文字が返る
+  var turnstileToken = window.turnstile ? window.turnstile.getResponse() : ''
+  if (!turnstileToken) {
+    resultEl.textContent = 'bot対策の確認が完了していません。しばらく待ってからもう一度お試しください。'
+    resultEl.hidden = false
+    return
+  }
   try {
     var response = await fetch('/api/v1/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shortCode: ${shortCodeJson}, reason: reason }),
+      body: JSON.stringify({ shortCode: ${shortCodeJson}, reason: reason, turnstileToken: turnstileToken }),
     })
     resultEl.textContent = response.ok ? '報告を受け付けました。ご協力ありがとうございます。' : '送信に失敗しました。時間をおいて再度お試しください。'
   } catch (error) {

@@ -6,6 +6,7 @@
 - セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
 - セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
 - セキュリティ: メール未確認ユーザーによる書き込み系エンドポイントの濫用を防ぐため、requireVerifiedEmailミドルウェアを追加(第9.3節)
+- セキュリティ: サインアップ・通報APIにCloudflare Turnstileによるbot対策を追加(第9.4節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -344,6 +345,20 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 フロントエンドの`AlertMessage`表示は既存のエラーハンドリング(`error.message`をそのまま表示する実装、第9.2節参照)にそのまま乗るため追加改修は不要。ただし、書き込み系フォームで403(`EMAIL_NOT_VERIFIED`)を受け取った場合は、汎用のエラーメッセージ表示に加えて、既存の「メール確認待ち」画面(`verify-email-pending-page.tsx`)への導線リンクを併記するよう各作成ページ(`link-create-page.tsx`・`qrcode-create-page.tsx`・`poster-create-page.tsx`)を修正した。
 
 **テストへの影響**: 既存のテストファイルのsignUpヘルパーは、サインアップ直後は`emailVerified: false`のユーザーを返す。上記エンドポイントの正常系テストが403で失敗しないよう、テスト用ヘルパー`test/mark-email-verified.ts`(`markEmailVerified(userId)`、DBの`emailVerified`を直接trueに更新する)を追加し、書き込み系エンドポイントを呼ぶ既存テストファイルのsignUpヘルパー内でサインアップ直後に呼び出すよう統一した。`requireVerifiedEmail`自体の403判定は`src/middleware/require-verified-email.test.ts`で、あえて確認済みにしない未確認ユーザーを使って検証する。
+
+### 9.4 Turnstileによるbot対策(更新版10で追加)
+
+サインアップ(Better Auth)と通報(`POST /api/v1/reports`、未ログインで利用可能)にbot対策が無かったため、Cloudflare Turnstileを導入した。
+
+**サインアップ(`/api/auth/sign-up/email`)**: 自前のBetter Authフック(`hooks.before`)やHonoミドルウェアでの個別実装ではなく、Better Auth公式の**captchaプラグイン**(`better-auth/plugins`の`captcha()`、`provider: 'cloudflare-turnstile'`)を採用した。理由は、この用途向けに公式が用意しているプラグインが存在し、siteverify呼び出し・エラーコード(`MISSING_RESPONSE`/`VERIFICATION_FAILED`等)・対象パスのマッチングまで一貫して面倒を見てくれるため、車輪の再発明を避けられること。`endpoints: ['/sign-up/email']`を明示し、既定(サインイン・パスワードリセットも含む)より狭いスコープに絞った(今回の対象はサインアップのみのため)。クライアント側はトークンを`x-captcha-response`ヘッダー(公式の固定ヘッダー名)で送る。
+
+**通報(`POST /api/v1/reports`)**: Better Authのエンドポイントではないため、上記プラグインは使えない。`reportCreateInputSchema`に`turnstileToken`(必須)を追加し、`src/lib/turnstile.ts`の`verifyTurnstileToken()`(siteverify APIを直接呼ぶ)でハンドラ内で検証する。悪意あるURL検知(URLhaus、第4節)とは異なりbot対策そのものが目的のため、照会に失敗した場合もfail-open(素通り)にはせず、必ず拒否(400、`code: 'TURNSTILE_VERIFICATION_FAILED'`)する。
+
+**フロントエンド**: サインアップ画面(SPA)は`src/frontend/components/turnstile-widget.tsx`(explicit rendering、公式推奨のSPA向け方式)を使う。警告ページの通報フォーム(`src/lib/redirect-pages.ts`、サーバーレンダリングの静的HTML)は`cf-turnstile`クラスによるimplicit renderingを使う(静的ページ向けの方式)。
+
+**キー管理**: シークレットキーは`TURNSTILE_SECRET_KEY`(wrangler secret、他の秘密情報と同様)。サイトキーは公開情報のため秘匿不要だが、サーバー側(警告ページのHTML生成)とクライアント側(Vite)の両方で使うため、`TURNSTILE_SITE_KEY`(Worker側、`.dev.vars`)と`VITE_TURNSTILE_SITE_KEY`(フロント側、`.env`。Viteの標準的な公開環境変数の仕組みを使う)の2箇所で同じ値を設定する。
+
+**テストでの扱い**: ローカル開発・テストでは、公式のテスト用サイトキー・シークレットキー(常に成功: サイトキー`1x00000000000000000000AA`・シークレットキー`1x0000000000000000000000000000000AA`)を`.dev.vars`・`.env`に設定する(`.dev.vars.example`・`.env.example`に手順を記載)。ただし、captchaプラグインが有効なままだと既存の全テストファイルのsignUpヘルパー(`x-captcha-response`を送っていない)が軒並み失敗するため、レート制限(第9.1節の`RATE_LIMIT_FORCE_ENABLED`)と同様に、テスト専用の環境変数`TURNSTILE_DISABLED_FOR_TESTS`(`vitest.config.ts`で全テストに対し常に`'true'`を注入)でcaptchaプラグイン自体をpluginsに含めないようにする。プラグイン自体の動作(トークン無し→400・不正トークン→403・正常トークン→成功)は`src/lib/auth-captcha.test.ts`で、この値を個別に`'false'`に上書きしたうえで検証する。通報APIの`turnstileToken`検証は`src/routes/reports.test.ts`で、siteverifyへのfetchをモックして検証する。
 
 ## 10. テスト設計(変更なし)
 

@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { FormField } from '@/frontend/components/form-field'
+import { TurnstileWidget } from '@/frontend/components/turnstile-widget'
 import { authClient, translateAuthErrorCode } from '@/frontend/lib/auth-client'
 
 // SignupPage: メールアドレス・パスワード・お名前(表示名)を入力して新規登録する画面。
@@ -16,12 +17,18 @@ export function SignupPage() {
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Turnstileの検証トークン(src/lib/auth.tsのcaptchaプラグインがサーバー側で必須にしている)。
+  // ウィジェットの検証が完了するまでnullのままで、送信ボタンを無効化する
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
   // フォーム送信ハンドラ。サインアップ成功時は、docs/architecture.md 第6.1節の
   // 「メール確認待ち画面」へ遷移する(auth.tsのemailVerification.sendOnSignUp: trueにより、
   // このタイミングで確認メールが自動送信されている)
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!turnstileToken) {
+      return
+    }
     setErrorMessage(null)
     setIsSubmitting(true)
 
@@ -32,6 +39,11 @@ export function SignupPage() {
       // メール確認完了後(または「再送信」を経てのverify-emailリンク経由)にサインイン済みで
       // 着地させたいページ。callbackURLはBetter Auth側でオリジンからの相対パスとして扱われる
       callbackURL: '/app',
+      // Turnstileの検証トークン。src/lib/auth.tsのcaptchaプラグインがこのヘッダーを
+      // 必須で検証する(x-captcha-response、公式の固定ヘッダー名)
+      fetchOptions: {
+        headers: { 'x-captcha-response': turnstileToken },
+      },
     })
 
     setIsSubmitting(false)
@@ -84,7 +96,8 @@ export function SignupPage() {
             onChange: (e) => setPassword(e.target.value),
           }}
         />
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+        <TurnstileWidget onVerify={setTurnstileToken} />
+        <button type="submit" className="button button--primary" disabled={isSubmitting || !turnstileToken}>
           {isSubmitting ? '登録中…' : '登録する'}
         </button>
       </form>

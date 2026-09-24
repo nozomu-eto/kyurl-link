@@ -1,9 +1,16 @@
 import { env, SELF } from 'cloudflare:test'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
+
+const originalFetch = globalThis.fetch
+
+afterEach(() => {
+  // テスト後は必ず元のfetchに戻す(urlhaus-client.test.tsと同じパターン)
+  globalThis.fetch = originalFetch
+})
 
 // サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
 // レート制限は(未ログインのreportsを除き)ユーザーID単位でカウントするため、
@@ -110,12 +117,20 @@ describe('POST /links・POST /qrcodes・POST /posters のレート制限(WRITE_R
 
 describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ログイン)', () => {
   // 通報対象が実在しなくても、schema検証を通過した時点でレート制限ミドルウェアが先に実行されるため、
-  // 存在しないshortCode(404)への通報でも、429になるかどうかの検証には使える
+  // 存在しないshortCode(404)への通報でも、429になるかどうかの検証には使える。
+  // Turnstile検証はshortCodeの存在確認より先に行われるため、siteverifyを常に成功として
+  // モックしておく(このdescribe blockではTurnstile自体の検証はテストしないため)
+  function mockTurnstileSiteverifySuccess() {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+  }
+
   async function postReport(ip: string) {
+    mockTurnstileSiteverifySuccess()
     return SELF.fetch('https://example.com/api/v1/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': ip },
-      body: JSON.stringify({ shortCode: 'not-existing', reason: 'レート制限テスト' }),
+      body: JSON.stringify({ shortCode: 'not-existing', reason: 'レート制限テスト', turnstileToken: 'valid-test-token' }),
     })
   }
 

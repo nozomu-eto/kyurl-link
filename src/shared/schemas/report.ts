@@ -9,6 +9,10 @@ export const reportCreateInputSchema = z.object({
   shortCode: z.string(),
   // 通報理由の自由記述。空文字は不可とする
   reason: z.string().min(1),
+  // Cloudflare Turnstileのクライアント側ウィジェットが発行するトークン。
+  // 未ログインでも利用できるエンドポイントのため、bot対策としてサーバー側(POSTハンドラ)で
+  // siteverify APIによる検証を必須にする(docs/architecture.md参照)
+  turnstileToken: z.string().min(1),
 })
 
 // reportリソース1件分のレスポンス用スキーマ。

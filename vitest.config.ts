@@ -60,6 +60,12 @@ export default defineConfig(async () => {
             // これも同様にprocess.env(Node.js側)からWorker側のprocess.env/envへ明示的に注入しないと
             // テストコード側のprocess.env.CI_SKIP_BROWSER_TESTからは参照できない
             ...(process.env.CI_SKIP_BROWSER_TEST ? { CI_SKIP_BROWSER_TEST: process.env.CI_SKIP_BROWSER_TEST } : {}),
+            // src/lib/auth.ts参照。Better Authのcaptchaプラグイン(サインアップ時の
+            // x-captcha-response必須化)は、既存の全テストファイルのsignUpヘルパーが
+            // このヘッダーを送っていないため、テスト実行時は常に無効化する。
+            // プラグイン自体の動作はsrc/lib/auth-captcha.test.tsで、この値を個別に
+            // 'false'に上書きしたうえで検証する
+            TURNSTILE_DISABLED_FOR_TESTS: 'true',
           },
         },
       }),

@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { captcha } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
 import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
@@ -15,7 +16,14 @@ const schema = { ...linkSchema, ...authSchema }
 // レート制限の挙動を検証するテスト(src/lib/auth-rate-limit.test.ts)でのみ、
 // cloudflare:testのenvオブジェクトを直接書き換えてこの値を'true'にし、強制的に有効化する。
 // 本番のwrangler.jsoncには定義せず、通常のテスト・ローカル開発では未設定(無効のまま)にする
-type AuthEnv = CloudflareBindings & { RATE_LIMIT_FORCE_ENABLED?: string }
+//
+// TURNSTILE_DISABLED_FOR_TESTSもテスト専用の環境変数。captchaプラグインはx-captcha-response
+// ヘッダーが無いリクエストを一律拒否するため、有効なままだと既存の全テストファイルの
+// signUpヘルパー(ヘッダーを送っていない)が軒並み失敗してしまう。vitest.config.tsの
+// miniflare.bindingsでテスト実行時は常に'true'を注入し、captchaプラグイン自体を
+// pluginsに含めないようにする。プラグイン自体の動作検証はsrc/lib/auth-captcha.test.tsで、
+// この値を明示的に'false'に上書きしたうえで行う
+type AuthEnv = CloudflareBindings & { RATE_LIMIT_FORCE_ENABLED?: string; TURNSTILE_DISABLED_FOR_TESTS?: string }
 
 // リクエストごとにHonoのc.env(D1バインディング等)を受け取り、Better Authインスタンスを生成する
 export function auth(env: AuthEnv) {
@@ -94,6 +102,23 @@ export function auth(env: AuthEnv) {
         ipAddressHeaders: ['cf-connecting-ip'],
       },
     },
+    // サインアップのbot対策(docs/architecture.md参照)。Better Auth公式のcaptchaプラグインを
+    // 採用する(自前のhooksやHonoミドルウェアで/api/auth/sign-up/emailを個別に検証する方式も
+    // 検討したが、公式プラグインがまさにこの用途向けに用意されており、siteverify呼び出し・
+    // エラーコード・エンドポイントのパスマッチングまで一貫して面倒を見てくれるため、
+    // 車輪の再発明を避けてこちらを採用する)。
+    // endpointsを明示的に['/sign-up/email']のみに絞り、既定(サインイン・パスワードリセットも
+    // 含む)より狭いスコープにする(今回の対象はサインアップのみのため)
+    plugins:
+      env.TURNSTILE_DISABLED_FOR_TESTS === 'true'
+        ? []
+        : [
+            captcha({
+              provider: 'cloudflare-turnstile',
+              secretKey: env.TURNSTILE_SECRET_KEY,
+              endpoints: ['/sign-up/email'],
+            }),
+          ],
     databaseHooks: {
       session: {
         create: {
