@@ -9,8 +9,9 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 - Dev: `pnpm dev`
 - Build: `pnpm build`
 - Deploy: `pnpm run deploy`(注意: `pnpm deploy`だとpnpm組み込みのモノレポ用デプロイコマンドが優先され、package.jsonのdeployスクリプトが実行されないpnpmバージョンがあるため、必ず`run`を付ける)
-- Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`。テスト未整備の間はスキップ可)
-- Type check: `pnpm exec tsc --noEmit`
+- Test: `pnpm test`(Vitest + `@cloudflare/vitest-plugin`。1回実行して終了する。テスト未整備の間はスキップ可)
+- Test(watch): `pnpm test:watch`(旧`pnpm test`の挙動。実装しながら継続的に実行したい場合に使う)
+- Type check: `pnpm typecheck`(内部で`tsc --noEmit`を実行。プロジェクト参照(`tsc -b`)は未使用のため通常の`--noEmit`で十分)
 
 ## Setup
 
@@ -18,7 +19,7 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 
 ## Definition of Done
 
-- `pnpm exec tsc --noEmit` がエラーなく通ること
+- `pnpm typecheck` がエラーなく通ること
 - テストが整備されている範囲では `pnpm test` が通ること
 - 新規APIエンドポイントを追加した場合、対応するzodスキーマ(`src/shared/schemas/`)があること
 - 変更内容がこのファイルのCode style・Boundariesに反していないこと

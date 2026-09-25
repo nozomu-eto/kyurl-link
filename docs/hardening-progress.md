@@ -181,9 +181,45 @@
 
 ## v3
 
-- [ ] T1: テスト・型チェックのスクリプト整備
+- [x] T1: テスト・型チェックのスクリプト整備
 - [ ] T2: ポスターexportのレート制限テストを安定させる
 - [ ] T3: 編集画面でサーバーのエラー内容を表示する
 - [ ] T4: 本番公開前の確認手順書
 - [ ] T5: PRの作成
+
+## 判断メモ(v3、各タスク完了時に追記)
+
+### T1: テスト・型チェックのスクリプト整備
+
+- `package.json`の`scripts`を次のように変更した。
+  - `"test": "vitest run"`(1回実行して終了する。CI・DoD確認向け)
+  - `"test:watch": "vitest"`(旧`pnpm test`の挙動そのまま。実装中の継続実行向け)
+  - `"typecheck": "tsc --noEmit"`(新規追加)
+- `tsc -b`(プロジェクト参照によるビルドモード)を使うかどうかを`tsconfig.json`で確認したところ、
+  `references`・`composite`のいずれも設定されておらずプロジェクトは単一構成だった。
+  `tsc -b`はプロジェクト参照が無い場合は通常の`--noEmit`と大きな差が無い一方、参照が無い構成へ
+  `-b`を使う意味が無く既存の`pnpm exec tsc --noEmit`という運用実績とも合わないため、
+  単純に`tsc --noEmit`を採用した(TypeScript 7.0.2がインストール済みであることは
+  `pnpm exec tsc --version`で確認済み。7系での`-b`/`--noEmit`の扱いも6系までと同様、
+  プロジェクト参照が無ければ単一プロジェクトのフルチェックとして動作する)。
+- `pnpm typecheck`を実行したところ、型エラーは0件だった。
+- AGENTS.mdの「Commands」節を、`pnpm test`(1回実行)・`pnpm test:watch`(watch)・
+  `pnpm typecheck`の3行に更新した。「Definition of Done」節の`pnpm exec tsc --noEmit`という
+  記述も`pnpm typecheck`に統一した。README.mdにはテスト・型チェックに関する記述が
+  無かったため変更していない。
+- **判断が必要だった点(環境構築)**: このworktreeには`.dev.vars`が存在せず(gitignore対象・
+  新規worktreeのため未作成)、この状態で`pnpm vitest run`を実行すると
+  `BETTER_AUTH_SECRET`未設定等に起因して19ファイル中14ファイル・97件のテストが失敗した
+  (サインイン関連が200を期待して403になる、`signUpAndGetUserId`がuser.idを読めない、等)。
+  これは今回の変更(スクリプト追加のみ)による回帰ではなく、AGENTS.mdの「Setup」節が明記する
+  「初回のみ`.dev.vars.example`を`.dev.vars`にコピーし`BETTER_AUTH_SECRET`をランダムな値に
+  変更する」という前提セットアップをこのworktreeでまだ行っていなかったことが原因と判断した。
+  `.dev.vars.example`をコピーして`.dev.vars`を作成し、`BETTER_AUTH_SECRET`を
+  `crypto.randomBytes(32).toString('hex')`で生成したランダムな値に変更したところ、
+  `pnpm vitest run`は19ファイル162件全て成功した(`.dev.vars`はgitignore対象のためコミット対象外)。
+  以後のタスクもこのセットアップ済みの状態で作業する。
+- テスト実行結果(`.dev.vars`セットアップ後の`pnpm vitest run`): 19ファイル・162件全て成功。
+  T2で対応する`POSTER_EXPORT_RATE_LIMITER`関連の`Can't call WebSocket send() after close()`という
+  Miniflare由来のuncaught exceptionログ自体は出力されたが、v2のベースライン記録通りテストの
+  成否には影響しなかった(全件成功)。
 
