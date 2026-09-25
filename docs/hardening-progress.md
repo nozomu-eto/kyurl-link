@@ -178,3 +178,12 @@
 - テストは`src/index.test.ts`に追加し、(a) `Content-Security-Policy-Report-Only`ヘッダーが
   付与され`Content-Security-Policy`(enforce)は付与されないこと、(b) 警告インターステシャルの
   インラインscriptのnonce属性値とレスポンスヘッダー中のnonce値が一致することを確認した。
+
+## v3
+
+- [ ] T1: テスト・型チェックのスクリプト整備
+- [ ] T2: ポスターexportのレート制限テストを安定させる
+- [ ] T3: 編集画面でサーバーのエラー内容を表示する
+- [ ] T4: 本番公開前の確認手順書
+- [ ] T5: PRの作成
+
