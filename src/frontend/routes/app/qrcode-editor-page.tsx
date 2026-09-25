@@ -54,7 +54,11 @@ export function QrCodeEditorPage() {
     setIsSaving(false)
 
     if (!response.ok) {
-      setErrorMessage('スタイル設定の保存に失敗しました')
+      // 作成画面(qrcode-create-page.tsx等)と同様、サーバーが返す{ error: { message } }を
+      // そのまま表示する(429時の「リクエストが多すぎます…」等もこのmessageに含まれるため、
+      // 個別のステータスコード分岐は不要)。JSONでない・messageが無い場合のみ固定文言にする
+      const body = await response.json().catch(() => null)
+      setErrorMessage(body && 'error' in body && body.error?.message ? body.error.message : 'スタイル設定の保存に失敗しました')
       return
     }
 
