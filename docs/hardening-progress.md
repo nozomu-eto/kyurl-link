@@ -182,7 +182,7 @@
 ## v3
 
 - [x] T1: テスト・型チェックのスクリプト整備
-- [ ] T2: ポスターexportのレート制限テストを安定させる
+- [x] T2: ポスターexportのレート制限テストを安定させる
 - [ ] T3: 編集画面でサーバーのエラー内容を表示する
 - [ ] T4: 本番公開前の確認手順書
 - [ ] T5: PRの作成
@@ -222,4 +222,36 @@
   T2で対応する`POSTER_EXPORT_RATE_LIMITER`関連の`Can't call WebSocket send() after close()`という
   Miniflare由来のuncaught exceptionログ自体は出力されたが、v2のベースライン記録通りテストの
   成否には影響しなかった(全件成功)。
+
+### T2: ポスターexportのレート制限テストを安定させる
+
+- **採用した方式**: 指示の優先順位どおり、まず1番目の方式(R2キャッシュの事前投入)を検討したところ
+  `src/routes/posters.ts`のexportハンドラは「認可チェック→R2(POSTER_CACHE)キャッシュ確認→
+  ヒットすればそのまま返す(Browser Renderingを起動しない)」という順序になっており、
+  キャッシュキー(`${poster.id}/${format}/${sha256(title・subtitle・size・styleOptions・
+  QRコードSVGのJSON)}`)さえ再現できれば実現可能と判断し、こちらを採用した(2番目の
+  `vi.mock`によるpuppeteer.launchの差し替えは不要だった)。
+- `src/middleware/rate-limit.test.ts`に`computePosterExportCacheKey()`ヘルパーを追加し、
+  posters.tsのハンドラと全く同じ手順(`qrcode-svg`でSVGを生成→
+  `{ title, subtitle, size, styleOptions, qrCodeSvg }`という同じキー順のオブジェクトを
+  `JSON.stringify`→`crypto.subtle.digest('SHA-256', ...)`→16進文字列化)でキャッシュキーを
+  計算した。QRコードの内容(`qrContent`)は、テストが`targetType: 'link'`で作成した
+  linkの`shortCode`から`https://example.com/${link.shortCode}`として組み立てた(ハンドラが
+  `new URL(c.req.url).origin`から求めるoriginと、テストが`SELF.fetch('https://example.com/...')`
+  で使うoriginが一致することを確認した上で採用)。
+- 計算したキーに対し、テスト内で`env.POSTER_CACHE.put(cacheKey, ダミーのPDFバイト列)`を
+  export呼び出しループの前に実行しておくことで、11回のexport呼び出し(10回成功+11回目の429)を
+  通じて一度もBrowser Rendering(`@cloudflare/puppeteer`の`launch`)が起動しないようにした。
+  検証していること自体(10回成功・11回目が429・エラーコードが`RATE_LIMITED`)は変更していない。
+- `it.skipIf(process.env.CI_SKIP_BROWSER_TEST)`を外した。このテストはもうBrowser Renderingの
+  実起動に依存しないため、`CI_SKIP_BROWSER_TEST`環境変数によるスキップ対象から外れるのが
+  実態に合っていると判断した(スキップ条件を残すと「Browser Renderingに依存しないテストに
+  した」というこのタスクの目的と矛盾するため)。
+- `pnpm vitest run src/middleware/rate-limit.test.ts`を5回連続実行し、5回とも全5件成功した
+  (`Can't call WebSocket send() after close()`のログも一切出力されなかった)。
+- v2のベースライン記録(「既知のフレーキーテスト」)は本タスクで解消済み。ただし、
+  `src/routes/posters.test.ts`側には引き続き実際にBrowser Renderingを起動するテストが残っており
+  (`pnpm test`実行時に同種のuncaught exceptionログが1回出力されることを確認したが、
+  このテストファイル自体は全件成功しており、テストの成否には影響していない)、これは
+  T2のスコープ(`rate-limit.test.ts`のみ)外のため今回は変更していない。
 
