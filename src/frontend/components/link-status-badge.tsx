@@ -18,7 +18,35 @@ export const LINK_STATUS_OPTIONS: SelectOption[] = (Object.keys(LINK_STATUS_LABE
   label: LINK_STATUS_LABELS[status],
 }))
 
-// LinkStatusBadge: 状態を色付きのバッジで表示する(有効=緑、期限切れ・停止中=赤)
+// LinkStatusBadge: 状態を色だけでなく形・アイコンでも区別して表示する
+// (有効=点、期限切れ=時計アイコン、停止中=一時停止アイコン。色覚特性によらず区別できるようにするため)
 export function LinkStatusBadge({ status }: { status: LinkStatus }) {
-  return <span className={`status-badge status-badge--${status}`}>{LINK_STATUS_LABELS[status]}</span>
+  return (
+    <span className={`status-badge status-badge--${status}`}>
+      <LinkStatusIcon status={status} />
+      {LINK_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+function LinkStatusIcon({ status }: { status: LinkStatus }) {
+  if (status === 'active') {
+    return <span className="status-badge__dot" aria-hidden="true" />
+  }
+
+  if (status === 'expired') {
+    return (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5V12l3 2" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6v12" />
+      <path d="M15 6v12" />
+    </svg>
+  )
 }
