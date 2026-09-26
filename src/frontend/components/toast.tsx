@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 type ToastProps = {
   message: string
@@ -14,10 +14,16 @@ const DEFAULT_DURATION_MS = 3000
 // Toast: 画面下部に一時的なメッセージを表示する共通部品。role="status"で読み上げられ、
 // 指定時間が経過すると自動的に消える
 export function Toast({ message, durationMs = DEFAULT_DURATION_MS, onDismiss }: ToastProps) {
+  // onDismissを常に最新の値で呼び出すためのref。呼び出し元(親)がレンダーのたびに
+  // 新しい関数を渡してくる場合でも、下のuseEffectの依存配列にonDismissを含めずに済み、
+  // 親の再描画のたびにタイマーがリセットされない(表示時間が延び続けない)ようにする
+  const onDismissRef = useRef(onDismiss)
+  onDismissRef.current = onDismiss
+
   useEffect(() => {
-    const timer = setTimeout(onDismiss, durationMs)
+    const timer = setTimeout(() => onDismissRef.current(), durationMs)
     return () => clearTimeout(timer)
-  }, [durationMs, onDismiss])
+  }, [durationMs])
 
   return (
     <div className="toast" role="status">

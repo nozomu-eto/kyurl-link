@@ -34,6 +34,12 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
   const titleId = useId()
   const descriptionId = useId()
 
+  // onCloseを常に最新の値で呼び出すためのref。呼び出し元(親)がレンダーのたびに
+  // 新しい関数を渡してくる場合でも、下のuseEffectの依存配列にonCloseを含めずに済み、
+  // 再描画のたびに初期フォーカスの再設定・スクロール固定の解除/再固定が起きないようにする
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
     if (!isOpen) {
       return
@@ -47,10 +53,14 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
     const firstFocusable = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     firstFocusable?.focus()
 
+    // ダイアログ表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
+    const previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -78,10 +88,11 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousBodyOverflow
       // 閉じたら開く前にフォーカスがあった要素へ戻す
       previouslyFocusedElementRef.current?.focus()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) {
     return null

@@ -64,6 +64,12 @@ export function CopyButton({ value, compact = false, className }: CopyButtonProp
           コピーに失敗しました
         </span>
       )}
+      {/* 画面上は非表示のまま「コピーしました」を読み上げる。ボタンの見た目自体もコピー後に
+          変わるが(aria-labelの切り替えのみ)、視覚的な変化を伴わない読み上げ専用の通知として
+          role="status"の領域を別に用意する */}
+      <span className="visually-hidden" role="status">
+        {isCopied ? 'コピーしました' : ''}
+      </span>
     </span>
   )
 }
