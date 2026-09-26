@@ -30,11 +30,28 @@ type AppHeaderDrawerProps = {
 //   移動先を決める)
 // - 開いている間はdocument.bodyのスクロールを止め、閉じたら元に戻す
 // - Escで閉じる・閉じたらメニューボタンへフォーカスを戻す
+// - ドロワーを開いたまま画面幅が769px以上に広がった場合、CSS側でパネル・幕(overlay)は
+//   非表示になるが、isOpenをfalseに戻さないとdocument.bodyのスクロール固定が解除されない
+//   (上のuseEffectのクリーンアップがisOpen: false時にしか走らないため)ため、
+//   matchMediaでこの変化を監視してisOpenを閉じる
 export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const navId = useId()
+
+  useEffect(() => {
+    const desktopMediaQuery = window.matchMedia('(min-width: 769px)')
+
+    function handleDesktopMediaQueryChange(event: MediaQueryListEvent) {
+      if (event.matches) {
+        setIsOpen(false)
+      }
+    }
+
+    desktopMediaQuery.addEventListener('change', handleDesktopMediaQueryChange)
+    return () => desktopMediaQuery.removeEventListener('change', handleDesktopMediaQueryChange)
+  }, [])
 
   useEffect(() => {
     if (!isOpen) {

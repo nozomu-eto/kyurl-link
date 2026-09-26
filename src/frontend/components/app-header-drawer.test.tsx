@@ -1,9 +1,10 @@
 /** @jsxImportSource react */
 import { MemoryRouter } from 'react-router'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AppHeaderDrawer } from '@/frontend/components/app-header-drawer'
+import { triggerMediaQueryChange } from '../../../test/frontend-setup'
 
 function renderAppHeaderDrawer() {
   return render(
@@ -100,5 +101,23 @@ describe('AppHeaderDrawer', () => {
     // Shift+Tabでも同じ集合の中だけを逆順に循環する
     await user.tab({ shift: true })
     expect(document.activeElement).toBe(toggleButton)
+  })
+
+  it('開いたまま画面幅が769px以上に広がると、自動的に閉じて背景のスクロール固定も解除される', async () => {
+    const user = userEvent.setup()
+    renderAppHeaderDrawer()
+
+    const toggleButton = screen.getByRole('button', { name: 'メニューを開く' })
+    await user.click(toggleButton)
+    expect(toggleButton.getAttribute('aria-expanded')).toBe('true')
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await act(async () => {
+      triggerMediaQueryChange('(min-width: 769px)', true)
+    })
+
+    expect(screen.getByRole('button', { name: 'メニューを開く' }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('navigation', { name: 'メインメニュー' }).className).not.toContain('app-drawer__panel--open')
+    expect(document.body.style.overflow).toBe('')
   })
 })

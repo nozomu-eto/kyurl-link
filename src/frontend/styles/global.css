@@ -512,11 +512,19 @@ h1 {
   .app-drawer__panel {
     display: flex;
   }
+
+  .app-drawer__overlay {
+    display: block;
+  }
 }
 
 /* ========== AppHeaderDrawer(スマホのドロワー) ========== */
 
+/* 769px以上ではそもそも幕を表示しない(app-drawer__panelと同様)。ドロワーを開いたまま
+ * 画面幅が769px以上に広がった場合はapp-header-drawer.tsx側でisOpenをfalseに戻すが、
+ * その前提が崩れても幕だけが残って操作不能にならないよう、CSS側でも独立して隠しておく */
 .app-drawer__overlay {
+  display: none;
   position: fixed;
   inset: 0;
   z-index: 99;
