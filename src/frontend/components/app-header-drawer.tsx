@@ -5,6 +5,7 @@ import { NavLink } from 'react-router'
 import { APP_NAV_ITEMS } from '@/frontend/components/app-nav-items'
 import { Button } from '@/frontend/components/button'
 import { cx } from '@/frontend/components/class-names'
+import { useBodyScrollLock } from '@/frontend/lib/use-body-scroll-lock'
 
 // キーボード操作でフォーカス移動の対象にする要素(開いたときの初期フォーカス、
 // Tab/Shift+Tabでの循環の両方で使う。dialog.tsxと同じ考え方)
@@ -40,6 +41,11 @@ export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawer
   const panelRef = useRef<HTMLElement>(null)
   const navId = useId()
 
+  // ドロワー表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
+  // (iOS Safariのタッチスクロールにも対応するため、document.body.style.overflowの直接操作ではなく
+  // 専用フックを使う)
+  useBodyScrollLock(isOpen)
+
   useEffect(() => {
     const desktopMediaQuery = window.matchMedia('(min-width: 769px)')
 
@@ -61,10 +67,6 @@ export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawer
     // 開いたときに最初のメニュー項目へフォーカスする
     const firstPanelFocusable = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     firstPanelFocusable?.focus()
-
-    // ドロワー表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
-    const previousBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
 
     // メニューボタン自身とパネル内の操作部品をまとめて、Tabで循環する対象を返す。
     // メニューボタンはヘッダー側(z-index: 101)にあり、ドロワー表示中も常に手前で
@@ -105,7 +107,6 @@ export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawer
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousBodyOverflow
       // 閉じたらメニューボタンへフォーカスを戻す
       toggleButtonRef.current?.focus()
     }

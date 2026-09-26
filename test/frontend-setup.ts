@@ -41,3 +41,7 @@ export function triggerMediaQueryChange(query: string, matches: boolean): void {
   const listeners = mediaQueryListenersByQuery.get(query)
   listeners?.forEach((listener) => listener({ matches } as MediaQueryListEvent))
 }
+
+// jsdomのwindow.scrollToは「Not implemented」という警告を出すだけの空実装のため、
+// 既定を静かな空実装に差し替える(呼び出し内容を確認したいテストは各自vi.spyOnで上書きする)
+window.scrollTo = () => {}

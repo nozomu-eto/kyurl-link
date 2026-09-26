@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cx } from '@/frontend/components/class-names'
+import { useBodyScrollLock } from '@/frontend/lib/use-body-scroll-lock'
 
 // キーボード操作でフォーカス移動の対象にする要素(Tabキーのフォーカストラップ、
 // 開いたときの初期フォーカスの両方で使う)
@@ -40,6 +41,11 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
+  // ダイアログ表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
+  // (iOS Safariのタッチスクロールにも対応するため、document.body.style.overflowの直接操作ではなく
+  // 専用フックを使う)
+  useBodyScrollLock(isOpen)
+
   useEffect(() => {
     if (!isOpen) {
       return
@@ -52,10 +58,6 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
     const panel = panelRef.current
     const firstFocusable = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     firstFocusable?.focus()
-
-    // ダイアログ表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
-    const previousBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -88,7 +90,6 @@ export function Dialog({ isOpen, onClose, title, description, isAlertDialog = fa
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousBodyOverflow
       // 閉じたら開く前にフォーカスがあった要素へ戻す
       previouslyFocusedElementRef.current?.focus()
     }
