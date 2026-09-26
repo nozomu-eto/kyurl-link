@@ -24,6 +24,23 @@
   --palette-ink-muted: #5a5a5a;
   --palette-error: #b3261e;
   --palette-success: #1f7a4d;
+
+  /* 操作部品(入力欄等)の枠線用。--palette-brandから派生させると背景差し替え時の
+     コントラスト比(白背景に対して3:1以上)を保証できないため、独立した値として固定する
+     (docs/architecture.md 第6.5節 コンポーネント一覧) */
+  --palette-border-strong: #8a8478;
+
+  /* 画面上の削除ボタン(枠線型)専用の文字・枠線色。白背景に対して6.2:1のコントラストを
+     確保した固定値(塗りの削除ボタンは確認ダイアログ内だけで使い、--color-ctaを使う) */
+  --palette-danger-outline: #b13528;
+
+  /* 状態バッジ(LinkStatusBadge)用の固定値。色だけでなく形・アイコンでも区別するため、
+     ブランド3色から独立した中立色を使う */
+  --palette-status-expired: #4d4a44;
+  --palette-status-expired-bg: #ebe8e1;
+  --palette-status-suspended: #8b3a14;
+  --palette-status-suspended-bg: #fbeee6;
+  --palette-status-active-bg: #e8f4ee;
 }
 
 /* ============================================================
@@ -35,6 +52,9 @@
   --color-bg-alt: color-mix(in srgb, var(--palette-brand) 7%, var(--palette-white));
   --color-surface: var(--palette-white);
   --color-border: color-mix(in srgb, var(--palette-brand) 10%, #d9d9d9);
+  /* カードの区切り線等、装飾目的の枠線は--color-borderのまま。入力欄・セレクトなど
+     操作部品の枠線はコントラスト確保のためこちらを使う(第6.5節) */
+  --color-border-strong: var(--palette-border-strong);
 
   /* 文字 */
   --color-text: var(--palette-ink);
@@ -51,19 +71,31 @@
   --color-brand-tint: color-mix(in srgb, var(--palette-brand) 7%, var(--palette-white));
   --color-on-brand: var(--palette-white);
 
-  /* 主要CTA(朱)。新規登録など、画面内で最も押してほしい1つのボタンにだけ使う */
+  /* 主要CTA(朱)。新規登録など、画面内で最も押してほしい1つのボタンにだけ使う。
+     塗りの削除ボタン(確認ダイアログ内のみ)もこの色を共用する */
   --color-cta: var(--palette-accent);
   --color-cta-shade: color-mix(in srgb, var(--palette-accent) 70%, var(--palette-black));
+  --color-cta-deep: color-mix(in srgb, var(--palette-accent) 55%, var(--palette-black));
   --color-on-cta: var(--palette-white);
 
   /* 状態色 */
-  --color-danger: var(--palette-error);
-  --color-on-danger: var(--palette-white);
   --color-error: var(--palette-error);
   --color-error-bg: color-mix(in srgb, var(--palette-error) 9%, var(--palette-white));
   --color-success: var(--palette-success);
   --color-success-bg: color-mix(in srgb, var(--palette-success) 10%, var(--palette-white));
-  --color-focus-ring: var(--palette-brand);
+
+  /* 画面上の削除ボタン(枠線型)専用 */
+  --color-danger-outline: var(--palette-danger-outline);
+  --color-danger-outline-tint: color-mix(in srgb, var(--palette-danger-outline) 10%, var(--palette-white));
+  --color-danger-outline-soft: color-mix(in srgb, var(--palette-danger-outline) 18%, var(--palette-white));
+
+  /* 短縮URLの状態バッジ(LinkStatusBadge)専用 */
+  --color-status-active-text: var(--palette-success);
+  --color-status-active-bg: var(--palette-status-active-bg);
+  --color-status-expired-text: var(--palette-status-expired);
+  --color-status-expired-bg: var(--palette-status-expired-bg);
+  --color-status-suspended-text: var(--palette-status-suspended);
+  --color-status-suspended-bg: var(--palette-status-suspended-bg);
 
   /* フッター(濃紺の面) */
   --color-footer-bg: var(--color-brand-deep);
@@ -98,6 +130,19 @@
  * ============================================================ */
 * {
   box-sizing: border-box;
+}
+
+/* 画面上には表示せず、スクリーンリーダーにだけ読み上げさせたい文言用(コピー完了のアナウンス等) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 html,
@@ -135,6 +180,12 @@ h3 {
 h1 {
   font-size: 1.6rem;
   font-weight: 900;
+}
+
+/* フォーカスの見た目を全部品で統一する(マウス操作時は表示しないよう:focus-visibleのみに適用する) */
+:focus-visible {
+  outline: 3px solid var(--color-brand-strong);
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -450,9 +501,10 @@ h1 {
   margin: 0;
 }
 
-/* ボタン。--primaryは紺(通常の送信)、--ctaは朱(最重要の1つ)、--secondaryは紺の枠線、
-   --outlineはグレーの枠線(ログイン等の控えめな導線)、--dangerは削除等の取り消せない操作、
-   --textは文字だけのボタン */
+/* ボタン。--primaryは紺(通常の送信)、--ctaは朱(最重要の1つ。確認ダイアログ内の塗りの
+   削除ボタンも共用)、--secondaryは紺の枠線、--outlineはグレーの枠線(ログイン等の控えめな導線)、
+   --danger-outlineは画面上の削除ボタン(枠線)、--textは文字だけのボタン。
+   ホバー・押下(:active)・キーボードフォーカス・無効(:disabled)の状態を全variantで定義する */
 .button {
   display: inline-flex;
   align-items: center;
@@ -475,11 +527,6 @@ h1 {
   cursor: not-allowed;
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
 .button--primary {
   background-color: var(--color-brand);
   color: var(--color-on-brand);
@@ -490,6 +537,11 @@ h1 {
   color: var(--color-on-brand);
 }
 
+.button--primary:active {
+  background-color: var(--color-brand-deep);
+  color: var(--color-on-brand);
+}
+
 .button--cta {
   background-color: var(--color-cta);
   color: var(--color-on-cta);
@@ -497,6 +549,11 @@ h1 {
 
 .button--cta:hover {
   background-color: var(--color-cta-shade);
+  color: var(--color-on-cta);
+}
+
+.button--cta:active {
+  background-color: var(--color-cta-deep);
   color: var(--color-on-cta);
 }
 
@@ -511,6 +568,11 @@ h1 {
   color: var(--color-brand-strong);
 }
 
+.button--secondary:active {
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
 .button--outline {
   background-color: var(--color-brand-strong);
   color: var(--color-surface);
@@ -522,9 +584,42 @@ h1 {
   color: var(--color-surface);
 }
 
+.button--outline:active {
+  background-color: var(--color-brand-deep);
+  color: var(--color-surface);
+}
+
+/* 画面上の削除ボタン(枠線型)。塗りの削除ボタンは確認ダイアログ内だけで使い、--ctaを使う */
+.button--danger-outline {
+  background-color: var(--color-surface);
+  color: var(--color-danger-outline);
+  border-color: var(--color-danger-outline);
+}
+
+.button--danger-outline:hover {
+  background-color: var(--color-danger-outline-tint);
+  color: var(--color-danger-outline);
+}
+
+.button--danger-outline:active {
+  background-color: var(--color-danger-outline-soft);
+  color: var(--color-danger-outline);
+}
+
+/* 確認ダイアログ内だけで使う塗りの削除ボタン。見た目はCTAと同じ朱を共用する */
 .button--danger {
-  background-color: var(--color-danger);
-  color: var(--color-on-danger);
+  background-color: var(--color-cta);
+  color: var(--color-on-cta);
+}
+
+.button--danger:hover {
+  background-color: var(--color-cta-shade);
+  color: var(--color-on-cta);
+}
+
+.button--danger:active {
+  background-color: var(--color-cta-deep);
+  color: var(--color-on-cta);
 }
 
 .button--text {
@@ -533,6 +628,15 @@ h1 {
   color: var(--color-link);
   padding: var(--space-1) var(--space-2);
   border: none;
+}
+
+.button--text:hover {
+  color: var(--color-link-hover);
+  text-decoration: underline;
+}
+
+.button--text:active {
+  color: var(--color-brand-deep);
 }
 
 .button--large {
@@ -561,17 +665,14 @@ h1 {
 .field__input {
   min-height: var(--tap-target);
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--color-border);
+  /* 操作部品の枠線は--color-borderではなく--color-border-strongを使う(白背景に対して3:1以上、
+     第6.5節コンポーネント一覧) */
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-base);
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: 1rem;
   font-family: inherit;
-}
-
-.field__input:focus {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
 }
 
 .field__error {
@@ -630,23 +731,39 @@ h1 {
   white-space: nowrap;
 }
 
+/* 色だけでなく形・アイコンでも状態を区別する(有効=点、期限切れ=時計、停止中=一時停止)。
+   アイコンはcurrentColorで塗るため、variantごとの色指定だけで揃う */
 .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   padding: 0.15rem 0.6rem;
   border-radius: var(--radius-pill);
   font-size: 0.75rem;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
 }
 
 .status-badge--active {
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
+  background-color: var(--color-status-active-bg);
+  color: var(--color-status-active-text);
 }
 
-.status-badge--expired,
+.status-badge--expired {
+  background-color: var(--color-status-expired-bg);
+  color: var(--color-status-expired-text);
+}
+
 .status-badge--suspended {
-  background-color: var(--color-error-bg);
-  color: var(--color-error);
+  background-color: var(--color-status-suspended-bg);
+  color: var(--color-status-suspended-text);
 }
 
 /* 掲示物エディタ(フォーム+プレビューの横並び) */
@@ -782,5 +899,143 @@ h1 {
 @media (max-width: 1024px) {
   .header-drawer__toggle {
     display: flex;
+  }
+}
+
+/* ========== CopyButton ========== */
+
+.copy-button__wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-base);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface);
+  color: var(--color-brand);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  background-color: var(--color-brand-tint);
+}
+
+.copy-button:active {
+  background-color: var(--color-brand-soft);
+}
+
+.copy-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* スマホ向け: アイコンのみ・44px角(タップ領域確保) */
+.copy-button--compact {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  padding: 0;
+}
+
+.copy-button--copied {
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.copy-button__error {
+  color: var(--color-error);
+  font-size: 0.8rem;
+}
+
+/* ========== Toast ========== */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-6);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100vw - var(--space-8));
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background-color: var(--color-brand-deep);
+  color: var(--color-on-brand);
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-card);
+  z-index: 300;
+}
+
+/* ========== Dialog ========== */
+
+/* 重なり順: ヘッダー(101)・ドロワー(100)よりも常に手前に表示する */
+.dialog__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.dialog__panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dialog__title {
+  margin: 0 0 var(--space-3);
+}
+
+.dialog__description {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.dialog__body {
+  margin-bottom: var(--space-4);
+}
+
+.dialog__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* fullScreenOnMobile指定時、768px未満では全画面表示にする(第6.5節スマホ対応ルール:
+   入力を伴うダイアログはスマホでは全画面) */
+@media (max-width: 768px) {
+  .dialog__overlay--full-screen-on-mobile {
+    padding: 0;
+  }
+
+  .dialog__panel--full-screen-on-mobile {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
   }
 }
