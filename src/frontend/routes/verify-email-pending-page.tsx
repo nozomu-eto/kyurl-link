@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { authClient } from '@/frontend/lib/auth-client'
+import { Button, ButtonLink } from '@/frontend/components/button'
+import { Page } from '@/frontend/components/page'
 
 // VerifyEmailPendingPage: サインアップ直後に案内する「メール確認待ち」画面。
 // docs/architecture.md 第6.1節の必須画面の1つ。auth.ts(emailVerification.sendOnSignUp: true)
@@ -30,8 +32,7 @@ export function VerifyEmailPendingPage() {
   }
 
   return (
-    <div className="page-container">
-      <h1>メールアドレスの確認をお願いします</h1>
+    <Page contained title="メールアドレスの確認をお願いします">
 
       {isSessionPending ? (
         <p>読み込み中…</p>
@@ -44,9 +45,9 @@ export function VerifyEmailPendingPage() {
       ) : session.user.emailVerified ? (
         <>
           <AlertMessage tone="success">メールアドレスの確認は完了しています。</AlertMessage>
-          <Link to="/app" className="button button--primary">
+          <ButtonLink to="/app">
             ダッシュボードへ進む
-          </Link>
+          </ButtonLink>
         </>
       ) : (
         <>
@@ -58,15 +59,15 @@ export function VerifyEmailPendingPage() {
           {resendState === 'sent' && <AlertMessage tone="success">確認メールを再送信しました。</AlertMessage>}
           {resendState === 'error' && <AlertMessage tone="error">再送信に失敗しました。時間をおいて再度お試しください。</AlertMessage>}
 
-          <button type="button" className="button button--secondary" disabled={resendState === 'sending'} onClick={handleResendClick}>
+          <Button variant="secondary" disabled={resendState === 'sending'} onClick={handleResendClick}>
             {resendState === 'sending' ? '送信中…' : '確認メールを再送信'}
-          </button>
+          </Button>
 
           <p>
             <Link to="/app">確認せずにダッシュボードへ進む</Link>
           </p>
         </>
       )}
-    </div>
+    </Page>
   )
 }

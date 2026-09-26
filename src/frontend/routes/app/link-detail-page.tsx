@@ -3,6 +3,11 @@ import { type ChangeEvent, useState } from 'react'
 import { Link, type LoaderFunctionArgs, useLoaderData, useNavigate, useRevalidator } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { Card } from '@/frontend/components/card'
+import { SelectField } from '@/frontend/components/form-field'
+import { LINK_STATUS_OPTIONS } from '@/frontend/components/link-status-badge'
+import { Page } from '@/frontend/components/page'
 
 // linkDetailLoader: link詳細画面の表示に必要な3種類の情報をまとめて取得するloader。
 // 1) link本体(GET /links/:id) 2) クリック統計(GET /links/:id/clicks)
@@ -87,11 +92,10 @@ export function LinkDetailPage() {
   }
 
   return (
-    <div className="page">
-      <h1>短縮URLの詳細</h1>
+    <Page title="短縮URLの詳細">
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
 
-      <section className="card">
+      <Card>
         <p>
           <strong>短縮URL:</strong> {`${window.location.origin}/${link.shortCode}`}
         </p>
@@ -101,30 +105,26 @@ export function LinkDetailPage() {
         <p>
           <strong>有効期限:</strong> {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('ja-JP') : '無期限'}
         </p>
-        <div className="field field--narrow">
-          <label className="field__label" htmlFor="link-detail-status">
-            状態
-          </label>
-          <select
-            id="link-detail-status"
-            className="field__input"
-            value={link.status}
-            disabled={isUpdatingStatus || link.moderationStatus === 'suspended'}
-            onChange={handleStatusChange}
-          >
-            <option value="active">有効</option>
-            <option value="expired">期限切れ</option>
-            <option value="suspended">停止中</option>
-          </select>
-          {link.moderationStatus === 'suspended' && <p className="field__hint">運営により停止されています。</p>}
-        </div>
-        <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
+        <SelectField
+          fieldId="link-detail-status"
+          label="状態"
+          narrow
+          // 運営により停止(moderationStatus === 'suspended')された場合、所有者は
+          // 自分では状態を変更できないようにする(強制停止の解除を防ぐ仕様。PR #4参照)
+          hint={link.moderationStatus === 'suspended' ? '運営により停止されています。' : undefined}
+          options={LINK_STATUS_OPTIONS}
+          selectProps={{
+            value: link.status,
+            disabled: isUpdatingStatus || link.moderationStatus === 'suspended',
+            onChange: handleStatusChange,
+          }}
+        />
+        <Button variant="danger" disabled={isDeleting} onClick={handleDeleteClick}>
           {isDeleting ? '削除中…' : 'この短縮URLを削除'}
-        </button>
-      </section>
+        </Button>
+      </Card>
 
-      <section className="card">
-        <h2 className="card__title">クリック統計</h2>
+      <Card title="クリック統計">
         <p>
           合計クリック数: <strong>{clicks.totalClicks}</strong>
         </p>
@@ -146,15 +146,16 @@ export function LinkDetailPage() {
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
-      <section className="card">
-        <div className="card__header">
-          <h2 className="card__title">紐づくQRコード</h2>
-          <button type="button" className="button button--secondary" onClick={() => navigate(`/app/links/${link.id}/qrcodes/new`)}>
+      <Card
+        title="紐づくQRコード"
+        actions={
+          <Button variant="secondary" onClick={() => navigate(`/app/links/${link.id}/qrcodes/new`)}>
             QRコードを作成
-          </button>
-        </div>
+          </Button>
+        }
+      >
         {relatedQrcodeItems.length === 0 ? (
           <p className="field__hint">まだQRコードがありません。</p>
         ) : (
@@ -166,7 +167,7 @@ export function LinkDetailPage() {
             ))}
           </ul>
         )}
-      </section>
-    </div>
+      </Card>
+    </Page>
   )
 }

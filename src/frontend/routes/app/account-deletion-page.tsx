@@ -2,8 +2,11 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { apiClient } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // APIから返るerror.codeを、この画面向けの日本語メッセージに変換する。
 // docs/architecture.md 第7.1節・account-requests.tsの実装に対応するコードのみを扱う
@@ -51,13 +54,12 @@ export function AccountDeletionPage() {
   }
 
   return (
-    <div className="page">
-      <h1>アカウントを削除</h1>
+    <Page title="アカウントを削除">
       <AlertMessage tone="error">
         この操作を行うと、短縮URL・QRコード・掲示物を含むすべてのデータへのアクセスが即座に停止します。7日間の猶予期間中にログインすれば取り消せますが、それ以降は元に戻せません。
       </AlertMessage>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="account-deletion-password"
           label="本人確認のため、パスワードを入力してください"
@@ -69,10 +71,10 @@ export function AccountDeletionPage() {
             onChange: (e) => setPassword(e.target.value),
           }}
         />
-        <button type="submit" className="button button--danger" disabled={isSubmitting}>
+        <Button type="submit" variant="danger" disabled={isSubmitting}>
           {isSubmitting ? '送信中…' : 'アカウントを削除する'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

@@ -358,6 +358,7 @@ h1 {
 .app-shell__brand {
   display: inline-block;
   margin-bottom: var(--space-6);
+  text-decoration: none;
 }
 
 .app-shell__nav-link {

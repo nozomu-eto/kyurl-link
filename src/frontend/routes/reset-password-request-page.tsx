@@ -2,8 +2,11 @@
 import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { authClient } from '@/frontend/lib/auth-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // ResetPasswordRequestPage: パスワードリセットの申請画面(メールアドレスを入力するだけ)。
 // 送信後は、そのメールアドレスが登録済みかどうかに関わらず同じ文言を表示する
@@ -28,21 +31,19 @@ export function ResetPasswordRequestPage() {
 
   if (isSubmitted) {
     return (
-      <div className="page-container">
-        <h1>パスワード再設定のご案内</h1>
+      <Page contained title="パスワード再設定のご案内">
         <AlertMessage tone="success">
           入力いただいたメールアドレスが登録されている場合、パスワード再設定用のメールをお送りしました。メールをご確認ください。
         </AlertMessage>
         <Link to="/login">ログイン画面へ戻る</Link>
-      </div>
+      </Page>
     )
   }
 
   return (
-    <div className="page-container">
-      <h1>パスワードをお忘れの方</h1>
+    <Page contained title="パスワードをお忘れの方">
       <p>登録済みのメールアドレスを入力してください。パスワード再設定用のリンクをお送りします。</p>
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="reset-request-email"
           label="メールアドレス"
@@ -54,10 +55,10 @@ export function ResetPasswordRequestPage() {
             onChange: (e) => setEmail(e.target.value),
           }}
         />
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '送信中…' : '再設定メールを送信'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

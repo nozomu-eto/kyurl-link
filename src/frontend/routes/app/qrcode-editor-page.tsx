@@ -3,6 +3,10 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { Card } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 
 // qrcodeEditorLoader: QRコード編集画面の表示に必要なqrcode1件分を取得するloader
 export async function qrcodeEditorLoader({ params }: LoaderFunctionArgs) {
@@ -83,60 +87,44 @@ export function QrCodeEditorPage() {
   }
 
   return (
-    <div className="page">
-      <h1>QRコードの詳細</h1>
+    <Page title="QRコードの詳細">
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       {successMessage && <AlertMessage tone="success">{successMessage}</AlertMessage>}
 
-      <section className="card">
+      <Card>
         {/* GET /api/v1/qrcodes/:id/imageは認証不要の公開エンドポイントなので、
             そのまま<img src>に指定してSVGを表示できる */}
         <img src={`/api/v1/qrcodes/${qrcode.id}/image`} alt="QRコード" width={200} height={200} />
         <p className="field__hint">対象種別: {qrcode.targetType === 'link' ? '短縮URL' : '直接URL'}</p>
-      </section>
+      </Card>
 
-      <section className="card">
-        <h2 className="card__title">スタイル設定</h2>
+      <Card title="スタイル設定">
         <p className="field__hint">※現在はスタイル設定の保存のみ対応しており、QR画像自体への反映は今後対応予定です。</p>
         <form onSubmit={handleStyleSubmit}>
-          <div className="field">
-            <label className="field__label" htmlFor="qrcode-editor-foreground-color">
-              前景色
-            </label>
-            <input
-              id="qrcode-editor-foreground-color"
-              className="field__input"
-              type="color"
-              value={foregroundColor}
-              onChange={(e) => setForegroundColor(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label className="field__label" htmlFor="qrcode-editor-background-color">
-              背景色
-            </label>
-            <input
-              id="qrcode-editor-background-color"
-              className="field__input"
-              type="color"
-              value={backgroundColor}
-              onChange={(e) => setBackgroundColor(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="button button--primary" disabled={isSaving}>
+          <FormField
+            fieldId="qrcode-editor-foreground-color"
+            label="前景色"
+            inputProps={{ type: 'color', value: foregroundColor, onChange: (e) => setForegroundColor(e.target.value) }}
+          />
+          <FormField
+            fieldId="qrcode-editor-background-color"
+            label="背景色"
+            inputProps={{ type: 'color', value: backgroundColor, onChange: (e) => setBackgroundColor(e.target.value) }}
+          />
+          <Button type="submit" disabled={isSaving}>
             {isSaving ? '保存中…' : 'スタイル設定を保存'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
 
-      <section className="card button-group">
-        <button type="button" className="button button--secondary" onClick={() => navigate(`/app/qrcodes/${qrcode.id}/posters/new`)}>
+      <Card className="button-group">
+        <Button variant="secondary" onClick={() => navigate(`/app/qrcodes/${qrcode.id}/posters/new`)}>
           この QR コードで掲示物を作成
-        </button>
-        <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
+        </Button>
+        <Button variant="danger" disabled={isDeleting} onClick={handleDeleteClick}>
           {isDeleting ? '削除中…' : 'このQRコードを削除'}
-        </button>
-      </section>
-    </div>
+        </Button>
+      </Card>
+    </Page>
   )
 }

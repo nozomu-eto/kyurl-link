@@ -1,4 +1,5 @@
 /** @jsxImportSource react */
+import { LegalDocument } from '@/frontend/components/legal-document'
 
 // プライバシーポリシーの条文データ。docs/privacy-policy.md(制定日: 2026年9月18日、
 // 最終改定日: 2026年9月19日)の内容をそのまま転記したもの。
@@ -73,24 +74,11 @@ const PRIVACY_ARTICLES: { title: string; paragraphs: string[] }[] = [
 // 条文はPRIVACY_ARTICLES(docs/privacy-policy.mdの転記)を順に描画するだけの静的画面
 export function PrivacyPage() {
   return (
-    <div className="page-container">
-      <h1>プライバシーポリシー</h1>
-      <p className="field__hint">
-        kyurl.link(以下「本サービス」といいます。)の運営者(以下「運営者」といいます。)は、本サービスの提供にあたり取得する利用者の情報を、以下のとおり取り扱います。利用者は、本サービスを利用することにより、本ポリシーの内容に同意したものとみなされます。
-      </p>
-      {PRIVACY_ARTICLES.map((article) => (
-        <section key={article.title} className="legal-article">
-          <h2 className="legal-article__title">{article.title}</h2>
-          {article.paragraphs.map((paragraph, index) => (
-            <p key={index} className="legal-article__body">
-              {paragraph}
-            </p>
-          ))}
-        </section>
-      ))}
-      <p className="field__hint">
-        制定日:2026年9月18日 / 最終改定日:2026年9月19日
-      </p>
-    </div>
+    <LegalDocument
+      title="プライバシーポリシー"
+      lead="kyurl.link(以下「本サービス」といいます。)の運営者(以下「運営者」といいます。)は、本サービスの提供にあたり取得する利用者の情報を、以下のとおり取り扱います。利用者は、本サービスを利用することにより、本ポリシーの内容に同意したものとみなされます。"
+      articles={PRIVACY_ARTICLES}
+      dateNote="制定日:2026年9月18日 / 最終改定日:2026年9月19日"
+    />
   )
 }

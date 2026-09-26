@@ -3,6 +3,9 @@ import { Link, useLoaderData, useOutletContext } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import type { AuthUser } from '@/frontend/lib/auth-client'
 import { apiClient } from '@/frontend/lib/api-client'
+import { ButtonLink } from '@/frontend/components/button'
+import { Card } from '@/frontend/components/card'
+import { Page } from '@/frontend/components/page'
 
 // accountSettingsLoader: アカウント設定画面の表示に必要な、直近のアカウント削除申請状況を取得する。
 // GET /api/v1/account-requestsは、申請が無い場合404を返す仕様(docs/architecture.md 第7節)なので、
@@ -39,20 +42,18 @@ export function AccountSettingsPage() {
   const { currentUser } = useOutletContext<{ currentUser: AuthUser }>()
 
   return (
-    <div className="page">
-      <h1>アカウント設定</h1>
+    <Page title="アカウント設定">
 
-      <section className="card">
+      <Card>
         <p>
           <strong>メールアドレス:</strong> {currentUser.email}
         </p>
         <p>
           <strong>メール確認状況:</strong> {currentUser.emailVerified ? '確認済み' : <Link to="/verify-email">未確認(確認する)</Link>}
         </p>
-      </section>
+      </Card>
 
-      <section className="card">
-        <h2 className="card__title">アカウントの削除</h2>
+      <Card title="アカウントの削除">
 
         {pendingDeletionRequest ? (
           <>
@@ -69,12 +70,12 @@ export function AccountSettingsPage() {
             <p className="field__hint">
               アカウントを削除すると、短縮URL・QRコード・掲示物を含むすべてのデータが利用できなくなります。7日間の猶予期間中はログインすることで取り消せます。
             </p>
-            <Link to="/app/account/delete" className="button button--danger">
+            <ButtonLink to="/app/account/delete" variant="danger">
               アカウントを削除する
-            </Link>
+            </ButtonLink>
           </>
         )}
-      </section>
-    </div>
+      </Card>
+    </Page>
   )
 }

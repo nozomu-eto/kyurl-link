@@ -2,8 +2,11 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { FormField } from '@/frontend/components/form-field'
 import { apiClient } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // LinkCreatePage: 短縮URLの新規作成フォーム。元URLと、任意で有効期限を入力する。
@@ -47,8 +50,7 @@ export function LinkCreatePage() {
   }
 
   return (
-    <div className="page">
-      <h1>短縮URLを作成</h1>
+    <Page title="短縮URLを作成">
       {errorMessage && (
         <AlertMessage tone="error">
           {errorMessage}
@@ -60,7 +62,7 @@ export function LinkCreatePage() {
           )}
         </AlertMessage>
       )}
-      <form className="card" onSubmit={handleSubmit}>
+      <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="link-create-original-url"
           label="元URL"
@@ -84,10 +86,10 @@ export function LinkCreatePage() {
             onChange: (e) => setExpiresAt(e.target.value),
           }}
         />
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '作成中…' : '短縮URLを作成'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

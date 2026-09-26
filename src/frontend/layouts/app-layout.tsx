@@ -1,5 +1,7 @@
 /** @jsxImportSource react */
 import { Link, NavLink, Outlet, redirect, ScrollRestoration, useLoaderData, useNavigate } from 'react-router'
+import { BrandLogo } from '@/frontend/components/brand-logo'
+import { Button } from '@/frontend/components/button'
 import { authClient, type AuthUser } from '@/frontend/lib/auth-client'
 
 // requireSessionLoader: /app配下の全画面に入る前に必ず実行されるloader。
@@ -19,6 +21,15 @@ export async function requireSessionLoader() {
   return { currentUser: data.user }
 }
 
+// サイドナビの項目。endがtrueの項目は完全一致のときだけアクティブ表示にする
+// (/appを完全一致にしないと、/app/links/new等の子画面でも常にアクティブになってしまうため)
+const APP_NAV_ITEMS: { to: string; label: string; end?: boolean }[] = [
+  { to: '/app', label: 'ダッシュボード', end: true },
+  { to: '/app/links/new', label: '短縮URLを作成' },
+  { to: '/app/qrcodes/new', label: 'QRコードを作成' },
+  { to: '/app/account', label: 'アカウント設定' },
+]
+
 // AppLayout: ログイン後の画面(ダッシュボード・link/QR/poster編集・アカウント設定)で
 // 共有するサイドナビ付きの外枠。requireSessionLoaderの結果(ログイン中ユーザー情報)を
 // useLoaderDataで受け取り、ログアウトボタンの動作等に使う
@@ -37,29 +48,25 @@ export function AppLayout() {
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
-        <Link to="/" className="brand-logo app-shell__brand">
-          kyurl<span className="brand-logo__dot">.</span>link
+        <Link to="/" className="app-shell__brand">
+          <BrandLogo />
         </Link>
         <nav>
-          <NavLink to="/app" end className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
-            ダッシュボード
-          </NavLink>
-          <NavLink to="/app/links/new" className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
-            短縮URLを作成
-          </NavLink>
-          <NavLink to="/app/qrcodes/new" className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
-            QRコードを作成
-          </NavLink>
-          <NavLink to="/app/account" className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
-            アカウント設定
-          </NavLink>
+          {APP_NAV_ITEMS.map((navItem) => (
+            <NavLink
+              key={navItem.to}
+              to={navItem.to}
+              end={navItem.end}
+              className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}
+            >
+              {navItem.label}
+            </NavLink>
+          ))}
         </nav>
-        <p className="app-shell__account">
-          {currentUser.email}
-        </p>
-        <button type="button" className="button button--text" onClick={handleSignOutClick}>
+        <p className="app-shell__account">{currentUser.email}</p>
+        <Button variant="text" onClick={handleSignOutClick}>
           ログアウト
-        </button>
+        </Button>
       </aside>
       <div className="app-shell__main">
         <Outlet context={{ currentUser } satisfies { currentUser: AuthUser }} />

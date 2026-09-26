@@ -3,6 +3,10 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
+import { Button } from '@/frontend/components/button'
+import { FormCard } from '@/frontend/components/card'
+import { FormField, SelectField } from '@/frontend/components/form-field'
+import { Page } from '@/frontend/components/page'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // posterCreateLoader: 掲示物作成フォームの表示前に、対象となるQRコードが実在するかを
@@ -66,8 +70,7 @@ export function PosterCreatePage() {
   }
 
   return (
-    <div className="page">
-      <h1>掲示物を作成</h1>
+    <Page title="掲示物を作成">
       {errorMessage && (
         <AlertMessage tone="error">
           {errorMessage}
@@ -79,48 +82,37 @@ export function PosterCreatePage() {
           )}
         </AlertMessage>
       )}
-      <form className="card" onSubmit={handleSubmit}>
-        <div className="field">
-          <label className="field__label" htmlFor="poster-create-title">
-            タイトル
-          </label>
-          <input
-            id="poster-create-title"
-            className="field__input"
-            type="text"
-            required
+      <FormCard onSubmit={handleSubmit}>
+        <FormField
+          fieldId="poster-create-title"
+          label="タイトル"
+          inputProps={{
+            type: 'text',
+            required: true,
             // サーバー側スキーマ(posterCreateInputSchema)の上限と揃える
-            maxLength={POSTER_TITLE_MAX_LENGTH}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="poster-create-subtitle">
-            サブタイトル(任意)
-          </label>
-          <input
-            id="poster-create-subtitle"
-            className="field__input"
-            type="text"
-            maxLength={POSTER_SUBTITLE_MAX_LENGTH}
-            value={subtitle}
-            onChange={(e) => setSubtitle(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label className="field__label" htmlFor="poster-create-size">
-            サイズ
-          </label>
-          <select id="poster-create-size" className="field__input" value={size} onChange={(e) => setSize(e.target.value as 'A6' | 'A5')}>
-            <option value="A6">A6縦</option>
-            <option value="A5">A5縦</option>
-          </select>
-        </div>
-        <button type="submit" className="button button--primary" disabled={isSubmitting}>
+            maxLength: POSTER_TITLE_MAX_LENGTH,
+            value: title,
+            onChange: (e) => setTitle(e.target.value),
+          }}
+        />
+        <FormField
+          fieldId="poster-create-subtitle"
+          label="サブタイトル(任意)"
+          inputProps={{ type: 'text', maxLength: POSTER_SUBTITLE_MAX_LENGTH, value: subtitle, onChange: (e) => setSubtitle(e.target.value) }}
+        />
+        <SelectField
+          fieldId="poster-create-size"
+          label="サイズ"
+          options={[
+            { value: 'A6', label: 'A6縦' },
+            { value: 'A5', label: 'A5縦' },
+          ]}
+          selectProps={{ value: size, onChange: (e) => setSize(e.target.value as 'A6' | 'A5') }}
+        />
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '作成中…' : '掲示物を作成'}
-        </button>
-      </form>
-    </div>
+        </Button>
+      </FormCard>
+    </Page>
   )
 }

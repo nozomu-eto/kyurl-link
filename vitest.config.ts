@@ -2,7 +2,7 @@
 // vitest.config.tsはNode.js上で実行されるため、process.envの型解決にNode.jsの型をこのファイルに
 // 限定して読み込む(プロジェクト全体のtsconfig.jsonはWorkersランタイム向けのため、typesにnodeを追加しない)
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig(async () => {
   // drizzle-kit generateの出力(./drizzle)を読み込み、テスト用Workerへbinding経由で渡す
@@ -15,6 +15,10 @@ export default defineConfig(async () => {
     test: {
       // テストごとに使い捨てD1インスタンスへマイグレーションを適用するセットアップファイル
       setupFiles: ['./test/apply-migrations.ts'],
+      // 既定の除外(node_modules等)に加え、他エージェントが並行作業用に作るgit worktree
+      // (.claude/worktrees/配下)を除外する。これらは同じリポジトリのコピーを含むため、
+      // 除外しないと同名のテストファイルが二重に実行され、無関係な失敗や実行時間の増大を招く
+      exclude: [...configDefaults.exclude, '.claude/**'],
       onUnhandledError(error: unknown) {
         // better-auth/better-call内部の多段のPromiseチェーンが、auth.api.verifyPassword()を
         // 誤ったパスワードで呼び出した際のAPIErrorを、未処理のrejectionとして二重に報告して
