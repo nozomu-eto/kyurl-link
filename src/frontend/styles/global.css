@@ -1028,6 +1028,8 @@ h1 {
   background-color: rgba(0, 0, 0, 0.4);
   z-index: 99;
   animation: fadeIn 0.3s ease;
+  /* iOS Safariで、幕の上でのタッチ操作が背後のスクロールへ伝わらないようにする */
+  touch-action: none;
 }
 
 @keyframes fadeIn {
@@ -1046,7 +1048,10 @@ h1 {
   position: fixed;
   top: 0;
   right: 0;
+  /* 100dvh未対応ブラウザ向けに100vhを先に書いて残し、対応ブラウザでは100dvhで上書きする
+     (アドレスバーの表示・非表示でも高さが変わらないようにするため) */
   height: 100vh;
+  height: 100dvh;
   width: 280px;
   max-width: 90vw;
   padding-top: 72px;
@@ -1058,6 +1063,9 @@ h1 {
   transform: translateX(100%);
   transition: transform 0.3s ease;
   overflow-y: auto;
+  /* パネル内をスクロールし切った先で、iOS Safari特有のバウンス(オーバースクロール)が
+     背後のページへ伝わって連鎖スクロールしてしまうのを防ぐ */
+  overscroll-behavior: contain;
 }
 
 .header-drawer__panel--open {
