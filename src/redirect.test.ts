@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { links } from '@/db/schema'
+import { goneePageHtml, notFoundPageHtml, securityWarningPageHtml } from '@/lib/redirect-pages'
 import { linkSchema } from '@/shared/schemas/link'
 import { markEmailVerified } from '../test/mark-email-verified'
 
@@ -199,5 +200,37 @@ describe('GET /:shortCode', () => {
 
     const body = await response.text()
     expect(body).toContain('見つかりませんでした')
+  })
+})
+
+describe('来訪者向け3画面(404・410・警告インターステシャル)の見た目・表示内容', () => {
+  it('404・410・警告の3画面のHTMLに、スマートフォンでの表示崩れを防ぐviewportとlang="ja"が含まれる', () => {
+    for (const html of [notFoundPageHtml(), goneePageHtml(), securityWarningPageHtml('abc123', 'dummy-site-key', undefined, 'https://example.com/target')]) {
+      expect(html).toContain('lang="ja"')
+      expect(html).toContain('name="viewport"')
+    }
+  })
+
+  it('警告インターステシャルに移動先の元URLが表示される', () => {
+    const html = securityWarningPageHtml('abc123', 'dummy-site-key', undefined, 'https://example.com/original-target')
+    expect(html).toContain('移動先のURL')
+    expect(html).toContain('https://example.com/original-target')
+  })
+
+  it('元URLに<script>や"を含めても、実体参照にエスケープされ生のタグとしては出力されない', () => {
+    const maliciousUrl = 'https://example.com/"><script>alert(1)</script>'
+    const html = securityWarningPageHtml('abc123', 'dummy-site-key', undefined, maliciousUrl)
+    expect(html).not.toContain('<script>alert(1)</script>')
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(html).toContain('&quot;')
+  })
+
+  it('警告インターステシャルで[戻る]のリンクが[このまま進む]より前に出力される', () => {
+    const html = securityWarningPageHtml('abc123', 'dummy-site-key', undefined, 'https://example.com/target')
+    const backIndex = html.indexOf('戻る')
+    const proceedIndex = html.indexOf('このまま進む')
+    expect(backIndex).toBeGreaterThan(-1)
+    expect(proceedIndex).toBeGreaterThan(-1)
+    expect(backIndex).toBeLessThan(proceedIndex)
   })
 })

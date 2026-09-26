@@ -170,7 +170,7 @@ app.get('/:shortCode', async (c) => {
     // script-srcに設定したNONCEにより、この時点でc.set('secureHeadersNonce', ...)済みのため、
     // 同じ値をページ内のインラインscriptタグのnonce属性にも使う(公開前修正v2 T9)
     const nonce = c.get('secureHeadersNonce')
-    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY, nonce), 200)
+    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY, nonce, record.originalUrl), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する
