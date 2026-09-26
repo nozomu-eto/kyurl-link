@@ -34,3 +34,6 @@ lerna-debug.log*
 .DS_Store
 
 cookies.txt
+
+# 他エージェントが並行作業用に作るgit worktree(vitest.config.tsのtest.excludeと対応)
+.claude/worktrees/
