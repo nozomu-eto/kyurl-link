@@ -6,6 +6,7 @@ import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
 import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
 import { buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
+import { parseTrustedOrigins } from '@/lib/auth-trusted-origins'
 
 // linksテーブルとBetter Authのテーブル(user/session/account/verification)をまとめたスキーマ。
 // drizzle()とdrizzleAdapter()の両方に同じものを明示的に渡す
@@ -23,7 +24,18 @@ const schema = { ...linkSchema, ...authSchema }
 // miniflare.bindingsでテスト実行時は常に'true'を注入し、captchaプラグイン自体を
 // pluginsに含めないようにする。プラグイン自体の動作検証はsrc/lib/auth-captcha.test.tsで、
 // この値を明示的に'false'に上書きしたうえで行う
-type AuthEnv = CloudflareBindings & { RATE_LIMIT_FORCE_ENABLED?: string; TURNSTILE_DISABLED_FOR_TESTS?: string }
+//
+// BETTER_AUTH_TRUSTED_ORIGINSもプレビュー環境専用の環境変数。プレビュー環境
+// (*.teddies-01yolk.workers.dev)は接続元(Origin)がbaseURL(BETTER_AUTH_URL =本番の
+// https://kyurl.link)と異なるため、Better Authの既定のOrigin検証に弾かれてログイン・
+// 新規登録ができない。この値(カンマ区切り)をtrustedOriginsに追加で渡すことで、
+// プレビュー環境からの確認を可能にする。本番のwrangler.jsoncのvarsには設定しないため、
+// 本番の動きは変わらない(値の検証・変換はsrc/lib/auth-trusted-origins.ts参照)
+type AuthEnv = CloudflareBindings & {
+  RATE_LIMIT_FORCE_ENABLED?: string
+  TURNSTILE_DISABLED_FOR_TESTS?: string
+  BETTER_AUTH_TRUSTED_ORIGINS?: string
+}
 
 // リクエストごとにHonoのc.env(D1バインディング等)を受け取り、Better Authインスタンスを生成する
 export function auth(env: AuthEnv) {
@@ -37,6 +49,9 @@ export function auth(env: AuthEnv) {
     // ローカルは.dev.vars、本番はwrangler secretで設定する値を使う
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
+    // プレビュー環境からの確認用(上のAuthEnv・BETTER_AUTH_TRUSTED_ORIGINSのコメント参照)。
+    // 未設定時は空配列になり、Better Authは常にbaseURLを信頼するため本番の動きは変わらない
+    trustedOrigins: parseTrustedOrigins(env.BETTER_AUTH_TRUSTED_ORIGINS),
     // docs/architecture.md: 認証はBetter Auth・メール+パスワードのみの方針。
     // requireEmailVerificationはあえて設定しない(ソフト確認方式)。trueにすると
     // Better Authの仕様上サインアップ時にセッションCookieが発行されなくなり

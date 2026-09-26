@@ -52,6 +52,19 @@ CLIでの`wrangler deploy`手動実行や、GitHub Actionsによる独自CI構�
 - Workers Builds(GitHub連携)は、ビルド・デプロイの自動化は行うが、**ランタイムで使うシークレットの設定automationはしない**。Cloudflare公式ドキュメントに「Build variables and secretsはビルド時のみ有効で、ランタイムで使う変数はSettings > Variables & Secretsで別途設定する」と明記されている
 - `BETTER_AUTH_URL`は、初回デプロイでWorkerのURLが確定した後でなければ値を決められないため、「初回デプロイ → URL確認 → シークレット設定」という順序になる
 
+### 3.1 プレビュー環境専用: `BETTER_AUTH_TRUSTED_ORIGINS`
+
+プレビュー環境(`*.teddies-01yolk.workers.dev`、Workers Buildsがブランチ・PRごとに払い出すプレビューURL)は、接続元(Origin)が本番の`BETTER_AUTH_URL`(`https://kyurl.link`)と異なるため、Better Authの既定のOrigin検証に弾かれ、マージ前にログイン・新規登録ができない。これを許可するため、`BETTER_AUTH_TRUSTED_ORIGINS`(カンマ区切り、`src/lib/auth-trusted-origins.ts`で検証・変換してBetter Authの`trustedOrigins`に渡す)を以下の手順で設定する。
+
+1. Cloudflareダッシュボード → 対象Worker → Settings → Variables and Secrets を開く
+2. 環境の切り替えで「Previews Base」(Production向けとは別の、プレビューデプロイ共通の設定)を選ぶ
+3. `BETTER_AUTH_TRUSTED_ORIGINS`を追加する。**種別は必ず「シークレット」にする(「変数」にしない。理由は下記)**
+4. 値は、アカウントのworkers.devサブドメイン配下だけを許可する形(例: `https://*.teddies-01yolk.workers.dev`)にする。`src/lib/auth-trusted-origins.ts`がこの形式(`https://`+`teddies-01yolk.workers.dev`のサブドメイン1段分、またはそのワイルドカード)以外の値を読み捨てるため、`*`のような任意の接続元を許可する値を誤って設定しても効果を持たない
+
+#### なぜ「変数」ではなく「シークレット」にするか
+
+Workers Builds経由のデプロイ(`wrangler versions upload` / `wrangler deploy`)は、`wrangler.jsonc`の`vars`セクションの内容をそのままランタイムの環境変数に反映する。ダッシュボードで「変数」として登録した値であっても、`wrangler.jsonc`の`vars`にそのキーが無ければ、次のデプロイのたびにこの反映処理によって上書き・削除されてしまう。一方「シークレット」はwrangler.jsonc側で宣言する仕組みが無く、デプロイのたびに上書き・削除されずそのまま残る。`BETTER_AUTH_TRUSTED_ORIGINS`はプレビュー環境専用の値であり`wrangler.jsonc`にコミットしたくない(本番ではこの値を設定しないことで、本番の動きを変えないようにしている、`src/lib/auth.ts`参照)ため、シークレットとして登録する。
+
 ## 4. D1マイグレーションの適用
 
 `package.json`の`deploy`スクリプトに、本番D1(`kyurl-link-prod`)へのマイグレーション適用を組み込む。
