@@ -520,11 +520,13 @@ h1 {
 
 /* ========== AppHeaderDrawer(スマホのドロワー) ========== */
 
-/* 769px以上ではそもそも幕を表示しない(app-drawer__panelと同様)。ドロワーを開いたまま
- * 画面幅が769px以上に広がった場合はapp-header-drawer.tsx側でisOpenをfalseに戻すが、
- * その前提が崩れても幕だけが残って操作不能にならないよう、CSS側でも独立して隠しておく */
+/* 幕・パネルとも、769px以上で隠す指定は下の@media (min-width: 769px)だけに置く。
+ * ここ(無条件のベースルール)にdisplay: noneを書いてしまうと、@media (max-width: 768px)側の
+ * display: flex/blockと詳細度が同じため、どちらが勝つかがCSS中での記述順序に依存してしまう
+ * (実際に本番で、768px以下でもこちらが後勝ちして表示されない不具合が発生した)。
+ * @media (min-width: 769px)とmax-width: 768px)は同時に真にならないため、両方をそれぞれの
+ * メディアクエリ内だけに書けば記述順序に左右されなくなる */
 .app-drawer__overlay {
-  display: none;
   position: fixed;
   inset: 0;
   z-index: 99;
@@ -534,11 +536,8 @@ h1 {
 }
 
 /* ヘッダー(z-index: 101)がこのパネルの上端を覆うため、header-drawer.tsxと同様に
- * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する。
- * 769px以上ではそもそもドロワーを描画しない(display: none)。inert属性(app-header-drawer.tsx)
- * と二重に、キーボード操作・読み上げの対象から外すための保険にもなる */
+ * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する */
 .app-drawer__panel {
-  display: none;
   position: fixed;
   top: 0;
   right: 0;
@@ -563,6 +562,17 @@ h1 {
 
 .app-drawer__panel--open {
   transform: translateX(0);
+}
+
+/* 769px以上ではそもそもドロワーを描画しない(display: none)。ドロワーを開いたまま画面幅が
+ * 769px以上に広がった場合はapp-header-drawer.tsx側でisOpenをfalseに戻すが、その前提が崩れても
+ * 幕・パネルだけが残って操作不能にならないよう、CSS側でも独立して隠しておく。
+ * inert属性(app-header-drawer.tsx)とあわせて、キーボード操作・読み上げの対象から外す保険にもなる */
+@media (min-width: 769px) {
+  .app-drawer__overlay,
+  .app-drawer__panel {
+    display: none;
+  }
 }
 
 .app-drawer__nav {
