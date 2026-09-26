@@ -60,7 +60,8 @@ app.use(
       // 画像は自ドメインのAPI(QRコード画像等)のみ
       imgSrc: ["'self'"],
       // 404・410・警告インターステシャル(redirect-pages.ts)は<style>タグでインラインCSSを
-      // 埋め込む静的な文言のみで利用者入力を含まないため、'unsafe-inline'を許容する
+      // 埋め込むため'unsafe-inline'を許容する。利用者入力(元URL)はescapeHtml()で
+      // エスケープしてから本文にのみ埋め込み、<style>には含めない
       styleSrc: ["'self'", "'unsafe-inline'"],
       // <object>・<embed>によるプラグイン埋め込みは使っていないため明示的に禁止する
       objectSrc: ["'none'"],
