@@ -90,6 +90,9 @@ const PAGE_STYLE = `
     border-radius: 4px;
   }
   .info-box p { font-size: 15px; line-height: 1.75; color: #222222; }
+  /* flexコンテナ内でアイコンが縮んで小さく表示されるのを防ぎ、本文1行目の高さに
+     縦位置を揃える(本文はfont-size: 15px、line-height: 1.75) */
+  .info-box svg { flex-shrink: 0; margin-top: 3px; }
   footer {
     display: flex;
     justify-content: center;
