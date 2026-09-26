@@ -28,36 +28,38 @@ export function DashboardPage() {
   const { linkListItems } = useLoaderData<typeof dashboardLoader>()
 
   return (
-    <Page title="短縮URL一覧" actions={<ButtonLink to="/app/links/new">新しい短縮URLを作成</ButtonLink>}>
+    <Page title="短縮URL一覧" actions={<ButtonLink to="/app/links/new" variant="cta">新しい短縮URLを作成</ButtonLink>}>
       {linkListItems.length === 0 ? (
         <p>まだ短縮URLがありません。「新しい短縮URLを作成」から作成してください。</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>短縮URL</th>
-              <th>元URL</th>
-              <th>状態</th>
-              <th>有効期限</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {linkListItems.map((linkListItem: LinkListItem) => (
-              <tr key={linkListItem.id}>
-                <td>{`${window.location.origin}/${linkListItem.shortCode}`}</td>
-                <td className="data-table__cell--truncate">{linkListItem.originalUrl}</td>
-                <td>
-                  <LinkStatusBadge status={linkListItem.status} />
-                </td>
-                <td>{linkListItem.expiresAt ? new Date(linkListItem.expiresAt).toLocaleDateString('ja-JP') : '無期限'}</td>
-                <td>
-                  <Link to={`/app/links/${linkListItem.id}`}>詳細</Link>
-                </td>
+        <div className="data-table__scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>短縮URL</th>
+                <th>元URL</th>
+                <th>状態</th>
+                <th>有効期限</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {linkListItems.map((linkListItem: LinkListItem) => (
+                <tr key={linkListItem.id}>
+                  <td>{`${window.location.origin}/${linkListItem.shortCode}`}</td>
+                  <td className="data-table__cell--truncate">{linkListItem.originalUrl}</td>
+                  <td>
+                    <LinkStatusBadge status={linkListItem.status} />
+                  </td>
+                  <td>{linkListItem.expiresAt ? new Date(linkListItem.expiresAt).toLocaleDateString('ja-JP') : '無期限'}</td>
+                  <td>
+                    <Link to={`/app/links/${linkListItem.id}`}>詳細</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Page>
   )

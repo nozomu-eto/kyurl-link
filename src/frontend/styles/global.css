@@ -391,30 +391,77 @@ h1 {
 }
 
 /* ============================================================
- * 第3層: /app配下のレイアウト(サイドナビ+メイン)
+ * 第3層: /app配下のレイアウト(ヘッダー+サイドナビ+メイン。docs/mocks/Dashboard.html・
+ * MobileMenu.html・MobileDashboard.html)
  * ============================================================ */
 .app-shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
+/* 上部の白いヘッダー(左にサービス名、右にメールアドレス+ログアウト。768px未満では
+ * 右側をハンバーガーメニューに差し替える)。ドロワー(z-index: 100)より手前に来るよう、
+ * public-layout.tsxの.site-headerと同じz-indexにする */
+.app-shell__header {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-8);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-header);
+}
+
+.app-shell__header-brand {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.app-shell__header-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+/* ハンバーガーメニューボタン。768px以上では非表示(下のmedia queryで表示に切り替える) */
+.app-shell__menu-toggle {
+  display: none;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-base);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.app-shell__body {
+  display: flex;
+  flex: 1;
+}
+
 .app-shell__sidebar {
-  width: 232px;
+  width: 240px;
   flex-shrink: 0;
   background-color: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: var(--space-6) var(--space-4);
 }
 
-.app-shell__brand {
-  display: inline-block;
-  margin-bottom: var(--space-6);
-  text-decoration: none;
-}
-
 .app-shell__nav-link {
   display: flex;
   align-items: center;
+  gap: var(--space-3);
   min-height: var(--tap-target);
   padding: 0 var(--space-3);
   border-radius: var(--radius-base);
@@ -430,23 +477,118 @@ h1 {
 }
 
 .app-shell__nav-link.is-active {
-  background-color: var(--color-brand);
-  color: var(--color-on-brand);
-}
-
-.app-shell__account {
-  margin-top: var(--space-8);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  word-break: break-all;
+  background-color: var(--color-brand-tint);
+  color: var(--color-brand-strong);
+  font-weight: 700;
 }
 
 .app-shell__main {
   flex: 1;
+  min-width: 0;
   padding: var(--space-8);
   max-width: 960px;
+}
+
+/* 768px未満: サイドメニュー・ヘッダーのメールアドレス/ログアウトを隠し、
+ * ハンバーガーメニュー(AppHeaderDrawer)に差し替える */
+@media (max-width: 768px) {
+  .app-shell__sidebar {
+    display: none;
+  }
+
+  .app-shell__header-account {
+    display: none;
+  }
+
+  .app-shell__menu-toggle {
+    display: flex;
+  }
+
+  .app-shell__main {
+    padding: var(--space-4);
+  }
+}
+
+/* ========== AppHeaderDrawer(スマホのドロワー) ========== */
+
+.app-drawer__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* ヘッダー(z-index: 101)がこのパネルの上端を覆うため、header-drawer.tsxと同様に
+ * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する */
+.app-drawer__panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 300px;
+  max-width: 90vw;
+  padding-top: 64px;
+  background-color: var(--color-surface);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 8px rgba(20, 32, 56, 0.12);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.app-drawer__panel--open {
+  transform: translateX(0);
+}
+
+.app-drawer__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+}
+
+.app-drawer__nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-base);
+  color: var(--color-text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.app-drawer__nav-link.is-active {
+  background-color: var(--color-brand-tint);
+  color: var(--color-brand-strong);
+  font-weight: 700;
+}
+
+.app-drawer__account {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-drawer__account-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.app-drawer__account-email {
+  font-size: 0.875rem;
+  word-break: break-all;
+}
+
+/* 一覧テーブルを横スクロールの枠で囲み、スマホ等の狭い画面でも表がはみ出さないようにする */
+.data-table__scroll {
+  overflow-x: auto;
 }
 
 /* ============================================================
@@ -587,6 +729,22 @@ h1 {
 .button--outline:active {
   background-color: var(--color-brand-deep);
   color: var(--color-surface);
+}
+
+/* 白地・中立色の枠線ボタン(ログアウト等、危険でも主要でもない操作。docs/mocks/Dashboard.html・
+   MobileMenu.html)。枠線は入力欄と同じ--color-border-strongを使う */
+.button--neutral {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+
+.button--neutral:hover {
+  background-color: var(--color-bg-alt);
+}
+
+.button--neutral:active {
+  background-color: var(--color-border);
 }
 
 /* 画面上の削除ボタン(枠線型)。塗りの削除ボタンは確認ダイアログ内だけで使い、--ctaを使う */

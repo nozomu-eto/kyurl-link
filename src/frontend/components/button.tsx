@@ -5,9 +5,10 @@ import { cx } from '@/frontend/components/class-names'
 
 // ボタンの見た目の種類(global.cssの.button--*に対応する)。
 // primary: 紺(通常の送信) / cta: 朱(画面内で最も押してほしい1つだけ) / secondary: 紺の枠線 /
-// outline: グレーの枠線(控えめな導線) / danger: 確認ダイアログ内だけで使う塗りの削除ボタン(ctaと同色) /
+// outline: グレーの枠線(控えめな導線) / neutral: 白地・中立色の枠線(ログアウト等、危険でも
+// 主要でもない操作) / danger: 確認ダイアログ内だけで使う塗りの削除ボタン(ctaと同色) /
 // danger-outline: 画面上に置く削除ボタン(枠線) / text: 文字だけ
-export type ButtonVariant = 'primary' | 'cta' | 'secondary' | 'outline' | 'danger' | 'danger-outline' | 'text'
+export type ButtonVariant = 'primary' | 'cta' | 'secondary' | 'outline' | 'neutral' | 'danger' | 'danger-outline' | 'text'
 
 export type ButtonStyle = {
   variant?: ButtonVariant

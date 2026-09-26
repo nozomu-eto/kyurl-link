@@ -129,22 +129,24 @@ export function LinkDetailPage() {
           合計クリック数: <strong>{clicks.totalClicks}</strong>
         </p>
         {clicks.dailyClicks.length > 0 && (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>クリック数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clicks.dailyClicks.map((dailyClickItem) => (
-                <tr key={dailyClickItem.day}>
-                  <td>{dailyClickItem.day}</td>
-                  <td>{dailyClickItem.clicks}</td>
+          <div className="data-table__scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>日付</th>
+                  <th>クリック数</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {clicks.dailyClicks.map((dailyClickItem) => (
+                  <tr key={dailyClickItem.day}>
+                    <td>{dailyClickItem.day}</td>
+                    <td>{dailyClickItem.clicks}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
