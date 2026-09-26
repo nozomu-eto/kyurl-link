@@ -75,7 +75,8 @@
 	"vars": {
 		// docs/architecture.md 第7節「GET /links/:id/clicks: クリック統計(Analytics Engine SQL
 		// APIへの問い合わせ)」で、SQL APIのエンドポイントURLを組み立てるために使うアカウントID
-		"ACCOUNT_ID": "919b89c551eef0eed83ef419caf397de"
+		"ACCOUNT_ID": "919b89c551eef0eed83ef419caf397de",
+   	    "BETTER_AUTH_URL": "https://kyurl.link"
 	},
 	// docs/architecture.md 第9.2節: Cloudflare Workers Rate Limiting API(ratelimitsバインディング)。
 	// namespace_idはアカウント内で一意な整数値を自分で決めるだけでよく、D1/R2等と異なり
