@@ -66,6 +66,14 @@ export default defineConfig(async () => {
             // プラグイン自体の動作はsrc/lib/auth-captcha.test.tsで、この値を個別に
             // 'false'に上書きしたうえで検証する
             TURNSTILE_DISABLED_FOR_TESTS: 'true',
+            // src/lib/auth-captcha.test.tsはTURNSTILE_DISABLED_FOR_TESTSを'false'に
+            // 上書きしてcaptchaプラグインを実際に有効化するため、プラグイン初期化時に
+            // secretKeyが必須になる(未設定だとBetter Auth側で「Missing secret key」エラー)。
+            // .dev.varsが無いCI環境でも初期化できるよう、Cloudflare公式のテスト用シークレット
+            // キー(常に成功: 1x0000000000000000000000000000000AA。.dev.vars.exampleのローカル
+            // 開発用設定と同じ値)を既定値として注入する。これはCloudflareが検証用に公開している
+            // 固定値であり、本番のシークレットではないため無条件で注入してよい
+            TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
           },
         },
       }),
