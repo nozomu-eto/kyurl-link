@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
+import { NONCE, secureHeaders, type SecureHeadersVariables } from 'hono/secure-headers'
 import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
@@ -12,7 +13,64 @@ import posters from '@/routes/posters'
 import qrcodes from '@/routes/qrcodes'
 import reports from '@/routes/reports'
 
-const app = new Hono<{ Bindings: CloudflareBindings }>()
+// secureHeadersのNONCE(下記CSP設定)がc.set('secureHeadersNonce', ...)する値を
+// c.get()で型付きで取得できるよう、VariablesにSecureHeadersVariablesを加える
+const app = new Hono<{ Bindings: CloudflareBindings; Variables: SecureHeadersVariables }>()
+
+// セキュリティヘッダ(公開前修正v2 T8)。app.use('*', ...)で全ルート(API・リダイレクト・
+// 404/410/警告インターステシャル・SPA/静的アセット)に一律で付与する。
+// hono/secure-headersのミドルウェアはHono側のResponse(ctx.res)に対してヘッダーを
+// 後付けで設定する実装のため、ハンドラの実装がc.html()・c.json()・c.redirect()・
+// c.env.ASSETS.fetch()の委譲のいずれであっても、返り値がResponseである限り同じ仕組みで
+// 適用される想定(実際にASSETS委譲のレスポンスでも付与されることをsrc/index.test.tsxで確認済み)。
+// 明示的に値を指定した4項目以外はhono/secure-headersの既定値(Cross-Origin-Resource-Policy等)
+// をそのまま使う。CSP(Content-Security-Policy-Report-Only)はT9で別途追加する
+app.use(
+  '*',
+  secureHeaders({
+    // HSTS: 1年間(31536000秒)、サブドメインを含めて有効化する
+    strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+    // MIMEタイプスニッフィング対策。値は既定と同じ'nosniff'だが、要件を明示するためtrueではなく
+    // 文字列で指定する
+    xContentTypeOptions: 'nosniff',
+    // Referrerポリシー。hono/secure-headersの既定値は'no-referrer'だが、他サイトへの遷移時に
+    // オリジンのみは送りたい(アクセス解析・リンク元の把握のため)ため、要件通りの値を明示する
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    // クリックジャッキング対策。他サイトのiframeに埋め込まれることを一切許可しない
+    xFrameOptions: 'DENY',
+    // CSP(公開前修正v2 T9)。既存ページを壊すリスクを避けるため、まずはContent-Security-Policy
+    // ではなくContent-Security-Policy-Report-Only(違反はブロックせずレポートのみ)で導入する。
+    // 本番で強制する(Content-Security-Policyへの切り替え)手順はdocs/deployment.md参照
+    contentSecurityPolicyReportOnly: {
+      // 既定値はself(同一オリジン)のみ。フォント方針(docs/architecture.md第6.6節)により
+      // フォントもFontsourceで自前配信(同一オリジン)のため、Google Fonts等の外部ホストは
+      // 一切加えない
+      defaultSrc: ["'self'"],
+      // 警告インターステシャル(src/lib/redirect-pages.ts)のインラインscriptにはNONCEを使う。
+      // 加えて、サインアップ画面(SPA、turnstile-widget.tsx)・警告インターステシャルの
+      // 通報フォームの両方がCloudflare Turnstileの外部スクリプト(challenges.cloudflare.com)を
+      // 読み込むため、そのホストも許可する
+      scriptSrc: ["'self'", 'https://challenges.cloudflare.com', NONCE],
+      // Turnstileウィジェットは検証用のiframeをchallenges.cloudflare.comから読み込む
+      frameSrc: ['https://challenges.cloudflare.com'],
+      // Turnstileウィジェットの検証時の通信先
+      connectSrc: ["'self'", 'https://challenges.cloudflare.com'],
+      // フォントは自前配信(同一オリジン)のみ
+      fontSrc: ["'self'"],
+      // 画像は自ドメインのAPI(QRコード画像等)のみ
+      imgSrc: ["'self'"],
+      // 404・410・警告インターステシャル(redirect-pages.ts)は<style>タグでインラインCSSを
+      // 埋め込む静的な文言のみで利用者入力を含まないため、'unsafe-inline'を許容する
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      // <object>・<embed>によるプラグイン埋め込みは使っていないため明示的に禁止する
+      objectSrc: ["'none'"],
+      // <base>タグによるベースURL差し替え攻撃を防ぐ
+      baseUri: ["'self'"],
+      // フォーム送信先を自ドメインのみに制限する
+      formAction: ["'self'"],
+    },
+  }),
+)
 
 // Better Authのサインアップ・サインイン等のエンドポイントを/api/auth配下にマウントする。
 // /api/v1/linksと衝突しないよう、必ず/api/auth/*に限定する('/api/*'にはしない)
@@ -42,8 +100,15 @@ const RESERVED_SINGLE_SEGMENT_PATHS = new Set(['login', 'signup', 'verify-email'
 // SPAのシェル(index.html)や、favicon等の静的アセットをASSETS bindingへ委譲して返す。
 // wrangler.jsoncのassets.not_found_handling: "single-page-application"により、
 // 静的ファイルに一致しないパスに対してはindex.html(SPAのシェル)が返る
-function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request } }) {
-  return c.env.ASSETS.fetch(c.req.raw)
+async function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request } }) {
+  const assetsResponse = await c.env.ASSETS.fetch(c.req.raw)
+
+  // ASSETS bindingが返すResponseはheadersが読み取り専用(immutable)になっており、
+  // app.use('*', secureHeaders(...))(公開前修正v2 T8)がヘッダーを後付けしようとすると
+  // "Can't modify immutable headers."で例外になる(実際にsrc/index.test.tsxで確認済み)。
+  // new Response(body, init)で作り直すと、bodyはそのままにheadersだけ新しい
+  // (書き込み可能な)Headersインスタンスとして複製されるため、この問題を回避できる
+  return new Response(assetsResponse.body, assetsResponse)
 }
 
 // 公開リダイレクト(docs/architecture.md 第7節: 認証不要)。
@@ -101,7 +166,11 @@ app.get('/:shortCode', async (c) => {
   // 利用規約第11条2項「検知に努めるが完全性を保証しない」方針に対応する)
   const hasProceeded = c.req.query('proceed') === '1'
   if (record.securityStatus === 'flagged' && !hasProceeded) {
-    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY), 200)
+    // このリクエストのCSP(Content-Security-Policy-Report-Only、上のsecureHeaders設定)が
+    // script-srcに設定したNONCEにより、この時点でc.set('secureHeadersNonce', ...)済みのため、
+    // 同じ値をページ内のインラインscriptタグのnonce属性にも使う(公開前修正v2 T9)
+    const nonce = c.get('secureHeadersNonce')
+    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY, nonce), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する

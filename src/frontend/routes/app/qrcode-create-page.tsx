@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
+import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // qrcodeCreateLoader: QRコード作成画面のloader。
 // URLに:linkIdが含まれる場合(/app/links/:linkId/qrcodes/newからの遷移)は、その1件の
@@ -137,6 +138,8 @@ export function QrCodeCreatePage() {
                   className="field__input"
                   type="url"
                   required
+                  // サーバー側スキーマ(httpUrlSchema)の上限と揃える
+                  maxLength={URL_MAX_LENGTH}
                   placeholder="https://example.com"
                   value={rawUrl}
                   onChange={(e) => setRawUrl(e.target.value)}

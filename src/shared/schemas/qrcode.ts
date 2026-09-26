@@ -1,6 +1,20 @@
 import { z } from 'zod'
 import { httpUrlSchema } from '@/shared/schemas/url'
 
+// QRコードのスタイル設定スキーマ。
+// 以前はz.record()で任意のキー・値を受け付けていたが、実際に画面(qrcode-editor-page.tsx)から
+// 送信されるのは前景色・背景色の2項目のみであり、任意のデータを保存できる状態は
+// 想定外のデータ(悪意のある巨大なペイロード等)の受け入れにつながるため、
+// 実際に使われているキーだけを許可するstrictObjectに置き換えた(公開前修正v2 T6)。
+// 値は<input type="color">が返すHEXカラー文字列を想定するが、将来の形式変更の余地を
+// 残すため厳密なカラー形式チェックまでは行わず、長さの上限(.max(100))のみ設ける
+const qrcodeStyleOptionsSchema = z.strictObject({
+  // 前景色(HEXカラー文字列、例: '#000000')
+  foregroundColor: z.string().max(100).optional(),
+  // 背景色(HEXカラー文字列、例: '#ffffff')
+  backgroundColor: z.string().max(100).optional(),
+})
+
 // QRコードリソース1件分のレスポンス用スキーマ。
 // styleOptionsはDB上はJSON文字列で保存するが、レスポンスではJSON.parseしたオブジェクトとして
 // 返す運用のため、ここではオブジェクト形状(またはnull)で定義する
@@ -14,7 +28,7 @@ export const qrcodeSchema = z.object({
   // targetType='rawUrl'の場合の対象URL。それ以外はnull
   targetUrl: z.string().nullable(),
   // QRコードのスタイル設定。未設定の場合はnull
-  styleOptions: z.record(z.string(), z.unknown()).nullable(),
+  styleOptions: qrcodeStyleOptionsSchema.nullable(),
 })
 
 // qrcode作成APIの入力用スキーマ。
@@ -40,8 +54,8 @@ export const qrcodeCreateInputSchema = z.discriminatedUnion('targetType', [
 // qrcode更新APIの入力用スキーマ。
 // 作成後に変更できるのはstyleOptionsのみ(targetType/targetId/targetUrlは作成後不変のため含めない)
 export const qrcodeUpdateInputSchema = z.object({
-  // QRコードのスタイル設定(任意のキー・値を許容する)。省略時は更新しない
-  styleOptions: z.record(z.string(), z.unknown()).optional(),
+  // QRコードのスタイル設定。省略時は更新しない
+  styleOptions: qrcodeStyleOptionsSchema.optional(),
 })
 
 // qrcodeの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)。

@@ -1,4 +1,5 @@
 import { env, SELF } from 'cloudflare:test'
+import QRCode from 'qrcode-svg'
 import { afterEach, describe, expect, it } from 'vitest'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
@@ -165,48 +166,90 @@ describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ロ�
   })
 })
 
+// src/routes/posters.tsのexportハンドラがR2キャッシュキーを計算するのと全く同じ手順
+// (title/subtitle/size/styleOptions/QRコードSVGの内容からSHA-256ハッシュを取る)を
+// ここでも再現し、テストがR2に事前投入すべきキーを求める。
+// キーの構成要素(オブジェクトのキー順を含む)は必ずposters.tsの実装と一致させる必要がある
+async function computePosterExportCacheKey(params: {
+  posterId: string
+  title: string
+  subtitle: string | null
+  size: 'A6' | 'A5'
+  styleOptions: unknown
+  qrContent: string
+  format: 'pdf' | 'png'
+}) {
+  const qrCodeSvg = new QRCode({ content: params.qrContent }).svg()
+  const hashSource = JSON.stringify({
+    title: params.title,
+    subtitle: params.subtitle,
+    size: params.size,
+    styleOptions: params.styleOptions,
+    qrCodeSvg,
+  })
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashSource))
+  const hash = Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+  return `${params.posterId}/${params.format}/${hash}`
+}
+
 describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_LIMITER)', () => {
-  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)(
-    `同一ユーザーから${POSTER_EXPORT_RATE_LIMIT_MAX + 1}回目のexportは429(RATE_LIMITED)になる`,
-    async () => {
-      const sessionCookie = await signUp()
+  it(`同一ユーザーから${POSTER_EXPORT_RATE_LIMIT_MAX + 1}回目のexportは429(RATE_LIMITED)になる`, async () => {
+    const sessionCookie = await signUp()
 
-      const linkResponse = await postLink(sessionCookie)
-      expect(linkResponse.status).toBe(201)
-      const link = linkSchema.parse(await linkResponse.json())
+    const linkResponse = await postLink(sessionCookie)
+    expect(linkResponse.status).toBe(201)
+    const link = linkSchema.parse(await linkResponse.json())
 
-      const qrcodeResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-        body: JSON.stringify({ targetType: 'link', targetId: link.id }),
-      })
-      expect(qrcodeResponse.status).toBe(201)
-      const qrcode = qrcodeSchema.parse(await qrcodeResponse.json())
+    const qrcodeResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'link', targetId: link.id }),
+    })
+    expect(qrcodeResponse.status).toBe(201)
+    const qrcode = qrcodeSchema.parse(await qrcodeResponse.json())
 
-      const posterResponse = await SELF.fetch('https://example.com/api/v1/posters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-        body: JSON.stringify({ title: 'レート制限テスト', size: 'A6', qrCodeId: qrcode.id }),
-      })
-      expect(posterResponse.status).toBe(201)
-      const poster = posterSchema.parse(await posterResponse.json())
+    const posterResponse = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'レート制限テスト', size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(posterResponse.status).toBe(201)
+    const poster = posterSchema.parse(await posterResponse.json())
 
-      // 1回目はBrowser Renderingで生成、2回目以降は内容が同じためR2キャッシュから返る
-      // (src/routes/posters.tsのハッシュベースのキャッシュキー設計による)ため、
-      // 上限回数分の呼び出しでも実際にブラウザを起動するのは1回だけで済む
-      for (let i = 0; i < POSTER_EXPORT_RATE_LIMIT_MAX; i++) {
-        const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
-          headers: { Cookie: sessionCookie },
-        })
-        expect(response.status).toBe(200)
-      }
+    // exportハンドラが実際に計算するのと同じキャッシュキーを事前に計算し、R2(POSTER_CACHE)に
+    // ダミーのPDFを投入しておく。こうすることでexportハンドラは常にキャッシュヒットし、
+    // Browser Rendering(@cloudflare/puppeteer)を一度も起動しない。
+    // Miniflare上のBrowser Renderingシミュレーションは実ブラウザのWebSocket通信を模擬しており、
+    // 「Can't call WebSocket send() after close()」という無関係なuncaught exceptionが
+    // まれに発生してテストを不安定にしていたため(docs/hardening-progress.md v2参照)、
+    // レート制限の上限到達・429を検証するという本来の目的には無関係なBrowser Renderingの
+    // 起動自体をテストから排除する
+    const qrContent = `https://example.com/${link.shortCode}`
+    const cacheKey = await computePosterExportCacheKey({
+      posterId: poster.id,
+      title: poster.title,
+      subtitle: poster.subtitle,
+      size: poster.size,
+      styleOptions: poster.styleOptions,
+      qrContent,
+      format: 'pdf',
+    })
+    await env.POSTER_CACHE.put(cacheKey, new Uint8Array([0x25, 0x50, 0x44, 0x46]))
 
-      const blockedResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
+    for (let i = 0; i < POSTER_EXPORT_RATE_LIMIT_MAX; i++) {
+      const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
         headers: { Cookie: sessionCookie },
       })
-      expect(blockedResponse.status).toBe(429)
-      const body = await blockedResponse.json<{ error: { code: string } }>()
-      expect(body.error.code).toBe('RATE_LIMITED')
-    },
-  )
+      expect(response.status).toBe(200)
+    }
+
+    const blockedResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(blockedResponse.status).toBe(429)
+    const body = await blockedResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('RATE_LIMITED')
+  })
 })

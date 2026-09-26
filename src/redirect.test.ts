@@ -91,18 +91,12 @@ describe('GET /:shortCode', () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const link = await createLink(sessionCookie)
 
+    // PATCH /links/:idは過去日時をexpiresAtに設定することを拒否する(公開前修正v2 T2)ため、
+    // 「期限切れ状態のlink」自体はAPI越しには作れない。ここでは410判定のロジックだけを
+    // 確認したいので、moderationStatusのテストと同様にD1を直接更新して期限切れ状態を再現する
     const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: sessionCookie,
-      },
-      body: JSON.stringify({ expiresAt: pastDate }),
-    })
-    expect(patchResponse.status).toBe(200)
-    const patched = await patchResponse.json()
-    expect(patched).toMatchObject({ status: 'active', expiresAt: pastDate })
+    const db = drizzle(env.DB)
+    await db.update(links).set({ expiresAt: pastDate }).where(eq(links.id, link.id))
 
     // 410ページの表示自体は認証不要のため、Cookie無しでアクセスする
     const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })

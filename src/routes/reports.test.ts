@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
+import { REPORT_REASON_MAX_LENGTH, REPORT_SHORT_CODE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { linkSchema } from '@/shared/schemas/link'
 import { markEmailVerified } from '../../test/mark-email-verified'
 
@@ -118,6 +119,79 @@ describe('POST /api/v1/reports', () => {
         message: expect.any(String),
       },
     })
+  })
+
+  it(`reasonが上限文字数(${REPORT_REASON_MAX_LENGTH})+1文字の場合、400(VALIDATION_ERROR)になる`, async () => {
+    mockTurnstileSiteverify(true)
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // reportRateLimitMiddlewareはcf-connecting-ipヘッダー単位でカウントするため、他のテストと
+    // 同じ既定値(ヘッダー無し='unknown')を共有すると本テストファイル内の合計送信数が
+    // 上限(60秒あたり5回)を超えてしまう。文字数上限の検証テストはこの制限の対象外のため、
+    // テストごとに一意なcf-connecting-ipを付与してレート制限のバケットを分離する
+    const response = await SELF.fetch('https://example.com/api/v1/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '203.0.113.1' },
+      body: JSON.stringify({
+        shortCode: link.shortCode,
+        reason: 'あ'.repeat(REPORT_REASON_MAX_LENGTH + 1),
+        turnstileToken: 'valid-test-token',
+      }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it(`reasonがちょうど上限文字数(${REPORT_REASON_MAX_LENGTH})の場合、通報できる`, async () => {
+    mockTurnstileSiteverify(true)
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const reason = 'あ'.repeat(REPORT_REASON_MAX_LENGTH)
+
+    const response = await SELF.fetch('https://example.com/api/v1/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '203.0.113.2' },
+      body: JSON.stringify({ shortCode: link.shortCode, reason, turnstileToken: 'valid-test-token' }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ reason })
+  })
+
+  it(`shortCodeが上限文字数(${REPORT_SHORT_CODE_MAX_LENGTH})+1文字の場合、400(VALIDATION_ERROR)になる`, async () => {
+    mockTurnstileSiteverify(true)
+
+    const response = await SELF.fetch('https://example.com/api/v1/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '203.0.113.3' },
+      body: JSON.stringify({
+        shortCode: 'a'.repeat(REPORT_SHORT_CODE_MAX_LENGTH + 1),
+        reason: 'テスト通報',
+        turnstileToken: 'valid-test-token',
+      }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it(`shortCodeがちょうど上限文字数(${REPORT_SHORT_CODE_MAX_LENGTH})の場合、形式検証は通過する(該当linkが無いため404になる)`, async () => {
+    mockTurnstileSiteverify(true)
+
+    const response = await SELF.fetch('https://example.com/api/v1/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '203.0.113.4' },
+      body: JSON.stringify({
+        shortCode: 'a'.repeat(REPORT_SHORT_CODE_MAX_LENGTH),
+        reason: 'テスト通報',
+        turnstileToken: 'valid-test-token',
+      }),
+    })
+    // 上限文字数以内であるため形式検証(VALIDATION_ERROR)は通過し、実在しないshortCodeとして404になる
+    expect(response.status).toBe(404)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).not.toBe('VALIDATION_ERROR')
   })
 
   it('turnstileTokenが無い場合400(VALIDATION_ERROR)になる', async () => {

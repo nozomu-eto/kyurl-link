@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { FormField } from '@/frontend/components/form-field'
 import { apiClient } from '@/frontend/lib/api-client'
+import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // LinkCreatePage: 短縮URLの新規作成フォーム。元URLと、任意で有効期限を入力する。
 // 送信するとPOST /api/v1/linksを呼び出し、成功したら作成されたlinkの詳細画面へ遷移する
@@ -66,6 +67,8 @@ export function LinkCreatePage() {
           inputProps={{
             type: 'url',
             required: true,
+            // サーバー側スキーマ(httpUrlSchema)の上限と揃え、送信前に気づけるようにする
+            maxLength: URL_MAX_LENGTH,
             placeholder: 'https://example.com/menu',
             value: originalUrl,
             onChange: (e) => setOriginalUrl(e.target.value),

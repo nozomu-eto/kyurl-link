@@ -131,3 +131,60 @@ SELECT id, user_id, short_code, original_url FROM links WHERE moderation_status 
 ```
 
 停止すると、リダイレクトは410(`src/index.tsx`)になり、所有者はPATCH /links/:idでstatusをactiveに戻すことができなくなる(403 `MODERATION_LOCKED`、`src/routes/links.ts`)。
+
+### 8.3 既存データの不正値確認(公開前修正v2で追加)
+
+`expiresAt`の形式検証(`z.iso.datetime({ offset: true })`、docs/architecture.md・公開前修正v2 T1/T2参照)や、
+`originalUrl`/`targetUrl`のスキーム検証(第8.1節)は、導入より前に作成されたデータには遡って適用されない。
+以下は**そうした既存データに不正な値が残っていないかを確認するための参照SQLであり、本タスクの範囲内で
+本番DBに対して実行するものではない**(あくまで運用手順としての記録)。実行が必要になった場合は、
+第8節冒頭の注意(`--remote`実行は内容を十分確認したうえで慎重に行う)に従うこと。
+
+```sql
+-- (a) links.expires_atが有効なISO 8601日時として解釈できないレコードを抽出する。
+-- SQLiteのdatetime()関数は、引数がISO 8601形式(タイムゾーン指定"Z"・"+HH:MM"・"-HH:MM"を含む)
+-- として解釈できない場合(例: 'abc'、月や日の値が範囲外の'2026-13-45'等)にNULLを返すため、
+-- IS NULLで判定できる。expires_atがNULL(無期限)のレコードは対象外とする
+SELECT id, user_id, short_code, expires_at, created_at
+FROM links
+WHERE expires_at IS NOT NULL
+  AND datetime(expires_at) IS NULL;
+
+-- (b) links.original_url / qrcodes.target_urlがhttp://・https://以外のスキームになっている
+-- レコードを抽出する(第8.1節と同じ内容。関連する確認のため本節にも再掲する)
+SELECT id, user_id, original_url, created_at
+FROM links
+WHERE original_url NOT LIKE 'http://%' AND original_url NOT LIKE 'https://%';
+
+SELECT id, user_id, target_url, created_at
+FROM qrcodes
+WHERE target_type = 'rawUrl'
+  AND target_url NOT LIKE 'http://%' AND target_url NOT LIKE 'https://%';
+```
+
+該当レコードが見つかった場合の対応は第8.1節に準じる(内容確認のうえ、linkは`status = 'suspended'`への更新、
+qrcodeは`deletedAt`設定による削除を個別に検討する)。`expiresAt`が不正な値の場合も、判明した時点で
+運営が内容を確認し、`status = 'expired'`への更新や`expiresAt`の修正・無期限化(NULL)を個別に検討する。
+
+## 9. CSP(Content-Security-Policy)を本番でenforceする手順(公開前修正v2で追加)
+
+`src/index.tsx`では現時点で`Content-Security-Policy-Report-Only`のみを導入しており、違反があっても
+ブロックはされない(公開前修正v2 T9)。これは既存ページを壊すリスクを避けるための段階的導入であり、
+将来的に実際に違反をブロックする`Content-Security-Policy`ヘッダーへ切り替える場合の手順を以下に残す。
+
+1. **違反状況の確認**: 現時点では`reportTo`/`reportingEndpoints`を設定していないため、ブラウザは
+   Report-Onlyの違反を開発者コンソールに出力するのみで、サーバー側には送られてこない。実際に
+   有効化する前に、主要な画面(トップページ・ダッシュボード・各作成/編集画面・サインアップ・
+   404/410/警告インターステシャル)を一通り操作し、ブラウザの開発者ツール(Console/Network > Reports)
+   でCSP違反が出ていないかを目視確認する。必要であれば、`reportTo`設定を一時的に追加し、
+   Cloudflare Workers等で違反レポートを収集する運用も検討する
+2. **切り替え**: `src/index.tsx`の`secureHeaders(...)`呼び出しで、`contentSecurityPolicyReportOnly`
+   キーを`contentSecurityPolicy`にリネームする(値の内容はそのまま使う想定。運用中に見つかった
+   不足があれば、その時点でディレクティブを調整する)
+3. **nonceの扱いはそのまま**: `src/lib/redirect-pages.ts`の警告インターステシャルは既にnonce対応
+   済みのため、enforceモードに切り替えても改修不要
+4. **段階的ロールバックの用意**: 万一enforceにより画面が動かなくなった場合は、
+   Cloudflareダッシュボードの Deployments タブから直前のデプロイへロールバックする(第6節参照)。
+   `Content-Security-Policy`と`Content-Security-Policy-Report-Only`は同時に設定することもできるため、
+   不安が残る場合は「enforceする値を`Content-Security-Policy`に設定しつつ、より緩い設定を
+   `Content-Security-Policy-Report-Only`にも残して次の変更の影響を確認する」という二段階移行も可能
