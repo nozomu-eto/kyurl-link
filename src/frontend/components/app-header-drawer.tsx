@@ -6,6 +6,10 @@ import { APP_NAV_ITEMS } from '@/frontend/components/app-nav-items'
 import { Button } from '@/frontend/components/button'
 import { cx } from '@/frontend/components/class-names'
 
+// キーボード操作でフォーカス移動の対象にする要素(開いたときの初期フォーカス、
+// Tab/Shift+Tabでの循環の両方で使う。dialog.tsxと同じ考え方)
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 type AppHeaderDrawerProps = {
   currentUserEmail: string
   onSignOut: () => void
@@ -15,12 +19,21 @@ type AppHeaderDrawerProps = {
 // メニュー項目はサイドメニュー(app-layout.tsx)と共有するAPP_NAV_ITEMSを使う。
 // header-drawer.tsx(公開画面向け)と同じ考え方で、開閉のトグルボタン自体で状態を示し
 // (アイコンをハンバーガー⇔✗で切り替える)、ドロワー内に別の閉じるボタンは置かない。
-// 2-AのDialogと同様、Escで閉じる・閉じたらメニューボタンへフォーカスを戻す動作を持つ
-// (フォーカスの戻し先は常にこのトグルボタン自身のため、Dialogのように開く前の要素を
-// 覚えておく必要はない)
+// 2-AのDialogと同様の考え方で、次の挙動を実装する:
+// - 閉じている間はパネルにinert属性を付け、キーボード操作・読み上げの対象から外す
+//   (閉じるアニメーションの途中も操作できないようにするため)。768px以上ではCSS側で
+//   そもそも非表示(display: none)にしており、inertはその保険として働く
+// - 開いたら最初のメニュー項目へフォーカスを移し、開いている間はメニューボタンとパネル内の
+//   操作部品だけをTab/Shift+Tabで循環できるようにする(パネルはcreatePortalでdocument.body
+//   直下に描画されトグルボタンとDOM上つながっていないため、Dialogのような単純な境界判定
+//   ではなく、フォーカス可能要素を並べたリスト内でのインデックス計算により常に手動で
+//   移動先を決める)
+// - 開いている間はdocument.bodyのスクロールを止め、閉じたら元に戻す
+// - Escで閉じる・閉じたらメニューボタンへフォーカスを戻す
 export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const navId = useId()
 
   useEffect(() => {
@@ -28,16 +41,54 @@ export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawer
       return
     }
 
+    // 開いたときに最初のメニュー項目へフォーカスする
+    const firstPanelFocusable = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    firstPanelFocusable?.focus()
+
+    // ドロワー表示中は背後のコンテンツがスクロールしないようにし、閉じたら元に戻す
+    const previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    // メニューボタン自身とパネル内の操作部品をまとめて、Tabで循環する対象を返す。
+    // メニューボタンはヘッダー側(z-index: 101)にあり、ドロワー表示中も常に手前で
+    // クリック可能なままのため、循環対象にメニューボタンも含める
+    function getFocusables(): HTMLElement[] {
+      const panelFocusables = panelRef.current ? Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)) : []
+      return toggleButtonRef.current ? [toggleButtonRef.current, ...panelFocusables] : panelFocusables
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault()
         setIsOpen(false)
+        return
       }
+
+      if (event.key !== 'Tab') {
+        return
+      }
+
+      const focusables = getFocusables()
+      if (focusables.length === 0) {
+        return
+      }
+
+      // メニューボタンとパネルはDOM上つながっていない(パネルはdocument.body直下に
+      // portalされる)ため、「境界(最初/最後)だけ防いで残りはブラウザ標準の移動に任せる」
+      // 方式ではドロワー外へフォーカスが漏れてしまう。常にこのリスト内でのインデックスを
+      // 計算し、行き先を明示的に指定する
+      const currentIndex = focusables.indexOf(document.activeElement as HTMLElement)
+      const step = event.shiftKey ? -1 : 1
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + focusables.length) % focusables.length
+
+      event.preventDefault()
+      focusables[nextIndex]?.focus()
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousBodyOverflow
       // 閉じたらメニューボタンへフォーカスを戻す
       toggleButtonRef.current?.focus()
     }
@@ -78,9 +129,14 @@ export function AppHeaderDrawer({ currentUserEmail, onSignOut }: AppHeaderDrawer
           {isOpen && <div className="app-drawer__overlay" onClick={() => setIsOpen(false)} aria-hidden="true"></div>}
 
           <nav
+            ref={panelRef}
             id={navId}
             aria-label="メインメニュー"
             className={cx('app-drawer__panel', isOpen && 'app-drawer__panel--open')}
+            // 閉じている間(768px以上でCSS上そもそも非表示の場合も含む)は、キーボード操作・
+            // 読み上げの対象から外す。閉じるアニメーションの途中でもTab等で操作できてしまう
+            // ことを防ぐ
+            inert={!isOpen}
           >
             <div className="app-drawer__nav">
               {APP_NAV_ITEMS.map((navItem) => (

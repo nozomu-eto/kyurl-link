@@ -507,6 +507,11 @@ h1 {
   .app-shell__main {
     padding: var(--space-4);
   }
+
+  /* 768px未満でのみドロワーを表示する(以下のベース定義は769px以上向けにdisplay: noneにしている) */
+  .app-drawer__panel {
+    display: flex;
+  }
 }
 
 /* ========== AppHeaderDrawer(スマホのドロワー) ========== */
@@ -519,18 +524,23 @@ h1 {
 }
 
 /* ヘッダー(z-index: 101)がこのパネルの上端を覆うため、header-drawer.tsxと同様に
- * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する */
+ * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する。
+ * 769px以上ではそもそもドロワーを描画しない(display: none)。inert属性(app-header-drawer.tsx)
+ * と二重に、キーボード操作・読み上げの対象から外すための保険にもなる */
 .app-drawer__panel {
+  display: none;
   position: fixed;
   top: 0;
   right: 0;
+  /* 100dvh未対応ブラウザ向けに100vhを先に書いて残し、対応ブラウザでは100dvhで上書きする
+     (アドレスバーの表示・非表示でも高さが変わらないようにするため) */
   height: 100vh;
+  height: 100dvh;
   width: 300px;
   max-width: 90vw;
   padding-top: 64px;
   background-color: var(--color-surface);
   z-index: 100;
-  display: flex;
   flex-direction: column;
   box-shadow: -2px 0 8px rgba(20, 32, 56, 0.12);
   transform: translateX(100%);
