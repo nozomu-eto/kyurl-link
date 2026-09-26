@@ -26,11 +26,13 @@ const schema = { ...linkSchema, ...authSchema }
 // この値を明示的に'false'に上書きしたうえで行う
 //
 // BETTER_AUTH_TRUSTED_ORIGINSもプレビュー環境専用の環境変数。プレビュー環境
-// (*.teddies-01yolk.workers.dev)は接続元(Origin)がbaseURL(BETTER_AUTH_URL =本番の
-// https://kyurl.link)と異なるため、Better Authの既定のOrigin検証に弾かれてログイン・
-// 新規登録ができない。この値(カンマ区切り)をtrustedOriginsに追加で渡すことで、
+// (<プレビューID>-kyurl-link.teddies-01yolk.workers.dev)は接続元(Origin)がbaseURL
+// (BETTER_AUTH_URL =本番のhttps://kyurl.link)と異なるため、Better Authの既定のOrigin検証に
+// 弾かれてログイン・新規登録ができない。この値(カンマ区切り)をtrustedOriginsに追加で渡すことで、
 // プレビュー環境からの確認を可能にする。本番のwrangler.jsoncのvarsには設定しないため、
-// 本番の動きは変わらない(値の検証・変換はsrc/lib/auth-trusted-origins.ts参照)
+// 本番の動きは変わらない。値はkyurl-linkのプレビューURLだけに絞って検証する
+// (teddies-01yolk.workers.devはアカウント共通ドメインのため、検証・変換の詳細は
+// src/lib/auth-trusted-origins.ts参照)
 type AuthEnv = CloudflareBindings & {
   RATE_LIMIT_FORCE_ENABLED?: string
   TURNSTILE_DISABLED_FOR_TESTS?: string

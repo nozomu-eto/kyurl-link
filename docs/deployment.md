@@ -54,12 +54,12 @@ CLIでの`wrangler deploy`手動実行や、GitHub Actionsによる独自CI構�
 
 ### 3.1 プレビュー環境専用: `BETTER_AUTH_TRUSTED_ORIGINS`
 
-プレビュー環境(`*.teddies-01yolk.workers.dev`、Workers Buildsがブランチ・PRごとに払い出すプレビューURL)は、接続元(Origin)が本番の`BETTER_AUTH_URL`(`https://kyurl.link`)と異なるため、Better Authの既定のOrigin検証に弾かれ、マージ前にログイン・新規登録ができない。これを許可するため、`BETTER_AUTH_TRUSTED_ORIGINS`(カンマ区切り、`src/lib/auth-trusted-origins.ts`で検証・変換してBetter Authの`trustedOrigins`に渡す)を以下の手順で設定する。
+プレビュー環境(`<プレビューID>-kyurl-link.teddies-01yolk.workers.dev`、Workers Buildsがブランチ・PRごとに払い出すプレビューURL)は、接続元(Origin)が本番の`BETTER_AUTH_URL`(`https://kyurl.link`)と異なるため、Better Authの既定のOrigin検証に弾かれ、マージ前にログイン・新規登録ができない。これを許可するため、`BETTER_AUTH_TRUSTED_ORIGINS`(カンマ区切り、`src/lib/auth-trusted-origins.ts`で検証・変換してBetter Authの`trustedOrigins`に渡す)を以下の手順で設定する。
 
 1. Cloudflareダッシュボード → 対象Worker → Settings → Variables and Secrets を開く
 2. 環境の切り替えで「Previews Base」(Production向けとは別の、プレビューデプロイ共通の設定)を選ぶ
 3. `BETTER_AUTH_TRUSTED_ORIGINS`を追加する。**種別は必ず「シークレット」にする(「変数」にしない。理由は下記)**
-4. 値は、アカウントのworkers.devサブドメイン配下だけを許可する形(例: `https://*.teddies-01yolk.workers.dev`)にする。`src/lib/auth-trusted-origins.ts`がこの形式(`https://`+`teddies-01yolk.workers.dev`のサブドメイン1段分、またはそのワイルドカード)以外の値を読み捨てるため、`*`のような任意の接続元を許可する値を誤って設定しても効果を持たない
+4. 値は`https://*-kyurl-link.teddies-01yolk.workers.dev`にする。`teddies-01yolk.workers.dev`はCloudflareアカウント共通のworkers.devサブドメインであり、同じアカウントの他のWorker(`youtube-transcript-mcp`・`tech-watch`等)もこのドメインの下で動いている。プレビュー環境は本番と同じD1を使うため、`https://*.teddies-01yolk.workers.dev`のようにこのドメイン全体を許可する値にしてはいけない(他のWorkerのプレビューURLまで信頼してしまう)。`src/lib/auth-trusted-origins.ts`は、`<プレビューID>-kyurl-link.teddies-01yolk.workers.dev`という命名規則(またはそのワイルドカード)に一致しない値を読み捨てるため、誤って`https://*.teddies-01yolk.workers.dev`や`*`のような値を設定しても効果を持たない
 
 #### なぜ「変数」ではなく「シークレット」にするか
 
