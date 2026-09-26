@@ -81,6 +81,13 @@ app.get('/:shortCode', async (c) => {
     return c.html(goneePageHtml(), 410)
   }
 
+  // 運営による強制停止(moderationStatus: 'suspended')の場合も410。既存のstatus判定とは
+  // 別のフィールドで、所有者がstatusをactiveに戻しても停止を解除できないようにするために持つ
+  // (docs/architecture.md参照)
+  if (record.moderationStatus === 'suspended') {
+    return c.html(goneePageHtml(), 410)
+  }
+
   // 上記のstatus/expiresAtによる410判定に該当せず、ソフトデリート済み(deletedAtが設定されている)
   // 場合は404。個別削除(DELETE /links/:id)はstatusを変更しないため、このケースに該当する
   if (record.deletedAt !== null) {
@@ -94,7 +101,7 @@ app.get('/:shortCode', async (c) => {
   // 利用規約第11条2項「検知に努めるが完全性を保証しない」方針に対応する)
   const hasProceeded = c.req.query('proceed') === '1'
   if (record.securityStatus === 'flagged' && !hasProceeded) {
-    return c.html(securityWarningPageHtml(shortCode), 200)
+    return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する
@@ -111,6 +118,15 @@ app.get('/:shortCode', async (c) => {
     // サンプリングするため、link単位で偏りなく集計できるようにする役割も持つ
     indexes: [record.id],
   })
+
+  // 多層防御: originalUrlはPOST /links作成時にhttpUrlSchemaでhttp/https以外のスキームを
+  // 拒否しているが、スキーマ変更前に保存された既存データやDB直接操作による混入に備え、
+  // リダイレクト実行の直前でもスキームを再検証する。http/https以外の場合はリダイレクトせず、
+  // 既存の404ページ(notFoundPageHtml)を返す
+  const originalUrlProtocol = URL.parse(record.originalUrl)?.protocol
+  if (originalUrlProtocol !== 'http:' && originalUrlProtocol !== 'https:') {
+    return c.html(notFoundPageHtml(), 404)
+  }
 
   // 上記以外(有効期限内・active)の場合のみ、元URLへリダイレクトする
   return c.redirect(record.originalUrl, 302)

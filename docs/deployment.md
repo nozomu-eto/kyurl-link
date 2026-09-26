@@ -88,3 +88,46 @@ Cloudflareダッシュボードの Deployments タブから、過去のバージ
 - チーム開発になった場合、GitHub ActionsをPR検証(型チェック・lint・テスト)専用に追加し、実デプロイはWorkers Buildsに任せるハイブリッド構成への移行
 - リスクの高いマイグレーションが発生した場合、「マイグレーション適用」と「デプロイ」を分離する構成への変更(その際はWorkers BuildsからGitHub Actionsへの乗り換えも検討)
 - 独自ドメイン(kyurl.link)への切り替え(現時点では`*.workers.dev`のURLを使用)
+
+## 8. 運用手順: D1への直接SQL操作
+
+管理画面・管理APIが無い項目について、D1へ直接SQLを実行して確認・対応する手順をまとめる。
+実行は`wrangler d1 execute kyurl-link-prod --remote --command "<SQL>"`の形で行う。
+**本番DB(`--remote`)への実行は、内容を十分確認したうえで慎重に行うこと。**
+
+### 8.1 http/https以外のスキームのURLが保存されていないかの確認
+
+`linkCreateInputSchema.originalUrl`・`qrcodeCreateInputSchema.targetUrl`は、スキーマ変更(http/https限定化)より前に作成されたデータの中に、`javascript:`・`data:`・`mailto:`等の危険なスキームのURLが混入している可能性がある。以下のSQLで抽出できる(D1はSQLite方言のため正規表現は使えず、`LIKE`による前方一致で代用する)。
+
+```sql
+-- linksテーブル: original_urlがhttp://・https://で始まらないレコードを抽出
+SELECT id, user_id, original_url, created_at
+FROM links
+WHERE original_url NOT LIKE 'http://%' AND original_url NOT LIKE 'https://%';
+
+-- qrcodesテーブル: target_url(target_type='rawUrl'の場合のみ値が入る)が
+-- http://・https://で始まらないレコードを抽出
+SELECT id, user_id, target_url, created_at
+FROM qrcodes
+WHERE target_type = 'rawUrl'
+  AND target_url NOT LIKE 'http://%' AND target_url NOT LIKE 'https://%';
+```
+
+該当レコードが見つかった場合は、内容を確認のうえ`status = 'suspended'`(links)への更新や、対象qrcodeの削除(`deletedAt`設定)を個別に検討する。なお`src/index.tsx`のリダイレクト処理では、このようなレコードに対しても多層防御としてリダイレクト実行直前にスキームを再検証しており、実際にリダイレクトされることは無い。
+
+### 8.2 運営によるlinkの強制停止(moderationStatus)
+
+通報等を受けて運営がlinkを強制停止する手段は、今回は管理画面・管理APIを作らず、D1への直接SQL実行で行う(`links.moderationStatus`列、docs/architecture.md参照)。
+
+```sql
+-- 指定したlinkを運営停止状態にする(<link_id>を対象linkのidに置き換える)
+UPDATE links SET moderation_status = 'suspended' WHERE id = '<link_id>';
+
+-- 停止を解除する場合
+UPDATE links SET moderation_status = 'none' WHERE id = '<link_id>';
+
+-- 現在運営停止中のlink一覧を確認する
+SELECT id, user_id, short_code, original_url FROM links WHERE moderation_status = 'suspended';
+```
+
+停止すると、リダイレクトは410(`src/index.tsx`)になり、所有者はPATCH /links/:idでstatusをactiveに戻すことができなくなる(403 `MODERATION_LOCKED`、`src/routes/links.ts`)。

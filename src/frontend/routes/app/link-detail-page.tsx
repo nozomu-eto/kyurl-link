@@ -87,11 +87,11 @@ export function LinkDetailPage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>短縮URLの詳細</h1>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
 
-      <section className="card" style={{ marginBottom: '1.5rem' }}>
+      <section className="card">
         <p>
           <strong>短縮URL:</strong> {`${window.location.origin}/${link.shortCode}`}
         </p>
@@ -101,23 +101,30 @@ export function LinkDetailPage() {
         <p>
           <strong>有効期限:</strong> {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('ja-JP') : '無期限'}
         </p>
-        <div className="field" style={{ maxWidth: '240px' }}>
+        <div className="field field--narrow">
           <label className="field__label" htmlFor="link-detail-status">
             状態
           </label>
-          <select id="link-detail-status" className="field__input" value={link.status} disabled={isUpdatingStatus} onChange={handleStatusChange}>
+          <select
+            id="link-detail-status"
+            className="field__input"
+            value={link.status}
+            disabled={isUpdatingStatus || link.moderationStatus === 'suspended'}
+            onChange={handleStatusChange}
+          >
             <option value="active">有効</option>
             <option value="expired">期限切れ</option>
             <option value="suspended">停止中</option>
           </select>
+          {link.moderationStatus === 'suspended' && <p className="field__hint">運営により停止されています。</p>}
         </div>
         <button type="button" className="button button--danger" disabled={isDeleting} onClick={handleDeleteClick}>
           {isDeleting ? '削除中…' : 'この短縮URLを削除'}
         </button>
       </section>
 
-      <section className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>クリック統計</h2>
+      <section className="card">
+        <h2 className="card__title">クリック統計</h2>
         <p>
           合計クリック数: <strong>{clicks.totalClicks}</strong>
         </p>
@@ -142,8 +149,8 @@ export function LinkDetailPage() {
       </section>
 
       <section className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.1rem' }}>紐づくQRコード</h2>
+        <div className="card__header">
+          <h2 className="card__title">紐づくQRコード</h2>
           <button type="button" className="button button--secondary" onClick={() => navigate(`/app/links/${link.id}/qrcodes/new`)}>
             QRコードを作成
           </button>

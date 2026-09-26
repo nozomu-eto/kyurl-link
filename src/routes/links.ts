@@ -4,7 +4,10 @@ import { Hono } from 'hono'
 import { links } from '@/db/schema'
 import { buildLinkClicksSql } from '@/lib/link-clicks-query'
 import { determineLinkSecurityStatus } from '@/lib/link-security-check'
+import { generateShortCode } from '@/lib/short-code'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
+import { userRateLimitMiddleware } from '@/middleware/rate-limit'
+import { requireVerifiedEmail } from '@/middleware/require-verified-email'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
 // DB上のlinkレコード(lastScannedAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -16,21 +19,8 @@ function toLinkResponse(record: typeof links.$inferSelect) {
   })
 }
 
-// shortCode生成に使う文字種(英数字)
-const SHORT_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-// shortCodeの長さ(6〜8文字程度の目安として7文字固定)
-const SHORT_CODE_LENGTH = 7
 // 重複時の再生成の最大試行回数(簡易実装)
 const SHORT_CODE_MAX_ATTEMPTS = 5
-
-// 英数字7文字のランダムなshortCodeを1件生成する
-function generateShortCode() {
-  let code = ''
-  for (let i = 0; i < SHORT_CODE_LENGTH; i++) {
-    code += SHORT_CODE_CHARS[Math.floor(Math.random() * SHORT_CODE_CHARS.length)]
-  }
-  return code
-}
 
 // link(短縮URL)リソースのルート。型推論を保つためメソッドチェーンで定義する。
 // c.env.DBを使うため、HonoのBindingsにCloudflareBindings(wrangler typesが生成する型)を指定する。
@@ -62,7 +52,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, async (c) => {
+  .post('/', authMiddleware, requireVerifiedEmail, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
     // リクエストボディをJSONとして読み取り、linkCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = linkCreateInputSchema.safeParse(body)
@@ -163,7 +153,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // status・expiresAtのみ更新可能
-  .patch('/:id', authMiddleware, async (c) => {
+  .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
 
@@ -201,6 +191,21 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
           },
         },
         404,
+      )
+    }
+
+    // 運営により強制停止(moderationStatus: 'suspended')されている間は、所有者がstatusを
+    // 変更してactiveに戻す(停止を解除する)ことを拒否する。expiresAtの変更は禁止しない
+    // (moderationStatusとは独立した項目のため)
+    if (existing.moderationStatus === 'suspended' && parsed.data.status !== undefined) {
+      return c.json(
+        {
+          error: {
+            code: 'MODERATION_LOCKED',
+            message: 'このlinkは運営により停止されているため、状態を変更できません',
+          },
+        },
+        403,
       )
     }
 

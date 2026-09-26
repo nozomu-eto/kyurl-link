@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrlSchema } from '@/shared/schemas/url'
 
 // 短縮URL(link)リソース1件分のスキーマ
 export const linkSchema = z.object({
@@ -17,6 +18,10 @@ export const linkSchema = z.object({
   securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
   // 最終検査日時(ISO文字列)
   lastScannedAt: z.string(),
+  // 運営による強制停止の状態。'suspended'の場合、所有者はstatusを変更できず(PATCHが
+  // 403 MODERATION_LOCKEDになる)、リダイレクトも410になる。linkUpdateInputSchemaには
+  // 含めない(利用者からは変更できない項目のため)
+  moderationStatus: z.enum(['none', 'suspended']),
 })
 
 // link作成APIの入力用スキーマ。
@@ -24,8 +29,9 @@ export const linkSchema = z.object({
 // id/shortCode/status/createdAtはクライアントからの入力を受け付けず、サーバー側(POSTハンドラ)で
 // 生成・固定するため、ここには含めない
 export const linkCreateInputSchema = z.object({
-  // 短縮したい元URL。URL形式であることを検証する
-  originalUrl: z.string().url(),
+  // 短縮したい元URL。http/https形式のURLであることを検証する(javascript:等の危険な
+  // スキームをリダイレクト先として保存させないため。src/shared/schemas/url.ts参照)
+  originalUrl: httpUrlSchema,
   // 有効期限(ISO文字列)。省略時はnull(無期限)として扱う
   expiresAt: z.string().nullable().optional(),
 })

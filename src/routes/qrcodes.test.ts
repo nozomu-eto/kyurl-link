@@ -2,8 +2,10 @@ import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { linkSchema } from '@/shared/schemas/link'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUpAndGetSessionCookie() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -23,6 +25,8 @@ async function signUpAndGetSessionCookie() {
   if (!setCookie) {
     throw new Error('サインアップのレスポンスにset-cookieが含まれていません')
   }
+  const body = await response.json<{ user: { id: string } }>()
+  await markEmailVerified(body.user.id)
   return setCookie.split(';')[0]
 }
 
@@ -121,6 +125,25 @@ describe('POST /api/v1/qrcodes', () => {
       styleOptions: null,
     })
   })
+
+  it.each(['javascript:alert(1)', 'data:text/html,xxx', 'mailto:a@example.com', 'ftp://example.com'])(
+    "targetType: 'rawUrl' + targetUrlが%sの場合、400(VALIDATION_ERROR)になる",
+    async (targetUrl) => {
+      const sessionCookie = await signUpAndGetSessionCookie()
+
+      const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        body: JSON.stringify({ targetType: 'rawUrl', targetUrl }),
+      })
+      expect(response.status).toBe(400)
+      const body = await response.json<{ error: { code: string } }>()
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+    },
+  )
 })
 
 describe('GET /api/v1/qrcodes/:id/image', () => {

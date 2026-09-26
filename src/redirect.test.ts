@@ -1,8 +1,13 @@
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { links } from '@/db/schema'
 import { linkSchema } from '@/shared/schemas/link'
+import { markEmailVerified } from '../test/mark-email-verified'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUpAndGetSessionCookie() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -22,6 +27,8 @@ async function signUpAndGetSessionCookie() {
   if (!setCookie) {
     throw new Error('サインアップのレスポンスにset-cookieが含まれていません')
   }
+  const body = await response.json<{ user: { id: string } }>()
+  await markEmailVerified(body.user.id)
   return setCookie.split(';')[0]
 }
 
@@ -146,6 +153,36 @@ describe('GET /:shortCode', () => {
     expect(accountRequestResponse.status).toBe(201)
 
     // 410ページの表示自体は認証不要のため、Cookie無しでアクセスする
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(410)
+
+    const body = await response.text()
+    expect(body).toContain('ご利用いただけません')
+  })
+
+  it('DBに直接http/https以外のスキームのoriginalUrlを保存したlinkにアクセスしても、リダイレクトされず404になる(多層防御)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // POST /linksのスキーマ検証をバイパスし、DB直接操作を模して危険なスキームを保存する
+    const db = drizzle(env.DB)
+    await db.update(links).set({ originalUrl: 'javascript:alert(1)' }).where(eq(links.id, link.id))
+
+    const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
+    expect(response.status).toBe(404)
+
+    const body = await response.text()
+    expect(body).toContain('見つかりませんでした')
+  })
+
+  it('moderationStatusが"suspended"(運営による強制停止)のlinkにアクセスすると410になる(認証不要)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    // 管理画面・管理APIは無いため、D1への直接更新を模してmoderationStatusを書き換える
+    const db = drizzle(env.DB)
+    await db.update(links).set({ moderationStatus: 'suspended' }).where(eq(links.id, link.id))
+
     const response = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
     expect(response.status).toBe(410)
 

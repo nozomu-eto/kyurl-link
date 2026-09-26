@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrlSchema } from '@/shared/schemas/url'
 
 // QRコードリソース1件分のレスポンス用スキーマ。
 // styleOptionsはDB上はJSON文字列で保存するが、レスポンスではJSON.parseしたオブジェクトとして
@@ -30,8 +31,9 @@ export const qrcodeCreateInputSchema = z.discriminatedUnion('targetType', [
   }),
   z.object({
     targetType: z.literal('rawUrl'),
-    // 対象とする直接URL。URL形式であることを検証する
-    targetUrl: z.string().url(),
+    // 対象とする直接URL。http/https形式のURLであることを検証する(javascript:等の危険な
+    // スキームをQRコードの中身として保存させないため。src/shared/schemas/url.ts参照)
+    targetUrl: httpUrlSchema,
   }),
 ])
 

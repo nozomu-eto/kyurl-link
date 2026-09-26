@@ -2,8 +2,10 @@ import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
+import { markEmailVerified } from '../../test/mark-email-verified'
 
-// サインアップし、authMiddlewareを通すためのセッションCookieを取得する
+// サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
+// requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
 async function signUpAndGetSessionCookie() {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
     method: 'POST',
@@ -23,6 +25,8 @@ async function signUpAndGetSessionCookie() {
   if (!setCookie) {
     throw new Error('サインアップのレスポンスにset-cookieが含まれていません')
   }
+  const body = await response.json<{ user: { id: string } }>()
+  await markEmailVerified(body.user.id)
   return setCookie.split(';')[0]
 }
 

@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { FormField } from '@/frontend/components/form-field'
 import { apiClient } from '@/frontend/lib/api-client'
@@ -12,11 +12,15 @@ export function LinkCreatePage() {
   const [originalUrl, setOriginalUrl] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // メール未確認によるエラー(EMAIL_NOT_VERIFIED)の場合のみ、「メール確認待ち」画面への
+  // 導線を追加で表示するために、エラーコードも別途保持する
+  const [errorCode, setErrorCode] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage(null)
+    setErrorCode(null)
     setIsSubmitting(true)
 
     const response = await apiClient.api.v1.links.$post({
@@ -33,6 +37,7 @@ export function LinkCreatePage() {
     if (!response.ok) {
       const body = await response.json()
       setErrorMessage('error' in body ? body.error.message : '短縮URLの作成に失敗しました')
+      setErrorCode('error' in body ? body.error.code : null)
       return
     }
 
@@ -41,9 +46,19 @@ export function LinkCreatePage() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>短縮URLを作成</h1>
-      {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
+      {errorMessage && (
+        <AlertMessage tone="error">
+          {errorMessage}
+          {errorCode === 'EMAIL_NOT_VERIFIED' && (
+            <>
+              {' '}
+              <Link to="/verify-email">メールアドレスの確認はこちら</Link>
+            </>
+          )}
+        </AlertMessage>
+      )}
       <form className="card" onSubmit={handleSubmit}>
         <FormField
           fieldId="link-create-original-url"

@@ -1,6 +1,13 @@
-# kyurl.link アーキテクチャドキュメント(更新版9)
+# kyurl.link アーキテクチャドキュメント(更新版10)
 
-2026-09-23 · @Someone
+2026-09-25 · @Someone
+
+**更新版10での変更点(2026-09-25のセッションで確定)**
+- セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
+- セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
+- セキュリティ: メール未確認ユーザーによる書き込み系エンドポイントの濫用を防ぐため、requireVerifiedEmailミドルウェアを追加(第9.3節)
+- セキュリティ: サインアップ・通報APIにCloudflare Turnstileによるbot対策を追加(第9.4節)
+- セキュリティ: `links.moderationStatus`列を追加し、運営による強制停止を所有者が解除できないようにした(第9.5節)
 
 **更新版9での変更点(2026-09-23のセッションで検討)**
 - UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
@@ -287,7 +294,86 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 入力検証・インジェクション対策、認可(IDOR対策)、XSS対策、CSRF対策、シークレット管理、管理(通報対応)エンドポイントの保護、および掲示物PDFキャッシュ(R2)の認可チェック(必ずWorkerのコード内で所有者チェックを行ってからキャッシュを参照する設計)については、更新版4の内容から変更ありません。
 
-## 10. テスト設計(変更なし)
+### 9.1 Better Authのレート制限(更新版10で追加)
+
+Better Authはレート制限の保存先を指定しない場合、既定でメモリ(isolateのプロセス内メモリ)に保存する。Cloudflare Workersはリクエストごとにisolateが分かれ得るため、メモリ保存ではカウンタが共有されず、実質的にレート制限が機能しない。これに対応するため、以下の設定とした(`src/lib/auth.ts`)。
+
+- **保存先**: `rateLimit.storage: 'database'`。D1に`rateLimit`テーブル(`src/db/auth-schema.ts`、マイグレーション`drizzle/0010_last_puppet_master.sql`)を追加し、isolateをまたいでカウンタを共有する
+- **クライアントIPの取得**: `advanced.ipAddress.ipAddressHeaders: ['cf-connecting-ip']`。既定の`x-forwarded-for`はクライアントが値を詐称できるカンマ区切りのチェーンであり、信頼できるプロキシ(Cloudflareのエッジ)を明示的に指定できる`cf-connecting-ip`を使う
+- **有効/無効の判定**: Better Auth自身が「本番モードでは既定で有効(window 60秒・max 100)、開発モードでは既定で無効」と判定する仕組みに委ねる(`enabled`は明示的に指定しない)。ローカル開発(`pnpm dev`)・テスト実行時は開発モードとして扱われ既定で無効になる点に注意。テスト(`src/lib/auth-rate-limit.test.ts`)では、テスト専用の環境変数`RATE_LIMIT_FORCE_ENABLED`(wrangler.jsoncには定義しない、テストファイル内で`cloudflare:test`の`env`を直接書き換えて設定)により、そのテストファイル内でのみ強制的に有効化して検証する
+- **customRules**(一般エンドポイントの既定値window 60秒・max 100より厳しく設定):
+  - `/sign-in/email`: window 60秒・max 5回 — パスワード総当たり対策。入力ミスを数回許容しつつ、総当たりを実質不可能にする回数として5回とした
+  - `/sign-up/email`: window 60秒・max 3回 — 捨てアドレスによる大量アカウント作成(フィッシング用短縮URLの量産)対策
+  - `/request-password-reset`: window 300秒(5分)・max 3回 — メール送信を伴いコストが高く、他人のメールアドレスへの迷惑メール送りつけ(総当たり)にも使われ得るため
+  - `/send-verification-email`(確認メール再送): 上記と同じ理由でwindow 300秒・max 3回
+
+既存データの確認・対応が必要な場合の運用手順は無し(新規追加のテーブルのため、移行対象データは無い)。
+
+### 9.2 APIエンドポイントのレート制限(更新版10で追加)
+
+以下のエンドポイントには回数制限が無く、濫用やコスト増加のリスクがあったため、Cloudflare Workers Rate Limiting API(`ratelimits`バインディング、2025-09-19にGA)を`src/middleware/rate-limit.ts`のHonoミドルウェアとして導入した。
+
+- `POST /api/v1/links`・`POST /api/v1/qrcodes`・`POST /api/v1/posters`(大量作成対策)
+- `GET /api/v1/posters/:id/export`(Browser Renderingが動き、内容が変わるたびにR2キャッシュのキーも変わるため、従量課金が直接増える)
+- `POST /api/v1/reports`(未ログインで利用可能)
+
+**バインディング構成**(`wrangler.jsonc`の`ratelimits`)。`namespace_id`はD1の`database_id`やR2の`bucket_name`と異なり、ダッシュボードでの事前作成が不要な「アカウント内で一意な整数値を自分で決めるだけでよい」値(Cloudflare公式ドキュメントで確認済み)。`period`は10または60秒のみ指定可能なため60秒を採用した。
+
+| バインディング名 | 対象 | 上限 | 理由 |
+| --- | --- | --- | --- |
+| `WRITE_RATE_LIMITER` | POST /links・POST /qrcodes・POST /posters | 60秒あたり30回 | 通常利用では十分な余裕を持たせつつ、スクリプトによる大量作成を抑止する回数として設定 |
+| `POSTER_EXPORT_RATE_LIMITER` | GET /posters/:id/export | 60秒あたり10回 | Browser Rendering起動を伴いコストが高いため、書き込み系より厳しくする |
+| `REPORT_RATE_LIMITER` | POST /reports | 60秒あたり5回 | 未ログインで叩けるため、通報を装ったIPアドレス単位の荒らし・DoS的濫用を抑止する回数として設定 |
+
+**キーの選び方**: ログイン必須のエンドポイント(書き込み系・export)はユーザーID単位、未ログインのreportsはCloudflareの`cf-connecting-ip`ヘッダー(Better Authのレート制限、第9.1節と同じ理由)によるIPアドレス単位でカウントする。IPアドレス単位にすると同一ネットワーク(オフィス・カフェ等)の複数ユーザーを誤って巻き込んでしまうため、ログイン済みの場合はユーザーID単位を優先する。
+
+**超過時のレスポンス**: 既存のエラー形式に合わせ、`429`で`{ error: { code: 'RATE_LIMITED', message: '...' } }`を返す。フロントエンドは429受信時に日本語の案内メッセージ(「リクエストが多すぎます。しばらく時間をおいてから再度お試しください」)を表示する。
+
+**テストでの扱い**: `@cloudflare/vitest-pool-workers`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
+
+### 9.3 メール未確認ユーザーの書き込み制限(更新版10で追加)
+
+`src/lib/auth.ts`では既存テストとの兼ね合いから`requireEmailVerification`をあえてオフにしている(ソフト確認方式、第9.1節・emailVerification設定のコメント参照)。そのため、捨てアドレスで作成したアカウントでフィッシング用短縮URLを量産できてしまう懸念があった。
+
+これに対し、ログイン済みかつ`user.emailVerified`がtrueであることを要求する`requireVerifiedEmail`ミドルウェア(`src/middleware/require-verified-email.ts`)を追加し、以下の書き込み系エンドポイントに適用した(`authMiddleware`の直後、レート制限ミドルウェアより前に置く)。
+
+- `POST /links`・`PATCH /links/:id`
+- `POST /qrcodes`・`PATCH /qrcodes/:id`
+- `POST /posters`・`PATCH /posters/:id`・`GET /posters/:id/export`
+
+未確認の場合は既存のエラー形式で403(`code: 'EMAIL_NOT_VERIFIED'`)を返す。一覧・詳細の取得、削除、アカウント削除申請(`POST /account-requests`)には適用しない。未確認ユーザーでも自分のデータの閲覧・削除・退会は行えるようにするためで、退会申請時のカスケード停止処理(第7.1節)の挙動にも変更は無い。
+
+フロントエンドの`AlertMessage`表示は既存のエラーハンドリング(`error.message`をそのまま表示する実装、第9.2節参照)にそのまま乗るため追加改修は不要。ただし、書き込み系フォームで403(`EMAIL_NOT_VERIFIED`)を受け取った場合は、汎用のエラーメッセージ表示に加えて、既存の「メール確認待ち」画面(`verify-email-pending-page.tsx`)への導線リンクを併記するよう各作成ページ(`link-create-page.tsx`・`qrcode-create-page.tsx`・`poster-create-page.tsx`)を修正した。
+
+**テストへの影響**: 既存のテストファイルのsignUpヘルパーは、サインアップ直後は`emailVerified: false`のユーザーを返す。上記エンドポイントの正常系テストが403で失敗しないよう、テスト用ヘルパー`test/mark-email-verified.ts`(`markEmailVerified(userId)`、DBの`emailVerified`を直接trueに更新する)を追加し、書き込み系エンドポイントを呼ぶ既存テストファイルのsignUpヘルパー内でサインアップ直後に呼び出すよう統一した。`requireVerifiedEmail`自体の403判定は`src/middleware/require-verified-email.test.ts`で、あえて確認済みにしない未確認ユーザーを使って検証する。
+
+### 9.4 Turnstileによるbot対策(更新版10で追加)
+
+サインアップ(Better Auth)と通報(`POST /api/v1/reports`、未ログインで利用可能)にbot対策が無かったため、Cloudflare Turnstileを導入した。
+
+**サインアップ(`/api/auth/sign-up/email`)**: 自前のBetter Authフック(`hooks.before`)やHonoミドルウェアでの個別実装ではなく、Better Auth公式の**captchaプラグイン**(`better-auth/plugins`の`captcha()`、`provider: 'cloudflare-turnstile'`)を採用した。理由は、この用途向けに公式が用意しているプラグインが存在し、siteverify呼び出し・エラーコード(`MISSING_RESPONSE`/`VERIFICATION_FAILED`等)・対象パスのマッチングまで一貫して面倒を見てくれるため、車輪の再発明を避けられること。`endpoints: ['/sign-up/email']`を明示し、既定(サインイン・パスワードリセットも含む)より狭いスコープに絞った(今回の対象はサインアップのみのため)。クライアント側はトークンを`x-captcha-response`ヘッダー(公式の固定ヘッダー名)で送る。
+
+**通報(`POST /api/v1/reports`)**: Better Authのエンドポイントではないため、上記プラグインは使えない。`reportCreateInputSchema`に`turnstileToken`(必須)を追加し、`src/lib/turnstile.ts`の`verifyTurnstileToken()`(siteverify APIを直接呼ぶ)でハンドラ内で検証する。悪意あるURL検知(URLhaus、第4節)とは異なりbot対策そのものが目的のため、照会に失敗した場合もfail-open(素通り)にはせず、必ず拒否(400、`code: 'TURNSTILE_VERIFICATION_FAILED'`)する。
+
+**フロントエンド**: サインアップ画面(SPA)は`src/frontend/components/turnstile-widget.tsx`(explicit rendering、公式推奨のSPA向け方式)を使う。警告ページの通報フォーム(`src/lib/redirect-pages.ts`、サーバーレンダリングの静的HTML)は`cf-turnstile`クラスによるimplicit renderingを使う(静的ページ向けの方式)。
+
+**キー管理**: シークレットキーは`TURNSTILE_SECRET_KEY`(wrangler secret、他の秘密情報と同様)。サイトキーは公開情報のため秘匿不要だが、サーバー側(警告ページのHTML生成)とクライアント側(Vite)の両方で使うため、`TURNSTILE_SITE_KEY`(Worker側、`.dev.vars`)と`VITE_TURNSTILE_SITE_KEY`(フロント側、`.env`。Viteの標準的な公開環境変数の仕組みを使う)の2箇所で同じ値を設定する。
+
+**テストでの扱い**: ローカル開発・テストでは、公式のテスト用サイトキー・シークレットキー(常に成功: サイトキー`1x00000000000000000000AA`・シークレットキー`1x0000000000000000000000000000000AA`)を`.dev.vars`・`.env`に設定する(`.dev.vars.example`・`.env.example`に手順を記載)。ただし、captchaプラグインが有効なままだと既存の全テストファイルのsignUpヘルパー(`x-captcha-response`を送っていない)が軒並み失敗するため、レート制限(第9.1節の`RATE_LIMIT_FORCE_ENABLED`)と同様に、テスト専用の環境変数`TURNSTILE_DISABLED_FOR_TESTS`(`vitest.config.ts`で全テストに対し常に`'true'`を注入)でcaptchaプラグイン自体をpluginsに含めないようにする。プラグイン自体の動作(トークン無し→400・不正トークン→403・正常トークン→成功)は`src/lib/auth-captcha.test.ts`で、この値を個別に`'false'`に上書きしたうえで検証する。通報APIの`turnstileToken`検証は`src/routes/reports.test.ts`で、siteverifyへのfetchをモックして検証する。
+
+### 9.5 運営によるlinkの強制停止(moderationStatus、更新版10で追加)
+
+`PATCH /api/v1/links/:id`では所有者がstatusを自由に変更できるため、通報を受けて運営がリンクを`status: 'suspended'`にしても、所有者が`status: 'active'`に戻すことで停止を解除できてしまう問題があった。
+
+`links`テーブルに`moderationStatus: 'none' | 'suspended'`(既定値`'none'`)列を追加した(drizzleスキーマ・マイグレーションは`src/db/schema.ts`・`drizzle/0011_aspiring_micromacro.sql`)。
+
+- `src/index.tsx`のリダイレクト判定に、既存の`status`/`expiresAt`判定と並べて`moderationStatus === 'suspended'`のチェックを追加し、該当する場合は410を返す
+- レスポンス用の`linkSchema`に`moderationStatus`を追加する一方、`linkUpdateInputSchema`(利用者が変更できる項目)には含めない
+- `PATCH /api/v1/links/:id`では、`moderationStatus === 'suspended'`のlinkに対して`status`を変更しようとした場合のみ403(`code: 'MODERATION_LOCKED'`)を返す。`expiresAt`のみの変更は禁止しない(`moderationStatus`とは独立した項目のため)
+- 運営が停止を実行する手段(管理画面・管理API)は今回作らず、D1への直接SQL実行による運用とする(手順は`docs/deployment.md`第8.2節に追記)
+- フロントエンド(`link-detail-page.tsx`)は、`moderationStatus === 'suspended'`の場合に状態(status)のセレクトボックスを無効化し、「運営により停止されています。」と表示する
+
+**アカウント削除時のカスケード停止(`src/routes/account-requests.ts`)との関係**: 退会申請受付時、対象ユーザーの全linkに`deletedAt`と`status: 'suspended'`を同時にセットする既存の挙動は変更していない。`moderationStatus`ではなく既存の`status`列のまま扱うことにした。理由は、両者が表す意味が異なるため: `status`は「そのアカウント・リソースが利用可能かどうか」という所有者側の状態遷移(かつ猶予期間中の再ログインで取り消し可能)を表すのに対し、`moderationStatus`は「運営が内容を理由に独立して停止した」という所有者の意思と無関係な判定を表す。両者を1つのカラムに統合すると、「アカウント削除申請によるsuspended」と「運営によるモデレーション停止」を区別できなくなり、例えば猶予期間中の取り消し処理やアカウント削除申請のキャンセル時に、運営停止まで誤って解除してしまう危険がある。orthogonalな(直交する)2つのカラムのままにすることで、片方の状態遷移がもう片方に意図せず影響しないようにした。
 
 `@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。コンポーネント別方針・省略してよい範囲・CI方針は更新版4から変更ありません。アカウント削除バッチ(第7.1節)については、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する項目を追加する。
 

@@ -21,14 +21,18 @@ export default defineConfig(async () => {
         // しまう既知の挙動を除外する。アプリ側の挙動(401・共通エラー形式・対象リソースが
         // 削除されないこと)はテストのアサーションで検証済みで実害は無い。
         // 自由記述のmessageではなく、より安定した識別子であるBetter Authのエラーコード
-        // (body.code === 'INVALID_PASSWORD')とname('APIError')の両方が一致する場合のみ
-        // 除外することで、他の予期しないエラーまで誤って握りつぶさないようにする。
+        // (body.code === 'INVALID_PASSWORD' または 'INVALID_EMAIL_OR_PASSWORD')とname('APIError')の
+        // 両方が一致する場合のみ除外することで、他の予期しないエラーまで誤って握りつぶさないようにする。
         // (実際に発生するエラーオブジェクトの形は console.log で確認した:
         //  { name: 'APIError', message: 'Invalid password', body: { code: 'INVALID_PASSWORD', ... }, ... })
+        // INVALID_EMAIL_OR_PASSWORDは、src/lib/auth-rate-limit.test.ts(レート制限テスト)で
+        // 同一の誤ったパスワードによるサインインを連続実行した際に、同じ内部Promiseチェーンの
+        // 既知の挙動として確認された(スタックトレースはINVALID_PASSWORDの場合と同一の
+        // better-call内部の経路を指す)
         // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この除外が
         // まだ必要か再確認すること
         const err = error as { name?: string; body?: { code?: string } }
-        if (err.name === 'APIError' && err.body?.code === 'INVALID_PASSWORD') {
+        if (err.name === 'APIError' && (err.body?.code === 'INVALID_PASSWORD' || err.body?.code === 'INVALID_EMAIL_OR_PASSWORD')) {
           return false
         }
       },
@@ -56,6 +60,12 @@ export default defineConfig(async () => {
             // これも同様にprocess.env(Node.js側)からWorker側のprocess.env/envへ明示的に注入しないと
             // テストコード側のprocess.env.CI_SKIP_BROWSER_TESTからは参照できない
             ...(process.env.CI_SKIP_BROWSER_TEST ? { CI_SKIP_BROWSER_TEST: process.env.CI_SKIP_BROWSER_TEST } : {}),
+            // src/lib/auth.ts参照。Better Authのcaptchaプラグイン(サインアップ時の
+            // x-captcha-response必須化)は、既存の全テストファイルのsignUpヘルパーが
+            // このヘッダーを送っていないため、テスト実行時は常に無効化する。
+            // プラグイン自体の動作はsrc/lib/auth-captcha.test.tsで、この値を個別に
+            // 'false'に上書きしたうえで検証する
+            TURNSTILE_DISABLED_FOR_TESTS: 'true',
           },
         },
       }),

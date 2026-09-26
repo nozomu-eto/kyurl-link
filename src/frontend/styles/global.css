@@ -1,29 +1,101 @@
 /*
- * デザイントークンおよび全画面共通のベーススタイル。
- * 色の値はdocs/architecture.md 第6.2節で最終決定済みのため、ここでの変更は禁止
- * (ベース: オフホワイト#F7F5F0 / メイン: 紺#2F5A93 / アクセント: 朱#D03E2F、大面積用#D44E40)
+ * デザイントークンおよび全画面共通のスタイル(docs/architecture.md 第6.2節・第6.5節)。
+ *
+ * トークンは3層構造にしている。
+ *   第1層(パレット): ブランド色の実際の値。配色を変えるときはここだけを書き換える
+ *   第2層(役割)    : 画面上の用途ごとの名前。濃淡は第1層からcolor-mix()で派生させる
+ *   第3層(部品)    : このファイル後半のクラス群。第2層の変数だけを参照する
+ * 部品側で第1層(--palette-*)やHEX値を直接使わないこと。使うとパレットの差し替えに追従しなくなる。
  */
-:root {
-  --color-base: #f7f5f0;
-  --color-main: #2f5a93;
-  --color-main-dark: #24466f;
-  --color-accent: #d03e2f;
-  --color-accent-large: #d44e40;
-  --color-text: #222222;
-  --color-text-muted: #5a5a5a;
-  --color-border: #d8d4c9;
-  --color-surface: #ffffff;
-  --color-error: #b3261e;
-  --color-error-bg: #fbeae8;
-  --color-success: #1f7a4d;
-  --color-success-bg: #e8f4ee;
 
-  --font-family-base:
-    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
-  --radius-base: 8px;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+/* ============================================================
+ * 第1層: パレット
+ * ============================================================ */
+:root {
+  /* ブランド3色(第6.2節で決定済みの値。ベース: オフホワイト / メイン: 紺 / アクセント: 朱) */
+  --palette-base: #f7f5f0;
+  --palette-brand: #2f5a93;
+  --palette-accent: #d03e2f;
+
+  /* ブランドと独立した中立色・状態色。配色変更の影響を受けないよう別枠で持つ */
+  --palette-white: #ffffff;
+  --palette-black: #000000;
+  --palette-ink: #222222;
+  --palette-ink-muted: #5a5a5a;
+  --palette-error: #b3261e;
+  --palette-success: #1f7a4d;
 }
 
+/* ============================================================
+ * 第2層: 役割
+ * ============================================================ */
+:root {
+  /* 背景・面 */
+  --color-bg: var(--palette-base);
+  --color-bg-alt: color-mix(in srgb, var(--palette-brand) 7%, var(--palette-white));
+  --color-surface: var(--palette-white);
+  --color-border: color-mix(in srgb, var(--palette-brand) 10%, #d9d9d9);
+
+  /* 文字 */
+  --color-text: var(--palette-ink);
+  --color-text-muted: var(--palette-ink-muted);
+  --color-heading: color-mix(in srgb, var(--palette-brand) 25%, var(--palette-ink));
+  --color-link: var(--palette-brand);
+  --color-link-hover: color-mix(in srgb, var(--palette-brand) 72%, var(--palette-black));
+
+  /* ブランド色(紺)とその濃淡。紺の上には--color-on-brandの文字を載せる */
+  --color-brand: var(--palette-brand);
+  --color-brand-strong: color-mix(in srgb, var(--palette-brand) 72%, var(--palette-black));
+  --color-brand-deep: color-mix(in srgb, var(--palette-brand) 50%, var(--palette-black));
+  --color-brand-soft: color-mix(in srgb, var(--palette-brand) 12%, var(--palette-white));
+  --color-brand-tint: color-mix(in srgb, var(--palette-brand) 7%, var(--palette-white));
+  --color-on-brand: var(--palette-white);
+
+  /* 主要CTA(朱)。新規登録など、画面内で最も押してほしい1つのボタンにだけ使う */
+  --color-cta: var(--palette-accent);
+  --color-cta-shade: color-mix(in srgb, var(--palette-accent) 70%, var(--palette-black));
+  --color-on-cta: var(--palette-white);
+
+  /* 状態色 */
+  --color-danger: var(--palette-error);
+  --color-on-danger: var(--palette-white);
+  --color-error: var(--palette-error);
+  --color-error-bg: color-mix(in srgb, var(--palette-error) 9%, var(--palette-white));
+  --color-success: var(--palette-success);
+  --color-success-bg: color-mix(in srgb, var(--palette-success) 10%, var(--palette-white));
+  --color-focus-ring: var(--palette-brand);
+
+  /* フッター(濃紺の面) */
+  --color-footer-bg: var(--color-brand-deep);
+  --color-footer-text: color-mix(in srgb, var(--palette-brand) 18%, var(--palette-white));
+  --color-footer-rule: color-mix(in srgb, var(--palette-brand) 75%, var(--palette-black));
+
+  /* 文字組み。日本語はWebフォントを読み込まずシステムフォントを使う(第6.6節)。
+     --font-family-displayは数字・ロゴ用。Barlowは未導入のため、現状は本文と同じフォントで表示される */
+  --font-family-base:
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, 'Noto Sans JP', Meiryo, sans-serif;
+  --font-family-display: 'Barlow', var(--font-family-base);
+
+  /* 形・影・余白 */
+  --radius-sm: 2px;
+  --radius-base: 4px;
+  --radius-pill: 999px;
+  --shadow-card: 0 2px 8px rgba(20, 32, 56, 0.06);
+  --shadow-header: 0 2px 6px rgba(20, 32, 56, 0.08);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --tap-target: 44px;
+}
+
+/* ============================================================
+ * 第3層: ベース要素
+ * ============================================================ */
 * {
   box-sizing: border-box;
 }
@@ -35,7 +107,7 @@ body {
 }
 
 body {
-  background-color: var(--color-base);
+  background-color: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-family-base);
   line-height: 1.7;
@@ -46,29 +118,426 @@ body {
 }
 
 a {
-  color: var(--color-main);
+  color: var(--color-link);
+}
+
+a:hover {
+  color: var(--color-link-hover);
 }
 
 h1,
 h2,
 h3 {
+  color: var(--color-heading);
   line-height: 1.4;
 }
 
-/* 画面の最大幅を揃えるための共通コンテナ */
+h1 {
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+/* ============================================================
+ * 第3層: レイアウト
+ * ============================================================ */
+
+/* 公開画面の外枠。本文が短くてもフッターを画面下端に置く */
+.public-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.public-shell__main {
+  flex: 1;
+}
+
+/* 公開画面の本文幅を揃えるコンテナ */
 .page-container {
   max-width: 720px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
+  padding: var(--space-8) var(--space-6) 4rem;
 }
 
-/* カード状のまとまり(フォーム・詳細情報等) */
+/* 1画面分の縦並び。直下の要素同士に一定の間隔を空ける(個別のmarginTop指定を不要にするため) */
+.page-container > * + *,
+.page > * + * {
+  margin-top: var(--space-6);
+}
+
+.page-container > h1,
+.page > h1 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* 画面見出しと右側のアクション(作成ボタン等)を横並びにする */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-header > h1 {
+  margin: 0;
+}
+
+/* ボタンを横に並べる */
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* フォーム下の補助リンク(「パスワードをお忘れの方」等)。項目間は詰めて表示する */
+.form-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.form-links > p {
+  margin: 0;
+}
+
+/* ============================================================
+ * 第3層: ヘッダー・フッター
+ * ============================================================ */
+
+/* 白の固定ヘッダー(エックスサーバー風: 右端に塗りのCTAと枠線のログイン)。
+ * 重なり順(奥から手前): 通常コンテンツ < ドロワーのモーダルオーバーレイ(z-index: 99) <
+ * ドロワーパネル(z-index: 100) < ヘッダー。ドロワー表示中もヘッダー(ハンバーガーボタン含む)が
+ * 隠れないよう、ヘッダーのz-indexをドロワーパネルより大きくする */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 72px;
+  padding: var(--space-2) var(--space-6);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-header);
+}
+
+.site-header__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  text-decoration: none;
+}
+
+.site-header__nav {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* デスクトップナビは1024px以下(タブレット・モバイル)で非表示。1024px自体もハンバーガー側に含める */
+@media (max-width: 1024px) {
+  .site-header__nav--desktop {
+    display: none;
+  }
+}
+
+/* タブレット・モバイル(1024px以下)以外、つまり1025px以上は非表示 */
+@media (min-width: 1025px) {
+  .header-drawer__toggle {
+    display: none;
+  }
+}
+
+/* ロゴ(「kyurl.link」)。ドットだけアクセント色にする */
+.brand-logo {
+  font-family: var(--font-family-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-brand-strong);
+  text-decoration: none;
+}
+
+.brand-logo__dot {
+  color: var(--color-cta);
+}
+
+/* 濃紺のフッター。ロゴ列+リンク列のグリッド */
+.site-footer {
+  padding: var(--space-12) var(--space-6) var(--space-8);
+  background-color: var(--color-footer-bg);
+  color: var(--color-on-brand);
+}
+
+.site-footer__inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-8);
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.site-footer__lead {
+  margin: var(--space-3) 0 0;
+  font-size: 0.85rem;
+  color: var(--color-footer-text);
+}
+
+.site-footer__heading {
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-footer-rule);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-on-brand);
+}
+
+.site-footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.site-footer a {
+  color: var(--color-footer-text);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--color-on-brand);
+  text-decoration: underline;
+}
+
+.site-footer .brand-logo {
+  color: var(--color-on-brand);
+}
+
+.site-footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: 1040px;
+  margin: var(--space-8) auto 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-footer-rule);
+  font-size: 0.75rem;
+  color: var(--color-footer-text);
+}
+
+.site-footer__copyright {
+  font-family: var(--font-family-display);
+}
+
+/* ============================================================
+ * 第3層: /app配下のレイアウト(サイドナビ+メイン)
+ * ============================================================ */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-shell__sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-6) var(--space-4);
+}
+
+.app-shell__brand {
+  display: inline-block;
+  margin-bottom: var(--space-6);
+}
+
+.app-shell__nav-link {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-base);
+  color: var(--color-text);
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: var(--space-1);
+}
+
+.app-shell__nav-link:hover {
+  background-color: var(--color-brand-tint);
+  color: var(--color-brand-strong);
+}
+
+.app-shell__nav-link.is-active {
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.app-shell__account {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.app-shell__main {
+  flex: 1;
+  padding: var(--space-8);
+  max-width: 960px;
+}
+
+/* ============================================================
+ * 第3層: 部品
+ * ============================================================ */
+
+/* セクション見出し(中央寄せ+短いアンダーバー)。トップページ等の大きな区切りで使う */
+.section-title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.9rem;
+  font-weight: 900;
+}
+
+.section-title::after {
+  content: '';
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin: var(--space-3) auto 0;
+  background-color: var(--color-brand);
+}
+
+/* カード(フォーム・詳細情報等のまとまり)。角丸は小さく、影は薄く */
 .card {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
   box-shadow: var(--shadow-card);
-  padding: 1.5rem;
+  padding: var(--space-6);
+}
+
+.card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.card__title {
+  margin: 0 0 var(--space-4);
+  padding-left: var(--space-3);
+  border-left: 4px solid var(--color-brand);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.card__header > .card__title {
+  margin: 0;
+}
+
+/* ボタン。--primaryは紺(通常の送信)、--ctaは朱(最重要の1つ)、--secondaryは紺の枠線、
+   --outlineはグレーの枠線(ログイン等の控えめな導線)、--dangerは削除等の取り消せない操作、
+   --textは文字だけのボタン */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-base);
+  border: 2px solid transparent;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.button--primary {
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.button--primary:hover {
+  background-color: var(--color-brand-strong);
+  color: var(--color-on-brand);
+}
+
+.button--cta {
+  background-color: var(--color-cta);
+  color: var(--color-on-cta);
+}
+
+.button--cta:hover {
+  background-color: var(--color-cta-shade);
+  color: var(--color-on-cta);
+}
+
+.button--secondary {
+  background-color: var(--color-surface);
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+.button--secondary:hover {
+  background-color: var(--color-brand-tint);
+  color: var(--color-brand-strong);
+}
+
+.button--outline {
+  background-color: var(--color-brand-strong);
+  color: var(--color-surface);
+  border: none;
+}
+
+.button--outline:hover {
+  background-color: var(--color-brand);
+  color: var(--color-surface);
+}
+
+.button--danger {
+  background-color: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.button--text {
+  min-height: auto;
+  background-color: transparent;
+  color: var(--color-link);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+}
+
+.button--large {
+  min-height: 56px;
+  padding: 0 var(--space-8);
+  font-size: 1.1rem;
 }
 
 /* フォーム1行分(ラベル+入力欄+エラー文言) */
@@ -76,24 +545,31 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-5);
+}
+
+.field--narrow {
+  max-width: 240px;
 }
 
 .field__label {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.9rem;
 }
 
 .field__input {
+  min-height: var(--tap-target);
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+  color: var(--color-text);
   font-size: 1rem;
   font-family: inherit;
 }
 
 .field__input:focus {
-  outline: 2px solid var(--color-main);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
 
@@ -107,55 +583,12 @@ h3 {
   font-size: 0.85rem;
 }
 
-/* ボタンの基本形。--primaryはメイン色、--accentはアクセント色(大きな面積になりうる
-   ボタンではaccent-largeを使い、AAコントラスト基準を保つ) */
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.65rem 1.25rem;
-  border-radius: var(--radius-base);
-  border: 1px solid transparent;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.button--primary {
-  background-color: var(--color-main);
-  color: #ffffff;
-}
-
-.button--danger {
-  background-color: var(--color-accent-large);
-  color: #ffffff;
-}
-
-.button--secondary {
-  background-color: transparent;
-  color: var(--color-main);
-  border-color: var(--color-main);
-}
-
-.button--text {
-  background-color: transparent;
-  color: var(--color-main);
-  padding: 0.25rem 0.5rem;
-}
-
-/* 成否メッセージ表示。フォーム送信エラー・確認完了等の共通見た目 */
+/* 成否メッセージ(フォーム送信エラー・確認完了等)。上下の間隔は親の.page/.page-containerが持つ */
 .alert {
+  margin: 0;
   padding: 0.85rem 1rem;
   border-radius: var(--radius-base);
   font-size: 0.9rem;
-  margin-bottom: 1.25rem;
 }
 
 .alert--error {
@@ -168,82 +601,40 @@ h3 {
   color: var(--color-success);
 }
 
-/* ヘッダー・ナビゲーション(公開画面・アプリ画面で共有) */
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-}
-
-.site-header__brand {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--color-main-dark);
-  text-decoration: none;
-}
-
-.site-header__nav {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-/* /app配下の2カラムレイアウト(サイドナビ+メインコンテンツ) */
-.app-shell {
-  display: flex;
-  min-height: 100vh;
-}
-
-.app-shell__sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background-color: var(--color-surface);
-  border-right: 1px solid var(--color-border);
-  padding: 1.5rem 1rem;
-}
-
-.app-shell__nav-link {
-  display: block;
-  padding: 0.6rem 0.75rem;
-  border-radius: var(--radius-base);
-  color: var(--color-text);
-  text-decoration: none;
-  margin-bottom: 0.25rem;
-}
-
-.app-shell__nav-link.is-active {
-  background-color: var(--color-main);
-  color: #ffffff;
-}
-
-.app-shell__main {
-  flex: 1;
-  padding: 2rem;
-  max-width: 960px;
-}
-
-/* 一覧テーブルの共通見た目(link/qrcode/poster一覧で使い回す) */
+/* 一覧テーブル(link/qrcode/poster一覧で使い回す) */
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  background-color: var(--color-surface);
+}
+
+.data-table th {
+  background-color: var(--color-brand-tint);
+  color: var(--color-heading);
+  font-size: 0.85rem;
 }
 
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.65rem 0.5rem;
+  padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* 長いURLを1行に収めて末尾を省略する */
+.data-table__cell--truncate {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-badge {
   display: inline-block;
   padding: 0.15rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .status-badge--active {
@@ -255,4 +646,140 @@ h3 {
 .status-badge--suspended {
   background-color: var(--color-error-bg);
   color: var(--color-error);
+}
+
+/* 掲示物エディタ(フォーム+プレビューの横並び) */
+.editor-layout {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.editor-layout__form {
+  flex: 1 1 320px;
+}
+
+/* 掲示物の簡易プレビュー。幅・高さはA6/A5の比率から画面側で計算して指定する */
+.poster-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* 利用規約・プライバシーポリシーの条文 */
+.legal-article__title {
+  font-size: 1.05rem;
+}
+
+.legal-article__body {
+  white-space: pre-wrap;
+}
+
+/* ========== ハンバーガーメニュー・ドロワー ========== */
+
+/* ハンバーガーボタン(3本線) */
+.header-drawer__toggle {
+  display: none;
+  flex-direction: column;
+  gap: 0.375rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-drawer__toggle-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-brand-strong);
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+/* ハンバーガー(3本線)⇔✗の変形。ヘッダーが最前面に来てドロワーと重ならないため、
+ * ドロワー内に別の閉じるボタンは置かず、このボタン自体で開閉を示す。
+ * 3本線は上から順に-8px/0/+8pxの位置にあるため、開いている間は上下の線を中央に寄せて
+ * 45度ずつ逆向きに回転させ✗を作り、中央の線は透明にする */
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(2) {
+  opacity: 0;
+}
+
+.header-drawer__toggle[aria-expanded='true'] .header-drawer__toggle-line:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* モーダルオーバーレイ */
+.header-drawer__overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ドロワーパネル。ヘッダー(z-index: 101)がこのパネルの上端(.site-headerの高さ分)を覆うため、
+ * パネル自身の上端からではなくヘッダーの下からコンテンツが始まるようpadding-topを確保する。
+ * 開閉は常に手前にあるヘッダー側のハンバーガーボタン(✗に変形する)とオーバーレイのクリックで行う */
+.header-drawer__panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 280px;
+  max-width: 90vw;
+  padding-top: 72px;
+  background-color: var(--color-surface);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 8px rgba(20, 32, 56, 0.12);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.header-drawer__panel--open {
+  transform: translateX(0);
+}
+
+/* ドロワー内のコンテンツ */
+.header-drawer__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.header-drawer__item {
+  width: 100%;
+}
+
+/* タブレット以下(1024px以下)でハンバーガーメニューを表示 */
+@media (max-width: 1024px) {
+  .header-drawer__toggle {
+    display: flex;
+  }
 }

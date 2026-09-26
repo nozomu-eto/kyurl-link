@@ -62,7 +62,7 @@ export function VerifyEmailPendingPage() {
             {resendState === 'sending' ? '送信中…' : '確認メールを再送信'}
           </button>
 
-          <p style={{ marginTop: '1.5rem' }}>
+          <p>
             <Link to="/app">確認せずにダッシュボードへ進む</Link>
           </p>
         </>

@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, reports } from '@/db/schema'
+import { verifyTurnstileToken } from '@/lib/turnstile'
+import { reportRateLimitMiddleware } from '@/middleware/rate-limit'
 import { reportCreateInputSchema, reportSchema } from '@/shared/schemas/report'
 
 // DB上のreportレコード(createdAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -19,7 +21,7 @@ function toReportResponse(record: typeof reports.$inferSelect) {
 const app = new Hono<{ Bindings: CloudflareBindings }>()
   .basePath('/reports')
   // 通報受付
-  .post('/', async (c) => {
+  .post('/', reportRateLimitMiddleware, async (c) => {
     // リクエストボディをJSONとして読み取り、reportCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = reportCreateInputSchema.safeParse(body)
@@ -31,6 +33,22 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
             code: 'VALIDATION_ERROR',
             message: 'リクエストボディが不正です',
             details: parsed.error.flatten(),
+          },
+        },
+        400,
+      )
+    }
+
+    // bot対策(docs/architecture.md参照)。未ログインで利用できるエンドポイントのため、
+    // Turnstileのトークンをsiteverify APIで検証し、失敗した場合は400を返す
+    const clientIp = c.req.header('cf-connecting-ip') ?? undefined
+    const isTurnstileValid = await verifyTurnstileToken(parsed.data.turnstileToken, c.env.TURNSTILE_SECRET_KEY, clientIp)
+    if (!isTurnstileValid) {
+      return c.json(
+        {
+          error: {
+            code: 'TURNSTILE_VERIFICATION_FAILED',
+            message: 'bot対策の検証に失敗しました。ページを再読み込みしてもう一度お試しください',
           },
         },
         400,

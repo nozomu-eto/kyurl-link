@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { Link, NavLink, Outlet, redirect, useLoaderData, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, redirect, ScrollRestoration, useLoaderData, useNavigate } from 'react-router'
 import { authClient, type AuthUser } from '@/frontend/lib/auth-client'
 
 // requireSessionLoader: /app配下の全画面に入る前に必ず実行されるloader。
@@ -37,8 +37,8 @@ export function AppLayout() {
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
-        <Link to="/" className="site-header__brand" style={{ display: 'block', marginBottom: '1.5rem' }}>
-          kyurl.link
+        <Link to="/" className="brand-logo app-shell__brand">
+          kyurl<span className="brand-logo__dot">.</span>link
         </Link>
         <nav>
           <NavLink to="/app" end className={({ isActive }) => `app-shell__nav-link${isActive ? ' is-active' : ''}`}>
@@ -54,7 +54,7 @@ export function AppLayout() {
             アカウント設定
           </NavLink>
         </nav>
-        <p className="field__hint" style={{ marginTop: '2rem' }}>
+        <p className="app-shell__account">
           {currentUser.email}
         </p>
         <button type="button" className="button button--text" onClick={handleSignOutClick}>
@@ -64,6 +64,9 @@ export function AppLayout() {
       <div className="app-shell__main">
         <Outlet context={{ currentUser } satisfies { currentUser: AuthUser }} />
       </div>
+      {/* 画面遷移のたびにスクロール位置を先頭に戻す(戻る/進むの場合は元の位置を復元する)。
+          無いと、長いページから別ページに遷移した際、遷移前のスクロール位置が残ってしまう */}
+      <ScrollRestoration />
     </div>
   )
 }

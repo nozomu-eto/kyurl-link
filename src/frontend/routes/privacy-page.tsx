@@ -79,16 +79,16 @@ export function PrivacyPage() {
         kyurl.link(以下「本サービス」といいます。)の運営者(以下「運営者」といいます。)は、本サービスの提供にあたり取得する利用者の情報を、以下のとおり取り扱います。利用者は、本サービスを利用することにより、本ポリシーの内容に同意したものとみなされます。
       </p>
       {PRIVACY_ARTICLES.map((article) => (
-        <section key={article.title} style={{ marginTop: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.05rem' }}>{article.title}</h2>
+        <section key={article.title} className="legal-article">
+          <h2 className="legal-article__title">{article.title}</h2>
           {article.paragraphs.map((paragraph, index) => (
-            <p key={index} style={{ whiteSpace: 'pre-wrap' }}>
+            <p key={index} className="legal-article__body">
               {paragraph}
             </p>
           ))}
         </section>
       ))}
-      <p className="field__hint" style={{ marginTop: '2rem' }}>
+      <p className="field__hint">
         制定日:2026年9月18日 / 最終改定日:2026年9月19日
       </p>
     </div>
