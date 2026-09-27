@@ -46,7 +46,12 @@ export function AccountSettingsPage() {
 
   return (
     <Page title="アカウント設定">
-      {pendingDeletionRequest && <AccountDeletionBanner scheduledDeletionAt={pendingDeletionRequest.scheduledDeletionAt} />}
+      {pendingDeletionRequest && (
+        <AccountDeletionBanner
+          scheduledDeletionAt={pendingDeletionRequest.scheduledDeletionAt}
+          onCancelled={() => setToastMessage('削除を取り消しました')}
+        />
+      )}
 
       <Card>
         <p>

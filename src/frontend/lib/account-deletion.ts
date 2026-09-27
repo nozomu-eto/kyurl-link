@@ -6,7 +6,13 @@ import { apiClient } from '@/frontend/lib/api-client'
 // loadPendingDeletionRequest: 直近のアカウント削除申請のうち、status: 'pending'のものを
 // 取得する(無ければnull)。GET /api/v1/account-requestsは申請自体が無い場合404を返す仕様
 // (docs/architecture.md 第7節)のため、404は「申請なし」として扱いエラーにはしない。
+// 200・404以外(サーバーエラー等)の場合はResponseをthrowする。
 // dashboardLoader・accountSettingsLoaderの両方から呼ぶための共通処理。
+//
+// 呼び出し側での例外の扱いが異なる点に注意: dashboardLoaderでは申請状況はバナー表示のみに
+// 使う補助的な情報のため、この関数が投げた例外を握りつぶし短縮URL一覧だけは表示する
+// (バナーを出さないだけにする)。accountSettingsLoaderでは申請状況そのものが画面の主目的の
+// 情報のため、例外はそのまま投げてエラー画面にする(dashboard-page.tsxのコメントも参照)。
 //
 // 親のrequireSessionLoader(app-layout.tsx)には入れない: React Routerは画面間の移動では
 // 親のloaderを再実行しないため、親に入れてしまうと、取り消し後や別タブでの操作の後に

@@ -1013,7 +1013,10 @@ h1 {
   gap: var(--space-1);
 }
 
+/* h2(スクリーンリーダーの「見出しで移動」で見つけられるようにするため)だが、
+   既定の余白・大きさは打ち消し、見た目はこれまでと変えない */
 .account-deletion-banner__heading {
+  margin: 0;
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-status-suspended-text);
