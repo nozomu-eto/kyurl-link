@@ -306,7 +306,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | GET | `/qrcodes/:id` | ✓ | 詳細 |
 | PATCH | `/qrcodes/:id` | ✓ | スタイル更新 |
 | DELETE | `/qrcodes/:id` | ✓ | ソフトデリート |
-| GET | `/qrcodes/:id/image` | 不要 | PNG/SVG画像。クエリ`format`(`png` / `svg`)と`size`(`512` / `1024` / `2048`、PNGのみ、初期値1024)を追加 |
+| GET | `/qrcodes/:id/image` | 不要 | PNG/SVG画像。クエリ`format`(`png` / `svg`、初期値`svg`。既存の`<img src>`表示を変えないため)と`size`(`512` / `1024` / `2048`、PNGのみ、初期値1024)を追加 |
 
 `POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を追加する。色の指定は受け付けない(黒・白固定)。PR #4で`styleOptions`に仮置きされた`foregroundColor` / `backgroundColor`は廃止する(掲示物の`styleOptions`の同名の仮置き項目も同様)(更新版11で追記)。
 
@@ -585,6 +585,7 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 - ~~開示等の請求の受付経路~~ → ポートフォリオ段階はメール受付(第6.4節②)
 - ~~アカウント削除の取り消し方法~~ → 明示的なボタン(第7.1節③)
 - ~~位置情報(geolocation)を使った地域別の表示~~ → 機能自体を見送り
+- ~~QRコードのPNG画像の生成方式~~ → SVGをラスタライズする方式(resvg等のWASM。初期化コストが重い)や、Browser Renderingでの描画(従量課金があり、掲示物書き出しとBrowser Rendering枠を取り合う)は、白黒の正方形を並べるだけのQRコードには過剰なため採用しない。外部ライブラリ(`@juit/qrcode`等)の追加導入も検討したが、SVG生成に既に使っている`qrcode-svg`が、SVG描画に使うのと同じマス目(モジュール)の配列を公開しているため、これを再利用してマス目から直接グレースケールPNGを組み立てる方式(新規依存の追加なし、`CompressionStream`でzlib圧縮しPNGのIDATに使う)に決定した。SVGの生成方法・内容(掲示物のR2キャッシュキーの元になるため)は変更しない(第7節・`src/lib/qrcode-image.ts`)
 
 ### 実装フェーズに先送り
 

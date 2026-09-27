@@ -1,11 +1,12 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
-import QRCode from 'qrcode-svg'
 import { links, qrcodes } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
+import { resolveQrcodeContent } from '@/lib/qrcode-content'
+import { QRCODE_IMAGE_SIZE_OPTIONS, type QrcodeImageSize, renderQrcodePng, renderQrcodeSvg } from '@/lib/qrcode-image'
 import {
   qrcodeCreateInputSchema,
   qrcodeListResponseSchema,
@@ -232,9 +233,37 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // ボディ無しの204を返す
     return c.body(null, 204)
   })
-  // QRコード画像(SVG)。リダイレクト等と同様、認証不要の公開エンドポイントとする(docs/architecture.md 第7節)。
-  // 所有者チェックの対象外(誰でもQRコードを読み取れる必要があるため)
+  // QRコード画像(SVG・PNG)。リダイレクト等と同様、認証不要の公開エンドポイントとする
+  // (docs/architecture.md 第7節)。所有者チェックの対象外(誰でもQRコードを読み取れる必要があるため)
   .get('/:id/image', async (c) => {
+    // クエリformat(svg/png、既定svg。既存の<img src=".../image">の表示を変えないため既定はsvgのまま)。
+    // sizeはformat=pngのときだけ使う(3-4のpaperと同じ扱い)
+    const format = c.req.query('format') ?? 'svg'
+    if (format !== 'svg' && format !== 'png') {
+      return c.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'formatにはsvgまたはpngを指定してください' } },
+        400,
+      )
+    }
+
+    let size: QrcodeImageSize = 1024
+    if (format === 'png') {
+      const rawSize = c.req.query('size')
+      const parsedSize = rawSize === undefined ? 1024 : Number(rawSize)
+      if (!QRCODE_IMAGE_SIZE_OPTIONS.includes(parsedSize as QrcodeImageSize)) {
+        return c.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `sizeには${QRCODE_IMAGE_SIZE_OPTIONS.join('/')}のいずれかを指定してください`,
+            },
+          },
+          400,
+        )
+      }
+      size = parsedSize as QrcodeImageSize
+    }
+
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
 
@@ -253,48 +282,24 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // QRコードに埋め込む内容を、対象種別に応じて決定する
-    let content: string
-    if (record.targetType === 'link') {
-      const targetId = record.targetId
-      if (!targetId) {
-        return c.json(
-          { error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } },
-          404,
-        )
-      }
-
-      // 対象linkのshortCodeを取得し、`{origin}/{shortCode}`(リダイレクトURL)をQRコードの内容にする
-      const [targetLink] = await db
-        .select({ shortCode: links.shortCode })
-        .from(links)
-        .where(and(eq(links.id, targetId), isNull(links.deletedAt)))
-        .limit(1)
-
-      if (!targetLink) {
-        return c.json(
-          { error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } },
-          404,
-        )
-      }
-
-      content = `${new URL(c.req.url).origin}/${targetLink.shortCode}`
-    } else {
-      const targetUrl = record.targetUrl
-      if (!targetUrl) {
-        return c.json(
-          { error: { code: 'NOT_FOUND', message: '対象URLが見つかりません' } },
-          404,
-        )
-      }
-
-      // targetType='rawUrl'の場合は、保存されたURLをそのままQRコードの内容にする
-      content = targetUrl
+    // QRコードに埋め込む内容(短縮URL、または直接指定のURL)を決める処理はSVG・PNGで共通
+    const contentResult = await resolveQrcodeContent(db, record, new URL(c.req.url).origin)
+    if (!contentResult.ok) {
+      return c.json({ error: { code: 'NOT_FOUND', message: contentResult.message } }, 404)
     }
 
-    const svg = new QRCode({ content }).svg()
+    if (format === 'svg') {
+      return c.body(renderQrcodeSvg(contentResult.content), 200, { 'Content-Type': 'image/svg+xml' })
+    }
 
-    return c.body(svg, 200, { 'Content-Type': 'image/svg+xml' })
+    // PNGはマス目から直接生成でき数ミリ秒で終わるため、R2キャッシュには保存しない
+    // (docs/architecture.md 第15節)。QRコード・リンクが削除された後に古い画像が長く
+    // 出回らないよう、キャッシュは短め(1時間)にする
+    const png = await renderQrcodePng(contentResult.content, size)
+    return c.body(png, 200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=3600',
+    })
   })
 
 export default app
