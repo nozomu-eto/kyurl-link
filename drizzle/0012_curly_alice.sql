@@ -1,0 +1,1 @@
+ALTER TABLE `qrcodes` ADD `name` text;

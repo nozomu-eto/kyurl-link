@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { posters } from '@/db/schema'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
@@ -159,7 +162,8 @@ describe('POST /api/v1/posters', () => {
 })
 
 describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
-  it('styleOptionsに許可されたキー(foregroundColor)を指定すると反映される', async () => {
+  it('styleOptions(空オブジェクト)を指定すると200になる', async () => {
+    // QRコードが白黒固定になったことに伴い掲示物側もstyleOptionsは実質空オブジェクトのみ許可される
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createQrcode(sessionCookie)
     const poster = await createPoster(sessionCookie, qrcode.id)
@@ -167,27 +171,50 @@ describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
     const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-      body: JSON.stringify({ styleOptions: { foregroundColor: '#000000' } }),
+      body: JSON.stringify({ styleOptions: {} }),
     })
     expect(patchResponse.status).toBe(200)
-    expect(await patchResponse.json()).toMatchObject({ styleOptions: { foregroundColor: '#000000' } })
+    expect(await patchResponse.json()).toMatchObject({ styleOptions: {} })
   })
 
-  it('styleOptionsに未知のキーを指定すると400(VALIDATION_ERROR)になる', async () => {
-    // qrcode.tsと同様、styleOptionsはz.strictObject()で実際に使われるキーのみを許可するため、
-    // 任意のキー(この例ではcolor)を含む場合は拒否されることを確認する(公開前修正v2 T6)
+  it.each([{ foregroundColor: '#000000' }, { backgroundColor: '#ffffff' }, { color: '#000000' }])(
+    'styleOptionsに色のキー等(%o)を指定すると400(VALIDATION_ERROR)になる',
+    async (styleOptions) => {
+      // 色の変更機能を廃止したため、以前は許可していたforegroundColor/backgroundColorを
+      // 含め、色のキーを送ると拒否されることを確認する(公開前修正v2 T6)
+      const sessionCookie = await signUpAndGetSessionCookie()
+      const qrcode = await createQrcode(sessionCookie)
+      const poster = await createPoster(sessionCookie, qrcode.id)
+
+      const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+        body: JSON.stringify({ styleOptions }),
+      })
+      expect(patchResponse.status).toBe(400)
+      const body = await patchResponse.json<{ error: { code: string } }>()
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+    },
+  )
+
+  it('GET /api/v1/posters/:idは、既存データ相当(styleOptionsに色のキーを含むレコード)を取得してもエラーにならない', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createQrcode(sessionCookie)
     const poster = await createPoster(sessionCookie, qrcode.id)
 
-    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-      body: JSON.stringify({ styleOptions: { color: '#000000' } }),
+    const db = drizzle(env.DB)
+    await db
+      .update(posters)
+      .set({ styleOptions: JSON.stringify({ foregroundColor: '#123456', backgroundColor: '#abcdef' }) })
+      .where(eq(posters.id, poster.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      headers: { Cookie: sessionCookie },
     })
-    expect(patchResponse.status).toBe(400)
-    const body = await patchResponse.json<{ error: { code: string } }>()
-    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(getResponse.status).toBe(200)
+    expect(await getResponse.json()).toMatchObject({
+      styleOptions: { foregroundColor: '#123456', backgroundColor: '#abcdef' },
+    })
   })
 })
 

@@ -2,20 +2,17 @@ import { z } from 'zod'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // 掲示物(poster)のスタイル設定スキーマ。
-// qrcode.tsのqrcodeStyleOptionsSchemaと同様、以前はz.record()で任意のキー・値を受け付けていたが、
-// 実際にはposter-editor-page.tsx(編集画面)からはまだ一切送信されておらず、DB上も
-// 「将来のカスタマイズ機能用の受け皿」(db/schema.tsコメント)として未使用のまま。
-// 現時点で実際に使われているキーが存在しないため、掲示物にはQRコード画像が埋め込まれる
-// (poster-template.ts)という関係を踏まえ、QRコード側と同じ前景色・背景色の2項目に
-// 揃えておく(判断の記録: docs/hardening-progress.md T6参照)。
-// 任意のキー・値を無制限に受け付ける状態を解消することが本タスクの目的のため、
-// strictObjectで未知のキーを拒否する
-const posterStyleOptionsSchema = z.strictObject({
-  // 前景色(HEXカラー文字列、例: '#000000')
-  foregroundColor: z.string().max(100).optional(),
-  // 背景色(HEXカラー文字列、例: '#ffffff')
-  backgroundColor: z.string().max(100).optional(),
-})
+// QRコードが白黒固定になった(docs/architecture.md 第6.7節)ことに伴い、掲示物に埋め込まれる
+// QRコード画像(poster-template.ts)にも色の項目は不要になったため、入力側は実質空オブジェクトの
+// みを許可する(以前のforegroundColor/backgroundColorを含むキーを送ると400にする)。
+// 将来的なカスタマイズ再導入の余地を残すため、キー自体はz.strictObject({})のまま(空オブジェクト)にしておく
+const posterStyleOptionsInputSchema = z.strictObject({})
+
+// レスポンス用のstyleOptions。posterStyleOptionsInputSchema導入前に保存された既存レコードには
+// foregroundColor/backgroundColor等のキーが残っている可能性があり、それらをGETで取得した際に
+// パースエラーにしないため、入力用より緩いスキーマ(任意のキーを許容)を使う。
+// DB上のデータそのものは書き換えない(このスキーマは表示のためだけに使う)
+const posterStyleOptionsResponseSchema = z.looseObject({})
 
 // 掲示物(poster)リソース1件分のレスポンス用スキーマ。
 // styleOptionsはqrcodeSchemaと同様、DB上はJSON文字列で保存するが、レスポンスでは
@@ -30,7 +27,7 @@ export const posterSchema = z.object({
   // レイアウトテンプレートの識別子(今回は'default'のみ)
   layoutTemplate: z.string(),
   // 掲示物のスタイル設定。未設定の場合はnull
-  styleOptions: posterStyleOptionsSchema.nullable(),
+  styleOptions: posterStyleOptionsResponseSchema.nullable(),
   // 掲示物のサイズ(A6縦・A5縦)
   size: z.enum(['A6', 'A5']),
   // 対象のQRコード(qrcodes.id)
@@ -62,7 +59,7 @@ export const posterUpdateInputSchema = z.object({
   // 掲示物のサブタイトル。省略時は更新しない。nullを指定するとサブタイトル無しに変更する
   subtitle: z.string().max(POSTER_SUBTITLE_MAX_LENGTH).nullable().optional(),
   // 掲示物のスタイル設定。省略時は更新しない
-  styleOptions: posterStyleOptionsSchema.optional(),
+  styleOptions: posterStyleOptionsInputSchema.optional(),
 })
 
 // posterの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)。

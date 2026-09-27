@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { qrcodes } from '@/db/schema'
 import { linkSchema } from '@/shared/schemas/link'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
@@ -144,6 +147,49 @@ describe('POST /api/v1/qrcodes', () => {
       expect(body.error.code).toBe('VALIDATION_ERROR')
     },
   )
+
+  it('nameを指定して作成すると、前後の空白が除去されて保存される', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+
+    const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'rawUrl', targetUrl: 'https://example.com/raw', name: '  店頭用  ' }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ name: '店頭用' })
+  })
+
+  it('nameを省略、または空文字(トリム後に空になる文字列を含む)で作成すると、nameはnullになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+
+    const withoutNameResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'rawUrl', targetUrl: 'https://example.com/raw' }),
+    })
+    expect(await withoutNameResponse.json()).toMatchObject({ name: null })
+
+    const blankNameResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'rawUrl', targetUrl: 'https://example.com/raw', name: '   ' }),
+    })
+    expect(await blankNameResponse.json()).toMatchObject({ name: null })
+  })
+
+  it('nameに41文字を指定すると400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+
+    const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'rawUrl', targetUrl: 'https://example.com/raw', name: 'あ'.repeat(41) }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
 })
 
 describe('GET /api/v1/qrcodes/:id/image', () => {
@@ -162,7 +208,9 @@ describe('GET /api/v1/qrcodes/:id/image', () => {
 })
 
 describe('qrcode PATCH・DELETE', () => {
-  it('PATCH /api/v1/qrcodes/:idでstyleOptionsを変更すると反映される', async () => {
+  it('PATCH /api/v1/qrcodes/:idでstyleOptions(空オブジェクト)を指定すると200になる', async () => {
+    // QRコードは白黒固定になったため、styleOptionsは実質空オブジェクトのみ許可される
+    // (色のキーは下のテストの通り400になる)
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createRawUrlQrcode(sessionCookie)
 
@@ -172,19 +220,38 @@ describe('qrcode PATCH・DELETE', () => {
         'Content-Type': 'application/json',
         Cookie: sessionCookie,
       },
-      body: JSON.stringify({ styleOptions: { foregroundColor: '#000000' } }),
+      body: JSON.stringify({ styleOptions: {} }),
     })
     expect(patchResponse.status).toBe(200)
     expect(await patchResponse.json()).toMatchObject({
       id: qrcode.id,
-      styleOptions: { foregroundColor: '#000000' },
+      styleOptions: {},
     })
   })
 
-  it('PATCH /api/v1/qrcodes/:idでstyleOptionsに未知のキーを指定すると400(VALIDATION_ERROR)になる', async () => {
-    // styleOptionsはz.strictObject()で実際に使われるキー(foregroundColor/backgroundColor)のみを
-    // 許可するようにしたため、任意のキー(この例ではcolor)を含む場合は拒否されることを確認する
-    // (公開前修正v2 T6)
+  it.each([{ foregroundColor: '#000000' }, { backgroundColor: '#ffffff' }, { color: '#000000' }])(
+    'PATCH /api/v1/qrcodes/:idでstyleOptionsに色のキー等(%o)を指定すると400(VALIDATION_ERROR)になる',
+    async (styleOptions) => {
+      // QRコードは読み取りやすさを優先し白地に黒で出力する方針になったため、色のキーを
+      // 送ると(foregroundColor/backgroundColorを含め)拒否されることを確認する
+      const sessionCookie = await signUpAndGetSessionCookie()
+      const qrcode = await createRawUrlQrcode(sessionCookie)
+
+      const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        body: JSON.stringify({ styleOptions }),
+      })
+      expect(patchResponse.status).toBe(400)
+      const body = await patchResponse.json<{ error: { code: string } }>()
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+    },
+  )
+
+  it('PATCH /api/v1/qrcodes/:idでnameを変更すると反映され、前後の空白は除去される', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createRawUrlQrcode(sessionCookie)
 
@@ -194,11 +261,65 @@ describe('qrcode PATCH・DELETE', () => {
         'Content-Type': 'application/json',
         Cookie: sessionCookie,
       },
-      body: JSON.stringify({ styleOptions: { color: '#000000' } }),
+      body: JSON.stringify({ name: '  お店の入口用  ' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ id: qrcode.id, name: 'お店の入口用' })
+  })
+
+  it('PATCH /api/v1/qrcodes/:idでnameに空文字(トリム後に空になる文字列を含む)を指定するとnullになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    // 一度名前を付けてから、空文字で消せることを確認する
+    await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ name: '仮の名前' }),
+    })
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ name: '   ' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ name: null })
+  })
+
+  it('PATCH /api/v1/qrcodes/:idでnameに41文字を指定すると400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ name: 'あ'.repeat(41) }),
     })
     expect(patchResponse.status).toBe(400)
     const body = await patchResponse.json<{ error: { code: string } }>()
     expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('GET /api/v1/qrcodes/:idは、既存データ相当(styleOptionsに色のキーを含むレコード)を取得してもエラーにならない', async () => {
+    // styleOptionsの検証を厳しくする前に保存された既存レコードを想定し、D1へ直接
+    // foregroundColor/backgroundColorを含むJSON文字列を書き込む(公開前修正v2 T6と同様の手法)
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const db = drizzle(env.DB)
+    await db
+      .update(qrcodes)
+      .set({ styleOptions: JSON.stringify({ foregroundColor: '#123456', backgroundColor: '#abcdef' }) })
+      .where(eq(qrcodes.id, qrcode.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(getResponse.status).toBe(200)
+    expect(await getResponse.json()).toMatchObject({
+      styleOptions: { foregroundColor: '#123456', backgroundColor: '#abcdef' },
+    })
   })
 
   it('DELETE /api/v1/qrcodes/:id実行後、GET /api/v1/qrcodes/:idは404になる', async () => {
