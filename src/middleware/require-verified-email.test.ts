@@ -17,6 +17,7 @@ async function signUpUnverified() {
       email: `unverified-${crypto.randomUUID()}@example.com`,
       password: 'password1234',
       name: 'Unverified User',
+      agreeToTerms: true,
     }),
   })
   const setCookie = response.headers.get('set-cookie')

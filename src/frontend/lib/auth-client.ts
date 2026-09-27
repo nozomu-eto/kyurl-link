@@ -29,6 +29,8 @@ export function translateAuthErrorCode(code: string | undefined): string {
       return 'パスワードが短すぎます'
     case 'PASSWORD_TOO_LONG':
       return 'パスワードが長すぎます'
+    case 'TERMS_NOT_ACCEPTED':
+      return '利用規約とプライバシーポリシーへの同意が必要です'
     default:
       return '処理に失敗しました。時間をおいて再度お試しください'
   }

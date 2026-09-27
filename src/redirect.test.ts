@@ -21,6 +21,7 @@ async function signUpAndGetSessionCookie() {
       email: `test-${crypto.randomUUID()}@example.com`,
       password: 'password1234',
       name: 'Test User',
+      agreeToTerms: true,
     }),
   })
 

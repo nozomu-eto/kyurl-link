@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { links, qrcodes } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
+import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
 import { resolveQrcodeContent } from '@/lib/qrcode-content'
 import { QRCODE_IMAGE_SIZE_OPTIONS, type QrcodeImageSize, renderQrcodePng, renderQrcodeSvg } from '@/lib/qrcode-image'
@@ -51,7 +52,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, requireVerifiedEmail, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
+  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
     // リクエストボディをJSONとして読み取り、qrcodeCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = qrcodeCreateInputSchema.safeParse(body)

@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { accountRequests } from '@/db/schema'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
@@ -18,7 +21,7 @@ async function signUp() {
       // Better AuthはCSRF対策としてOriginを検証するため、BETTER_AUTH_URLと同じ値を付与する
       Origin: env.BETTER_AUTH_URL,
     },
-    body: JSON.stringify({ email, password: TEST_PASSWORD, name: 'Test User' }),
+    body: JSON.stringify({ email, password: TEST_PASSWORD, name: 'Test User', agreeToTerms: true }),
   })
 
   const setCookie = response.headers.get('set-cookie')
@@ -33,8 +36,7 @@ async function signUp() {
   return { email, sessionCookie, userId }
 }
 
-// 再サインインし、新しいセッションCookieを取得する。
-// databaseHooks(session.create.after)はここで新規セッションが作成されるタイミングで発火する
+// 再サインインし、新しいセッションCookieを取得する
 async function signIn(email: string) {
   const response = await SELF.fetch('https://example.com/api/auth/sign-in/email', {
     method: 'POST',
@@ -108,9 +110,41 @@ async function requestAccountDeletion(sessionCookie: string) {
   expect(response.status).toBe(201)
 }
 
-describe('猶予期間中の再ログインによる自動取り消し(databaseHooks経由)', () => {
-  it('退会申請後に再サインインすると、申請で削除されたリソースは復元され、個別削除済みのリンクは復元されない', async () => {
+// アカウント削除申請の取り消し(POST /account-requests/cancel)を行う
+async function cancelAccountDeletion(sessionCookie: string) {
+  return SELF.fetch('https://example.com/api/v1/account-requests/cancel', {
+    method: 'POST',
+    headers: { Cookie: sessionCookie },
+  })
+}
+
+describe('ログインだけでは取り消されないこと(更新版11で自動取り消しを廃止)', () => {
+  it('退会申請後に再サインインしても、申請は取り消されずリソースはソフトデリートされたままになる', async () => {
     const { email, sessionCookie } = await signUp()
+    const link = await createLink(sessionCookie, 'https://example.com/not-auto-restored')
+
+    await requestAccountDeletion(sessionCookie)
+
+    // 再サインイン(=新規セッション作成)しても、databaseHooks(session.create.after)が
+    // 削除されているため自動的には取り消されない
+    const newSessionCookie = await signIn(email)
+
+    const linkResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
+      headers: { Cookie: newSessionCookie },
+    })
+    expect(linkResponse.status).toBe(404)
+
+    const accountRequestResponse = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      headers: { Cookie: newSessionCookie },
+    })
+    expect(accountRequestResponse.status).toBe(200)
+    expect(await accountRequestResponse.json()).toMatchObject({ status: 'pending' })
+  })
+})
+
+describe('POST /api/v1/account-requests/cancel(明示的な取り消し)', () => {
+  it('取り消すと、申請によってソフトデリートされたリソースが復元される(個別削除済みのものは復元されない)', async () => {
+    const { sessionCookie } = await signUp()
 
     // 申請より前に、利用者自身が個別に削除しておくlink(取り消し後も復元されないことを確認する対象)
     const individuallyDeletedLink = await createLink(sessionCookie, 'https://example.com/individually-deleted')
@@ -137,15 +171,16 @@ describe('猶予期間中の再ログインによる自動取り消し(databaseH
     const redirectAfterRequestResponse = await SELF.fetch(`https://example.com/${link.shortCode}`, { redirect: 'manual' })
     expect(redirectAfterRequestResponse.status).toBe(410)
 
-    // 再サインイン(=新規セッション作成)により、databaseHooks経由で自動的に取り消される
-    const newSessionCookie = await signIn(email)
+    const cancelResponse = await cancelAccountDeletion(sessionCookie)
+    expect(cancelResponse.status).toBe(200)
+    expect(await cancelResponse.json()).toMatchObject({ status: 'cancelled' })
 
     // 申請によって削除されたlink・qrcode・posterは、deletedAtがnullに戻り再び200になる。
     // linkはdeletedAtに加えてstatusも'suspended'から'active'に戻っていることを確認する
     // (このstatusの復元が無いと、deletedAtが復元されても公開リダイレクトが410のまま
     // になってしまう。account-request-cancellation.tsのバグ修正で追加した挙動)
     const linkResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
-      headers: { Cookie: newSessionCookie },
+      headers: { Cookie: sessionCookie },
     })
     expect(linkResponse.status).toBe(200)
     expect(await linkResponse.json()).toMatchObject({ status: 'active' })
@@ -155,27 +190,55 @@ describe('猶予期間中の再ログインによる自動取り消し(databaseH
     expect(redirectAfterCancelResponse.status).toBe(302)
 
     const qrcodeResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
-      headers: { Cookie: newSessionCookie },
+      headers: { Cookie: sessionCookie },
     })
     expect(qrcodeResponse.status).toBe(200)
 
     const posterResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
-      headers: { Cookie: newSessionCookie },
+      headers: { Cookie: sessionCookie },
     })
     expect(posterResponse.status).toBe(200)
 
     // 申請より前に個別削除していたlinkは、deletedAtがrequestedAtと一致しないため復元されない
     const individuallyDeletedResponse = await SELF.fetch(`https://example.com/api/v1/links/${individuallyDeletedLink.id}`, {
-      headers: { Cookie: newSessionCookie },
+      headers: { Cookie: sessionCookie },
     })
     expect(individuallyDeletedResponse.status).toBe(404)
 
     // accountRequestsのstatusがcancelledになっていることを確認する
     const accountRequestResponse = await SELF.fetch('https://example.com/api/v1/account-requests', {
-      headers: { Cookie: newSessionCookie },
+      headers: { Cookie: sessionCookie },
     })
     expect(accountRequestResponse.status).toBe(200)
-    const accountRequestBody = await accountRequestResponse.json()
-    expect(accountRequestBody).toMatchObject({ status: 'cancelled' })
+    expect(await accountRequestResponse.json()).toMatchObject({ status: 'cancelled' })
+  })
+
+  it('取り消せる申請が無い場合は404になる', async () => {
+    const { sessionCookie } = await signUp()
+
+    const response = await cancelAccountDeletion(sessionCookie)
+    expect(response.status).toBe(404)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('猶予期間(scheduledDeletionAt)を過ぎた申請は取り消せず409になる', async () => {
+    const { sessionCookie } = await signUp()
+    await requestAccountDeletion(sessionCookie)
+
+    // テストのため、scheduledDeletionAt(通常は申請から7日後)を直接過去の日時に書き換える
+    const db = drizzle(env.DB)
+    await db.update(accountRequests).set({ scheduledDeletionAt: new Date(Date.now() - 1000) })
+
+    const response = await cancelAccountDeletion(sessionCookie)
+    expect(response.status).toBe(409)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('GRACE_PERIOD_EXPIRED')
+
+    // 取り消されず、pendingのままであること
+    const accountRequestResponse = await SELF.fetch('https://example.com/api/v1/account-requests', {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(await accountRequestResponse.json()).toMatchObject({ status: 'pending' })
   })
 })

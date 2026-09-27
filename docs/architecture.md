@@ -330,11 +330,13 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 | Method | Path | 認証 | 概要 |
 | --- | --- | --- | --- |
-| POST | `/account-requests/cancel` | ✓ | 猶予期間中のアカウント削除申請を取り消す。既存の`cancelPendingAccountRequestIfAny`を流用し、更新後の申請を返す。取り消せる申請が無い場合は404 |
+| POST | `/account-requests/cancel` | ✓ | 猶予期間中のアカウント削除申請を取り消す。既存の`cancelPendingAccountRequestIfAny`を流用し、更新後の申請を返す。取り消せる申請が無い場合は404 `NOT_FOUND`。`scheduledDeletionAt`を過ぎた申請は取り消さず409 `GRACE_PERIOD_EXPIRED`(物理削除バッチは1日1回のため、猶予経過後バッチが動くまでの間に取り消すと案内と食い違うため) |
+
+自動取り消し(ログイン時に猶予期間中の申請を自動で取り消す挙動)は廃止し、上記の明示的な操作のみで取り消す(第7.1節③)。これに伴い、申請中(`status: 'pending'`)の利用者がそのままログインして作成を続け、猶予終了時にまとめてソフトデリートされてしまう事態を防ぐため、`POST /links`・`POST /qrcodes`・`POST /posters`に`blockAccountDeletionPending`ミドルウェアを追加し、申請中は403 `ACCOUNT_DELETION_PENDING`を返す。
 
 **データの変更(更新版11で追加)**
 - `qrcodes`に`name`(text、null可)を追加
-- `user`に`termsAcceptedAt`(ミリ秒のtimestamp)と`termsVersion`(text、同意した利用規約の制定・改定日。例:`2026-09-18`)を追加。サインアップ時に`agreeToTerms: true`が無い場合はサーバー側で拒否する
+- `user`に`termsAcceptedAt`(ミリ秒のtimestamp)・`termsVersion`(text、同意した利用規約の制定・改定日。例:`2026-09-18`)・`privacyPolicyVersion`(text、同意したプライバシーポリシーの制定・改定日。同意のチェックボックスは両方への同意のため、両方の版を別々に記録する)を追加。いずれもnull可で、既存ユーザーは同意の記録が無いためnullのままにする。サインアップ時に`agreeToTerms: true`が無い場合はサーバー側で拒否する(400 `TERMS_NOT_ACCEPTED`)。3項目とも利用者が送った値では上書きされないよう、Better Authの`user.additionalFields`で`input: false`にする(`src/lib/auth.ts`)
 
 **メールの再送制限(更新版11で追加)**
 - 登録確認メールの再送と、パスワード再設定の申請は、同じメールアドレスにつき60秒に1回まで(Rate Limiting binding。キーはメールアドレスのハッシュ)

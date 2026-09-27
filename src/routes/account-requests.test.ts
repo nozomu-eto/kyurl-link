@@ -22,6 +22,7 @@ async function signUp() {
       email: `test-${crypto.randomUUID()}@example.com`,
       password: TEST_PASSWORD,
       name: 'Test User',
+      agreeToTerms: true,
     }),
   })
 

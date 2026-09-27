@@ -18,6 +18,7 @@ import {
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
+import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
 import {
   posterCreateInputSchema,
@@ -75,7 +76,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, requireVerifiedEmail, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
+  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
     // リクエストボディをJSONとして読み取り、posterCreateInputSchemaで検証する
     const body = await c.req.json().catch(() => null)
     const parsed = posterCreateInputSchema.safeParse(body)

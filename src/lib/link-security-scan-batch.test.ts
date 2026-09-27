@@ -18,6 +18,7 @@ async function signUpAndGetUserId(): Promise<string> {
       email: `test-${crypto.randomUUID()}@example.com`,
       password: 'password1234',
       name: 'Test User',
+      agreeToTerms: true,
     }),
   })
   const body = await response.json<{ user: { id: string } }>()

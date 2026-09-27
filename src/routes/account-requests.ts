@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { accountRequests, links, posters, qrcodes } from '@/db/schema'
 import { buildRequestReceivedEmail } from '@/lib/account-deletion-emails'
+import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
 import { auth } from '@/lib/auth'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { accountRequestCreateInputSchema, accountRequestSchema } from '@/shared/schemas/account-request'
@@ -165,6 +166,50 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     return c.json(toAccountRequestResponse(created), 201)
+  })
+  // 猶予期間中のアカウント削除申請の取り消し(docs/architecture.md 第7.1節③、更新版11で追加)。
+  // ログイン時の自動取り消しは廃止し、この明示的な操作でのみ取り消す
+  .post('/cancel', authMiddleware, async (c) => {
+    const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
+
+    const [pendingRequest] = await db
+      .select()
+      .from(accountRequests)
+      .where(and(eq(accountRequests.userId, userId), eq(accountRequests.status, 'pending')))
+      .limit(1)
+
+    if (!pendingRequest) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '取り消せるアカウント削除の申請が見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    // 猶予期間(scheduledDeletionAt)を過ぎた申請は取り消さない。物理削除バッチは1日1回のため、
+    // 猶予が過ぎてからバッチが動くまでの間に取り消してしまうと、「7日後に完全に削除する」という
+    // 案内と食い違う(取り消したのに後からバッチで削除されてしまう)ことになるため
+    if (pendingRequest.scheduledDeletionAt.getTime() <= Date.now()) {
+      return c.json(
+        {
+          error: {
+            code: 'GRACE_PERIOD_EXPIRED',
+            message: '猶予期間を過ぎているため、削除の取り消しはできません',
+          },
+        },
+        409,
+      )
+    }
+
+    // 直前にpending状態の申請の存在を確認済みのため、ここでnullが返ることは無い
+    const cancelled = await cancelPendingAccountRequestIfAny(db, userId)
+
+    return c.json(toAccountRequestResponse(cancelled!))
   })
 
 export default app

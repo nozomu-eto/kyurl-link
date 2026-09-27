@@ -32,6 +32,7 @@ async function signUp(headers: Record<string, string> = {}) {
       email: `captcha-${crypto.randomUUID()}@example.com`,
       password: 'password1234',
       name: 'Captcha Test User',
+      agreeToTerms: true,
     }),
   })
 }

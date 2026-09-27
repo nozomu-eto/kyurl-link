@@ -102,6 +102,15 @@
 			"name": "REPORT_RATE_LIMITER",
 			"namespace_id": "1003",
 			"simple": { "limit": 5, "period": 60 }
+		},
+		{
+			// docs/architecture.md 第7節: 確認メール再送(/send-verification-email、新規登録直後の
+			// 自動送信も含む)とパスワード再設定申請(/request-password-reset)に適用。
+			// キーは用途の接頭辞+メールアドレスのハッシュ(src/lib/email-resend-limit.ts)で、
+			// 同じメールアドレスにつき60秒に1回までとする(迷惑メールの連打防止)
+			"name": "EMAIL_RESEND_RATE_LIMITER",
+			"namespace_id": "1004",
+			"simple": { "limit": 1, "period": 60 }
 		}
 	]
 }
