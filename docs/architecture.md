@@ -293,6 +293,10 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 `PATCH /links/:id`の`expiresAt`の形式はPR #4の検証(ISO 8601・オフセット必須・過去日時は不可)のまま変えない。画面は日付だけを選ばせ、その日の`23:59:59.999+09:00`に変換して送る。更新後の期限が現在より未来で`status`が`expired`の場合は`active`に戻す。`status`に指定できるのは`active` / `suspended`のみ(`expired`は手動指定不可)。`moderationStatus`が`suspended`の場合の403 `MODERATION_LOCKED`はPR #4のまま(更新版11で追記)。
 
+`status`(DB保存値)に`expired`を自動セットするバッチは無く、`status`列は所有者の意図(`active`/`suspended`)だけを表す。有効期限切れの表示は、`GET /links`・`GET /links/:id`のレスポンスに追加した`displayStatus`(`active` / `expired` / `suspended`)で、`moderationStatus` → `status` → `expiresAt`の優先順位でその場計算する(`src/lib/link-status.ts`の`computeLinkDisplayStatus()`に共通化し、`/:shortCode`の410判定にも同じ関数を使う。段階3-1で追記)。
+
+
+
 **QRコード** `/api/v1/qrcodes`
 
 | Method | Path | 認証 | 概要 |

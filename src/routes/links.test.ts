@@ -86,6 +86,7 @@ describe('GET /api/v1/links', () => {
           securityStatus: 'unscanned',
           lastScannedAt: expect.any(String),
           moderationStatus: 'none',
+          displayStatus: 'active',
         },
       ]),
       total: expect.any(Number),
@@ -404,6 +405,124 @@ describe('運営による強制停止(moderationStatus)', () => {
   })
 })
 
+describe('期限切れの自動復帰', () => {
+  it('statusがexpiredのlinkを、statusを指定せずに延長するとactiveに戻る', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    await db.update(links).set({ status: 'expired' }).where(eq(links.id, created.id))
+
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt: futureDate }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ status: 'active', expiresAt: futureDate })
+  })
+
+  it('statusがexpiredのlinkを、statusを指定せずに無期限(null)にするとactiveに戻る', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    const pastDate = new Date(Date.now() - 1000).toISOString()
+    await db.update(links).set({ status: 'expired', expiresAt: pastDate }).where(eq(links.id, created.id))
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ expiresAt: null }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ status: 'active', expiresAt: null })
+  })
+
+  it('statusがexpiredのlinkに、statusを指定してsuspendedへ変更しつつexpiresAtも延長した場合、自動復帰は発動せずsuspendedのままになる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    await db.update(links).set({ status: 'expired' }).where(eq(links.id, created.id))
+
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'suspended', expiresAt: futureDate }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ status: 'suspended', expiresAt: futureDate })
+  })
+
+  it('statusにexpiredを指定すると400(VALIDATION_ERROR)になる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'expired' }),
+    })
+    expect(patchResponse.status).toBe(400)
+    const body = await patchResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+})
+
+describe('displayStatus(表示用の実効ステータス)', () => {
+  it('通常のlinkはactiveになる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+    expect(created.displayStatus).toBe('active')
+  })
+
+  it('expiresAtが過去のlinkはexpiredになるが、DB保存値のstatusはactiveのまま変わらない', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    await db.update(links).set({ expiresAt: pastDate }).where(eq(links.id, created.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    const body = await getResponse.json<{ status: string; displayStatus: string }>()
+    expect(body.displayStatus).toBe('expired')
+    expect(body.status).toBe('active')
+  })
+
+  it('statusがsuspendedのlinkはsuspendedになる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'suspended' }),
+    })
+    expect(await patchResponse.json()).toMatchObject({ displayStatus: 'suspended' })
+  })
+
+  it('moderationStatusがsuspendedのlinkはsuspendedになる(statusがactiveのままでも)', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const db = drizzle(env.DB)
+    await db.update(links).set({ moderationStatus: 'suspended' }).where(eq(links.id, created.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    const body = await getResponse.json<{ status: string; displayStatus: string }>()
+    expect(body.displayStatus).toBe('suspended')
+    expect(body.status).toBe('active')
+  })
+})
+
 describe('所有者チェック(他人のlinkにはアクセスできない)', () => {
   it('ユーザーAが作成したlinkに対して、ユーザーBがGET /:id・PATCH・DELETEを実行するといずれも404になる', async () => {
     const userA = await signUp()
@@ -520,6 +639,63 @@ describe('GET /api/v1/links/:id/clicks', () => {
       // テスト後は必ず元のfetchに戻す
       globalThis.fetch = originalFetch
     }
+  })
+
+  it.each([7, 30, 90])('daysに%iを指定すると200になり、Analytics Engine SQL APIへのクエリにINTERVAL句が反映される', async (days) => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    // 実際に送られたSQL文字列(fetchのbody)を確認するため、fetchの呼び出し引数を記録する
+    let requestedSql: string | undefined
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestedSql = init?.body as string
+      return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof fetch
+
+    try {
+      const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks?days=${days}`, {
+        headers: { Cookie: sessionCookie },
+      })
+      expect(response.status).toBe(200)
+      expect(requestedSql).toContain(`INTERVAL '${days}' DAY`)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('daysを指定しない場合は30日分として扱われる', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    let requestedSql: string | undefined
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestedSql = init?.body as string
+      return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof fetch
+
+    try {
+      const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks`, {
+        headers: { Cookie: sessionCookie },
+      })
+      expect(response.status).toBe(200)
+      expect(requestedSql).toContain(`INTERVAL '30' DAY`)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it.each(['1', '0', '365', 'abc', "30' OR '1'='1"])('daysに許可されていない値(%s)を指定すると400(VALIDATION_ERROR)になる', async (invalidDays) => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks?days=${encodeURIComponent(invalidDays)}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
   })
 })
 

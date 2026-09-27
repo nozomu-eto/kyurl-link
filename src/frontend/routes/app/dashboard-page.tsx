@@ -49,7 +49,7 @@ export function DashboardPage() {
                   <td>{`${window.location.origin}/${linkListItem.shortCode}`}</td>
                   <td className="data-table__cell--truncate">{linkListItem.originalUrl}</td>
                   <td>
-                    <LinkStatusBadge status={linkListItem.status} />
+                    <LinkStatusBadge status={linkListItem.displayStatus} />
                   </td>
                   <td>{linkListItem.expiresAt ? new Date(linkListItem.expiresAt).toLocaleDateString('ja-JP') : '無期限'}</td>
                   <td>

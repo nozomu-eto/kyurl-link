@@ -12,8 +12,11 @@ export const LINK_STATUS_LABELS: Record<LinkStatus, string> = {
   suspended: '停止中',
 }
 
-// SelectField用の選択肢。LINK_STATUS_LABELSから作るため、状態が増えた場合もラベルの追加だけで済む
-export const LINK_STATUS_OPTIONS: SelectOption[] = (Object.keys(LINK_STATUS_LABELS) as LinkStatus[]).map((status) => ({
+// SelectField用の選択肢(保存用のstatusの編集操作で使う)。'expired'は指定できない
+// (有効期限切れは自動的に決まるため、手動では選べない。docs/architecture.md 第6.7節、
+// linkUpdateInputSchema参照)ため、activeとsuspendedのみを対象にする
+const EDITABLE_LINK_STATUSES: LinkStatus[] = ['active', 'suspended']
+export const LINK_STATUS_OPTIONS: SelectOption[] = EDITABLE_LINK_STATUSES.map((status) => ({
   value: status,
   label: LINK_STATUS_LABELS[status],
 }))
