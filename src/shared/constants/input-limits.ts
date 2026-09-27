@@ -14,6 +14,10 @@ export const POSTER_TITLE_MAX_LENGTH = 60
 // 掲示物(poster)のサブタイトルの文字数上限
 export const POSTER_SUBTITLE_MAX_LENGTH = 120
 
+// QRコードの管理用の名前の文字数上限(docs/architecture.md 第6.7節「管理用の名前:任意、
+// 最大40文字。QR画像には表示しない」)
+export const QRCODE_NAME_MAX_LENGTH = 40
+
 // 通報(report)の理由(自由記述)の文字数上限
 export const REPORT_REASON_MAX_LENGTH = 1000
 

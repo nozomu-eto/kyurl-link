@@ -7,6 +7,7 @@ import { Button } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
+import { QRCODE_NAME_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // qrcodeEditorLoader: QRコード編集画面の表示に必要なqrcode1件分を取得するloader
 export async function qrcodeEditorLoader({ params }: LoaderFunctionArgs) {
@@ -23,37 +24,28 @@ export async function qrcodeEditorLoader({ params }: LoaderFunctionArgs) {
   return { qrcode: await response.json() }
 }
 
-// styleOptionsのうち、このフォームで編集する2項目(前景色・背景色)の型
-type QrCodeStyleOptions = { foregroundColor?: string; backgroundColor?: string }
-
 // QrCodeEditorPage: QRコード1件の詳細・カスタマイズ画面。
 // 画像プレビュー(GET /qrcodes/:id/imageのSVGをそのまま<img>で表示)、
-// スタイル設定(前景色・背景色)の保存、削除、掲示物作成への導線を持つ。
-// 注意: styleOptionsは現時点ではDBへの保存のみ行われ、実際に生成されるQR画像には
-// まだ反映されない(qrcodes.tsの実装コメント「今回は保存のみで画像生成には未使用、
-// 将来のカスタマイズ機能用の受け皿」の通り)。画面上にもその旨を明記し、利用者に
-// 誤解を与えないようにする
+// 管理用の名前の保存、削除、掲示物作成への導線を持つ。
+// QRコードは読み取りやすさを優先し、白地に黒で出力する方針(docs/architecture.md 第6.7節)のため、
+// 色の変更機能(前景色・背景色)は提供しない
 export function QrCodeEditorPage() {
   const { qrcode } = useLoaderData<typeof qrcodeEditorLoader>()
   const navigate = useNavigate()
 
-  const currentStyleOptions = (qrcode.styleOptions ?? {}) as QrCodeStyleOptions
-  const [foregroundColor, setForegroundColor] = useState(currentStyleOptions.foregroundColor ?? '#000000')
-  const [backgroundColor, setBackgroundColor] = useState(currentStyleOptions.backgroundColor ?? '#ffffff')
+  const [name, setName] = useState(qrcode.name ?? '')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  async function handleStyleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleNameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsSaving(true)
 
-    const response = await apiClient.api.v1.qrcodes[':id'].$patch(
-      bypassPatchInputTypeCheck({ param: { id: qrcode.id }, json: { styleOptions: { foregroundColor, backgroundColor } } }),
-    )
+    const response = await apiClient.api.v1.qrcodes[':id'].$patch(bypassPatchInputTypeCheck({ param: { id: qrcode.id }, json: { name } }))
 
     setIsSaving(false)
 
@@ -62,11 +54,11 @@ export function QrCodeEditorPage() {
       // そのまま表示する(429時の「リクエストが多すぎます…」等もこのmessageに含まれるため、
       // 個別のステータスコード分岐は不要)。JSONでない・messageが無い場合のみ固定文言にする
       const body = await response.json().catch(() => null)
-      setErrorMessage(body && 'error' in body && body.error?.message ? body.error.message : 'スタイル設定の保存に失敗しました')
+      setErrorMessage(body && 'error' in body && body.error?.message ? body.error.message : '名前の保存に失敗しました')
       return
     }
 
-    setSuccessMessage('スタイル設定を保存しました')
+    setSuccessMessage('名前を保存しました')
   }
 
   async function handleDeleteClick() {
@@ -98,21 +90,17 @@ export function QrCodeEditorPage() {
         <p className="field__hint">対象種別: {qrcode.targetType === 'link' ? '短縮URL' : '直接URL'}</p>
       </Card>
 
-      <Card title="スタイル設定">
-        <p className="field__hint">※現在はスタイル設定の保存のみ対応しており、QR画像自体への反映は今後対応予定です。</p>
-        <form onSubmit={handleStyleSubmit}>
+      <Card title="名前・スタイル">
+        <p className="field__hint">QRコードは読み取りやすさを優先し、白地に黒で出力します。</p>
+        <form onSubmit={handleNameSubmit}>
           <FormField
-            fieldId="qrcode-editor-foreground-color"
-            label="前景色"
-            inputProps={{ type: 'color', value: foregroundColor, onChange: (e) => setForegroundColor(e.target.value) }}
-          />
-          <FormField
-            fieldId="qrcode-editor-background-color"
-            label="背景色"
-            inputProps={{ type: 'color', value: backgroundColor, onChange: (e) => setBackgroundColor(e.target.value) }}
+            fieldId="qrcode-editor-name"
+            label="名前(任意)"
+            hint="一覧などで表示する管理用の名前です。QR画像には表示されません。"
+            inputProps={{ value: name, maxLength: QRCODE_NAME_MAX_LENGTH, onChange: (e) => setName(e.target.value) }}
           />
           <Button type="submit" disabled={isSaving}>
-            {isSaving ? '保存中…' : 'スタイル設定を保存'}
+            {isSaving ? '保存中…' : '名前を保存'}
           </Button>
         </form>
       </Card>

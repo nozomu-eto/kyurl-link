@@ -85,6 +85,13 @@
       "when": 1790266276887,
       "tag": "0011_aspiring_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790468702253,
+      "tag": "0012_curly_alice",
+      "breakpoints": true
     }
   ]
 }

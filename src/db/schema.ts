@@ -79,6 +79,9 @@ export const qrcodes = sqliteTable('qrcodes', {
   targetId: text('target_id').references(() => links.id, { onDelete: 'cascade' }),
   // targetType='rawUrl'の場合に直接保持する対象URL
   targetUrl: text('target_url'),
+  // 管理用の名前(任意、最大40文字)。QR画像には表示せず、一覧等の管理画面上でのみ使う
+  // (docs/architecture.md 第6.7節「管理用の名前:任意、最大40文字。QR画像には表示しない」)
+  name: text('name'),
   // QRコードのスタイル設定をJSON文字列として保持する。今回は保存のみで画像生成には未使用、
   // 将来のカスタマイズ機能用の受け皿
   styleOptions: text('style_options'),

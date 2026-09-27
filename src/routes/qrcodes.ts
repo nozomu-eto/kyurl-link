@@ -95,7 +95,8 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       }
     }
 
-    // id・userId(所有者)・styleOptionsはサーバー側で決定して保存する(styleOptionsは作成時はnull固定)
+    // id・userId(所有者)・styleOptionsはサーバー側で決定して保存する(styleOptionsは作成時はnull固定)。
+    // nameは任意入力のため、省略時(undefined)はnullとして保存する
     const [created] = await db
       .insert(qrcodes)
       .values({
@@ -104,6 +105,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
         targetType: parsed.data.targetType,
         targetId: parsed.data.targetType === 'link' ? parsed.data.targetId : null,
         targetUrl: parsed.data.targetType === 'rawUrl' ? parsed.data.targetUrl : null,
+        name: parsed.data.name ?? null,
         styleOptions: null,
       })
       .returning()
@@ -138,7 +140,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(toQrcodeResponse(record))
   })
-  // styleOptionsのみ更新可能
+  // name・styleOptionsのみ更新可能
   .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
@@ -182,6 +184,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // リクエストで指定されたフィールドのみを更新対象にする。DB保存時はJSON文字列化する
     const updateValues: Partial<typeof qrcodes.$inferInsert> = {}
+    if (parsed.data.name !== undefined) {
+      updateValues.name = parsed.data.name
+    }
     if (parsed.data.styleOptions !== undefined) {
       updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
     }

@@ -7,7 +7,7 @@ import { Button } from '@/frontend/components/button'
 import { FormCard } from '@/frontend/components/card'
 import { Field, FormField, SelectField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
-import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
+import { QRCODE_NAME_MAX_LENGTH, URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // qrcodeCreateLoader: QRコード作成画面のloader。
 // URLに:linkIdが含まれる場合(/app/links/:linkId/qrcodes/newからの遷移)は、その1件の
@@ -41,6 +41,7 @@ export function QrCodeCreatePage() {
   const [targetKind, setTargetKind] = useState<'link' | 'rawUrl'>('link')
   const [selectedLinkId, setSelectedLinkId] = useState(selectableLinkItems?.[0]?.id ?? '')
   const [rawUrl, setRawUrl] = useState('')
+  const [name, setName] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // メール未確認によるエラー(EMAIL_NOT_VERIFIED)の場合のみ、「メール確認待ち」画面への
   // 導線を追加で表示するために、エラーコードも別途保持する
@@ -54,10 +55,10 @@ export function QrCodeCreatePage() {
     setIsSubmitting(true)
 
     const requestBody = fixedLink
-      ? ({ targetType: 'link', targetId: fixedLink.id } as const)
+      ? ({ targetType: 'link', targetId: fixedLink.id, name } as const)
       : targetKind === 'link'
-        ? ({ targetType: 'link', targetId: selectedLinkId } as const)
-        : ({ targetType: 'rawUrl', targetUrl: rawUrl } as const)
+        ? ({ targetType: 'link', targetId: selectedLinkId, name } as const)
+        : ({ targetType: 'rawUrl', targetUrl: rawUrl, name } as const)
 
     const response = await apiClient.api.v1.qrcodes.$post({ json: requestBody })
 
@@ -140,6 +141,13 @@ export function QrCodeCreatePage() {
             )}
           </>
         )}
+
+        <FormField
+          fieldId="qrcode-create-name"
+          label="名前(任意)"
+          hint="一覧などで表示する管理用の名前です。QR画像には表示されません。"
+          inputProps={{ maxLength: QRCODE_NAME_MAX_LENGTH, value: name, onChange: (e) => setName(e.target.value) }}
+        />
 
         <Button
           type="submit"
