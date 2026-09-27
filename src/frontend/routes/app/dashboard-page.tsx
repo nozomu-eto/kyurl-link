@@ -1,6 +1,8 @@
 /** @jsxImportSource react */
 import { Link, useLoaderData } from 'react-router'
+import { AccountDeletionBanner } from '@/frontend/components/account-deletion-banner'
 import { apiClient } from '@/frontend/lib/api-client'
+import { loadPendingDeletionRequest } from '@/frontend/lib/account-deletion'
 import type { linkSchema } from '@/shared/schemas/link'
 import type { z } from 'zod'
 import { ButtonLink } from '@/frontend/components/button'
@@ -9,26 +11,28 @@ import { Page } from '@/frontend/components/page'
 
 type LinkListItem = z.infer<typeof linkSchema>
 
-// dashboardLoader: ダッシュボード表示に必要なlink一覧を取得するloader。
-// GET /api/v1/links(認証必須、ログインユーザー自身のlinkのみ)を呼び出す
+// dashboardLoader: ダッシュボード表示に必要なlink一覧と、アカウント削除申請の状況
+// (猶予期間中ならバナー表示に使う)を取得するloader
 export async function dashboardLoader() {
-  const response = await apiClient.api.v1.links.$get()
+  const [linksResponse, pendingDeletionRequest] = await Promise.all([apiClient.api.v1.links.$get(), loadPendingDeletionRequest()])
 
-  if (!response.ok) {
-    throw new Response('短縮URL一覧の取得に失敗しました', { status: response.status })
+  if (!linksResponse.ok) {
+    throw new Response('短縮URL一覧の取得に失敗しました', { status: linksResponse.status })
   }
 
-  const body = await response.json()
-  return { linkListItems: body.items }
+  const body = await linksResponse.json()
+  return { linkListItems: body.items, pendingDeletionRequest }
 }
 
 // DashboardPage: ログインユーザーが作成した短縮URLの一覧画面(docs/architecture.md 第6.1節)。
-// 各行から詳細画面(クリック統計・紐づくQRコード)へ遷移できる
+// 各行から詳細画面(クリック統計・紐づくQRコード)へ遷移できる。アカウント削除の猶予期間中は
+// 上部にAccountDeletionBannerを表示する(docs/architecture.md 第7.1節)
 export function DashboardPage() {
-  const { linkListItems } = useLoaderData<typeof dashboardLoader>()
+  const { linkListItems, pendingDeletionRequest } = useLoaderData<typeof dashboardLoader>()
 
   return (
     <Page title="短縮URL一覧" actions={<ButtonLink to="/app/links/new" variant="cta">新しい短縮URLを作成</ButtonLink>}>
+      {pendingDeletionRequest && <AccountDeletionBanner scheduledDeletionAt={pendingDeletionRequest.scheduledDeletionAt} />}
       {linkListItems.length === 0 ? (
         <p>まだ短縮URLがありません。「新しい短縮URLを作成」から作成してください。</p>
       ) : (

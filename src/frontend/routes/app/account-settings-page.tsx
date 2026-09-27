@@ -1,48 +1,52 @@
 /** @jsxImportSource react */
+import { useState } from 'react'
 import { Link, useLoaderData, useOutletContext } from 'react-router'
+import { AccountDeletionBanner } from '@/frontend/components/account-deletion-banner'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import type { AuthUser } from '@/frontend/lib/auth-client'
-import { apiClient } from '@/frontend/lib/api-client'
-import { ButtonLink } from '@/frontend/components/button'
+import { formatDateJst, loadPendingDeletionRequest } from '@/frontend/lib/account-deletion'
+import { useCancelAccountDeletion } from '@/frontend/lib/use-cancel-account-deletion'
+import { Button, ButtonLink } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { Page } from '@/frontend/components/page'
+import { Toast } from '@/frontend/components/toast'
 
-// accountSettingsLoader: アカウント設定画面の表示に必要な、直近のアカウント削除申請状況を取得する。
-// GET /api/v1/account-requestsは、申請が無い場合404を返す仕様(docs/architecture.md 第7節)なので、
-// 404は「申請なし」として扱い、エラーにはしない
+// accountSettingsLoader: アカウント設定画面の表示に必要な、直近のアカウント削除申請状況を取得する
 export async function accountSettingsLoader() {
-  const response = await apiClient.api.v1['account-requests'].$get()
-
-  if (response.status === 404) {
-    return { pendingDeletionRequest: null }
-  }
-
-  if (!response.ok) {
-    throw new Response('アカウント削除申請の状況取得に失敗しました', { status: response.status })
-  }
-
-  const accountRequest = await response.json()
-  return { pendingDeletionRequest: accountRequest.status === 'pending' ? accountRequest : null }
-}
-
-// 物理削除予定日時までの残り日数を、切り上げで計算する
-// (「あと◯日で完全削除されます」の表示用。0日未満になることは無い想定だが、
-// 表示上の安全のため最低0にクランプする)
-function calculateRemainingDays(scheduledDeletionAt: string): number {
-  const remainingMs = new Date(scheduledDeletionAt).getTime() - Date.now()
-  return Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)))
+  const pendingDeletionRequest = await loadPendingDeletionRequest()
+  return { pendingDeletionRequest }
 }
 
 // AccountSettingsPage: アカウント設定画面。ログイン中のメールアドレス表示と、
-// アカウント削除申請の状態確認(申請中なら猶予期間の残り日数を表示)、
-// 削除申請画面への導線を持つ
+// アカウント削除申請の状態確認(申請中なら完全削除予定日・申請日と取り消しボタンを表示)、
+// 削除申請画面への導線を持つ(docs/architecture.md 第7.1節、docs/mocks/AccountSettings.html)
 export function AccountSettingsPage() {
   const { pendingDeletionRequest } = useLoaderData<typeof accountSettingsLoader>()
   // AppLayoutのOutlet contextからログイン中ユーザー情報を受け取る(再度APIを呼ばずに済む)
   const { currentUser } = useOutletContext<{ currentUser: AuthUser }>()
 
+  const { cancel, isCancelling } = useCancelAccountDeletion()
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [cancelErrorMessage, setCancelErrorMessage] = useState<string | null>(null)
+
+  // 「アカウントの削除」欄の取り消しボタンのクリックハンドラ。バナー側のボタンと
+  // 同じuseCancelAccountDeletion(フック)を使い、処理内容を共有する
+  async function handleCancelClick() {
+    setCancelErrorMessage(null)
+    const result = await cancel()
+
+    if (result.outcome === 'cancelled') {
+      setToastMessage('削除を取り消しました')
+    } else if (result.outcome === 'grace-period-expired') {
+      setCancelErrorMessage('猶予期間を過ぎているため、削除を取り消せません')
+    } else if (result.outcome === 'error') {
+      setCancelErrorMessage('取り消しに失敗しました。時間をおいて再度お試しください')
+    }
+  }
+
   return (
     <Page title="アカウント設定">
+      {pendingDeletionRequest && <AccountDeletionBanner scheduledDeletionAt={pendingDeletionRequest.scheduledDeletionAt} />}
 
       <Card>
         <p>
@@ -54,28 +58,40 @@ export function AccountSettingsPage() {
       </Card>
 
       <Card title="アカウントの削除">
-
         {pendingDeletionRequest ? (
           <>
-            <AlertMessage tone="error">
-              アカウント削除を申請中です。あと{calculateRemainingDays(pendingDeletionRequest.scheduledDeletionAt)}
-              日でアカウントおよびすべてのデータが完全に削除されます。
-            </AlertMessage>
-            <p className="field__hint">
-              削除を希望しない場合は、一度ログアウトしてから再度ログインしてください。ログインした時点で削除の申請が自動的に取り消されます。
+            <p>
+              <span className="status-badge status-badge--suspended">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 6v12" />
+                  <path d="M15 6v12" />
+                </svg>
+                削除予定
+              </span>
+              {' '}
+              {formatDateJst(pendingDeletionRequest.scheduledDeletionAt)} に完全削除
             </p>
+            <p className="field__hint">
+              申請日:{formatDateJst(pendingDeletionRequest.requestedAt)}。完全に削除されると、短縮URL・QRコード・掲示物は元に戻せません。
+            </p>
+            {cancelErrorMessage && <AlertMessage tone="error">{cancelErrorMessage}</AlertMessage>}
+            <Button variant="secondary" onClick={handleCancelClick} disabled={isCancelling}>
+              {isCancelling ? '取り消し中…' : '削除を取り消す'}
+            </Button>
           </>
         ) : (
           <>
             <p className="field__hint">
-              アカウントを削除すると、短縮URL・QRコード・掲示物を含むすべてのデータが利用できなくなります。7日間の猶予期間中はログインすることで取り消せます。
+              アカウントを削除すると、短縮URL・QRコード・掲示物を含むすべてのデータが利用できなくなります。7日間の猶予期間中は、この画面から削除を取り消せます。
             </p>
-            <ButtonLink to="/app/account/delete" variant="danger">
+            <ButtonLink to="/app/account/delete" variant="danger-outline">
               アカウントを削除する
             </ButtonLink>
           </>
         )}
       </Card>
+
+      {toastMessage && <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />}
     </Page>
   )
 }

@@ -86,6 +86,12 @@ export function QrCodeCreatePage() {
               <Link to="/verify-email">メールアドレスの確認はこちら</Link>
             </>
           )}
+          {errorCode === 'ACCOUNT_DELETION_PENDING' && (
+            <>
+              {' '}
+              <Link to="/app/account">アカウント設定はこちら</Link>
+            </>
+          )}
         </AlertMessage>
       )}
       <FormCard onSubmit={handleSubmit}>

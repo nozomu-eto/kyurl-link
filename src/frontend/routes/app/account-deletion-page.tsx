@@ -56,7 +56,7 @@ export function AccountDeletionPage() {
   return (
     <Page title="アカウントを削除">
       <AlertMessage tone="error">
-        この操作を行うと、短縮URL・QRコード・掲示物を含むすべてのデータへのアクセスが即座に停止します。7日間の猶予期間中にログインすれば取り消せますが、それ以降は元に戻せません。
+        この操作を行うと、短縮URL・QRコード・掲示物を含むすべてのデータへのアクセスが即座に停止します。7日間の猶予期間中は、アカウント設定から取り消せますが、それ以降は元に戻せません。
       </AlertMessage>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       <FormCard onSubmit={handleSubmit}>

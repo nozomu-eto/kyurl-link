@@ -26,8 +26,7 @@ export function buildRequestReceivedEmail(scheduledDeletionAt: Date): { subject:
 
 ${scheduledDeletionAtText}をもって、アカウントおよび関連データを完全に削除いたします。
 
-それまでの間にログインいただくと、削除の申請を取り消すことができます。
-削除を希望されない場合は、期限までにログインしてください。
+削除を希望されない場合は、期限までにログインのうえ、アカウント設定画面から削除の申請を取り消してください。
 
 ご不明点は info@kyurl.link までご連絡ください。`,
   }
