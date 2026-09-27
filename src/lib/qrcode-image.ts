@@ -12,9 +12,14 @@ const PADDING_MODULES = 4
 // renderQrcodeSvg: QRコードのSVGを生成する(既存のqrcode-svgをそのまま使う。掲示物の
 // 書き出し(posters.ts)がこのSVGの内容からR2キャッシュのキーを計算しているため、
 // 中身を変えるとキャッシュが全て無効になる。そのため生成方法・既定値(誤り訂正レベルM等)は
-// 変更しない)
+// 変更しない)。
+// swap: trueは必須(src/types/qrcode-svg.d.ts参照)。qrcode-svgのsvg()は内部でmodules[x][y]を
+// (xを横方向として)描画するが、QRコードの規格上の向き(isDark(row, col)がmodules[row][col]を
+// 返す向き)とは縦横が入れ替わっており、swap: trueを指定しないと出力されるQRコードが
+// 対角線で反転した状態になる(多くのスマホは鏡像も読み取れるため気づきにくいが、規格どおりの
+// 向きではなく、一部の読み取りアプリでは読み取れない)
 export function renderQrcodeSvg(content: string): string {
-  return new QRCode({ content }).svg()
+  return new QRCode({ content, swap: true }).svg()
 }
 
 // renderQrcodePng: 指定サイズの正方形PNG画像を、QRコードの白黒のマス目から直接組み立てる。
@@ -49,8 +54,11 @@ export async function renderQrcodePng(content: string, size: QrcodeImageSize): P
 
   for (let x = 0; x < moduleCount; x++) {
     for (let y = 0; y < moduleCount; y++) {
-      // qrcode-svgのsvg()と同じ添字の向き(x: 横方向、y: 縦方向)に合わせる
-      if (!modules[x][y]) {
+      // QRコードの規格どおりの向き(isDark(row, col)がmodules[row][col]を返す向き)に合わせる。
+      // 画素の横方向(x)が列(col)、縦方向(y)が行(row)に対応するため、modules[y][x]を参照する
+      // (modules[x][y]で参照すると、renderQrcodeSvgのswap:trueと同様の理由でQRコードが
+      // 対角線で反転してしまう)
+      if (!modules[y][x]) {
         continue
       }
 
