@@ -322,7 +322,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | GET | `/posters/:id/export` | ✓ | PDF/PNG書き出し(Browser Rendering + R2内容ハッシュキャッシュ、第13節)。クエリ`paper`(`a4` / `fit`、初期値`a4`)を追加 |
 | POST | `/posters/batch-export` | ✓ | まとめて印刷 |
 
-`POST` / `PATCH /posters`, `/posters/:id`の`title`は必須・最大20文字、`subtitle`は任意・最大40文字(PR #4で設定した長さ上限の定数をこの値に変更する)。`GET /posters`, `/posters/:id`のレスポンスに`linkStatus`(`active` / `expired` / `suspended` / `none`)を追加する。`none`は元URLを直接読み取るQRの場合。画面の「リンクが期限切れです」表示と書き出し時の確認に使う。`GET /posters/:id/export`の`paper=a4`はA5なら2面・A6なら4面をA4に並べ、切り取り線を付ける。`paper=fit`は掲示物サイズのまま。`format=png`の場合`paper`は無視する。`POST /posters/batch-export`は本文`{ size: 'A5' | 'A6', items: [{ posterId, count }] }`。すべての掲示物がログインユーザーの所有かつ指定サイズであること。合計面数がA4用紙10枚分(A6は40面、A5は20面)を超える場合は400 `LIMIT_EXCEEDED`。PDFを返す(以上、更新版11で追記)。
+`POST` / `PATCH /posters`, `/posters/:id`の`title`は必須・最大20文字、`subtitle`は任意・最大40文字(PR #4で設定した長さ上限の定数をこの値に変更する)。`GET /posters`, `/posters/:id`のレスポンスに`linkStatus`(`active` / `expired` / `suspended` / `none` / `deleted`)を追加する。`none`は元URLを直接読み取るQRの場合。`deleted`は紐づく短縮URLまたはQRコードがソフトデリート済みの場合(リダイレクトは404になるため、`active`とは表示させない)。`active`/`expired`/`suspended`はlinkの`displayStatus`(第7節・`src/lib/link-status.ts`)と同じ基準で判定し(独自の判定はしない)、`computePosterLinkStatus`(`src/lib/poster-link-status.ts`)に切り出す。一覧は掲示物→QRコード→短縮URLをleftJoinでまとめて1回の問い合わせで取得する(掲示物ごとに問い合わせない)。画面の「リンクが期限切れです」表示と書き出し時の確認に使う(段階3-4で追記)。`GET /posters/:id/export`の`paper=a4`はA5なら2面・A6なら4面をA4に並べ、切り取り線を付ける。`paper=fit`は掲示物サイズのまま。`format=png`の場合`paper`は無視する。`POST /posters/batch-export`は本文`{ size: 'A5' | 'A6', items: [{ posterId, count }] }`。すべての掲示物がログインユーザーの所有かつ指定サイズであること。合計面数がA4用紙10枚分(A6は40面、A5は20面)を超える場合は400 `LIMIT_EXCEEDED`。PDFを返す(以上、更新版11で追記)。
 
 **通報**(利用規約第9条)は変更なし(更新版3を参照)。**アカウント・データ請求**の具体フローは以下第7.1節を参照。
 
@@ -483,6 +483,10 @@ Workers Analytics Engineを採用し、書き込むだけでデータが自動�
 ## 13. 掲示物PDF/PNG生成・キャッシュ設計(更新版11で追記)
 
 Cloudflare Browser Renderingによる生成方式、R2 + 内容ハッシュキーによるキャッシュ方式、認可チェックを必ずキャッシュ参照より先に行う設計、R2 Object Lifecycle Rules(30日)による自動削除は更新版4から変更ありません。アカウント削除時は、この30日ルールを待たず第7.1節の物理削除バッチ内でR2オブジェクトを明示的に削除する。
+
+**書き出し不具合の修正(段階3-4で追加)**
+- `page.pdf()`・`page.screenshot()`を設定なしで呼んでいたため、PDFは既定のレター用紙(8.5×11インチ)+`preferCSSPageSize: false`(`@page`のサイズ指定を無視して内容を縮小する)で用紙サイズが誤り、PNGは既定のビューポート(800×600)全体を撮影するため掲示物の一部しか写らない不具合があった。PDFは`preferCSSPageSize: true`・`printBackground: true`を指定し、PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影するように修正した(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
+- テンプレートの版`POSTER_TEMPLATE_VERSION`をR2キャッシュキーの計算に含め、この修正で1→2に上げた。テンプレートや書き出し設定を変更した場合は、この値を上げることで、修正前の(サイズ・撮影範囲が誤った)PDF/PNGがR2から返り続けることを防ぐ
 
 **A4への面付け(更新版11で追加)**
 - A5はA4に2面、A6はA4に4面、余白なしでちょうど収まる。面の境界に切り取り線(灰色の破線)を入れる
