@@ -35,6 +35,10 @@ export default defineConfig(async () => {
         // input: falseを指定したtermsVersion等をサインアップのbodyに直接指定した場合に、
         // 同じ内部Promiseチェーンの既知の挙動として確認された(該当テストのアサーション
         // 自体は400・エラーコードで正しく検証できており実害は無い)
+        // INVALID_TOKENは、src/lib/auth-password-reset.test.ts(段階4-2)で、使用済みの
+        // パスワード再設定トークンを2回目に使った際に、同じ内部Promiseチェーンの
+        // 既知の挙動として確認された(該当テストのアサーション自体は400・エラーコードで
+        // 正しく検証できており実害は無い)
         // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この除外が
         // まだ必要か再確認すること。
         // 注意: vitestのprojects機能導入時、この除外をworkersプロジェクト側のtestに移したところ
@@ -45,7 +49,8 @@ export default defineConfig(async () => {
           err.name === 'APIError' &&
           (err.body?.code === 'INVALID_PASSWORD' ||
             err.body?.code === 'INVALID_EMAIL_OR_PASSWORD' ||
-            err.body?.code === 'FIELD_NOT_ALLOWED')
+            err.body?.code === 'FIELD_NOT_ALLOWED' ||
+            err.body?.code === 'INVALID_TOKEN')
         ) {
           return false
         }

@@ -14,6 +14,8 @@ export function buildEmailVerificationEmail(url: string): { subject: string; tex
 
 ${url}
 
+リンクの有効期限は1時間です。期限が切れた場合は、ログイン後に確認メールを再送してください。
+
 このメールに心当たりがない場合は、破棄していただいて問題ありません。
 
 ご不明点は info@kyurl.link までご連絡ください。`,
@@ -32,6 +34,8 @@ export function buildPasswordResetEmail(url: string): { subject: string; text: s
 以下のリンクから新しいパスワードを設定してください。
 
 ${url}
+
+リンクの有効期限は1時間です。一度使うと無効になります。
 
 このメールに心当たりがない場合は、第三者が誤ってメールアドレスを入力した可能性があります。
 その場合は本メールを破棄していただいて問題ありません(このリンクからパスワードが変更されることはありません)。

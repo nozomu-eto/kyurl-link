@@ -1,5 +1,5 @@
 import { betterAuth } from 'better-auth'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { captcha } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
@@ -64,6 +64,15 @@ export function auth(env: AuthEnv) {
     // ログイン・機能利用は継続でき、確認メール送信と「メール確認待ち」画面の表示のみ行う
     emailAndPassword: {
       enabled: true,
+      // パスワード再設定リンクの有効期限(秒)。Better Authの既定値と同じ値だが、
+      // 画面(reset-password-request-page.tsx等)とメール本文に「有効期限は1時間」と
+      // 明記するため、既定値の将来的な変更に表示が左右されないよう明示的に設定する
+      // (docs/architecture.md 第6.7節)
+      resetPasswordTokenExpiresIn: 3600,
+      // パスワードを再設定した後、他の端末・ブラウザのログイン状態(セッション)を
+      // 無効にする。パスワード再設定は漏えいが疑われる場合にも行われるため、
+      // 攻撃者が奪ったセッションを再設定後も使い続けられないようにする(既定はfalse)
+      revokeSessionsOnPasswordReset: true,
       // パスワードリセットメールの送信。既存のEMAIL バインディング(Cloudflare Email
       // Service)を使い、account-deletion-emails.tsと同じ送信元(no-reply@kyurl.link)にする。
       // 同じメールアドレスにつき60秒に1回まで(docs/architecture.md 第7節)。制限に当たった場合は
@@ -81,6 +90,10 @@ export function auth(env: AuthEnv) {
       },
     },
     emailVerification: {
+      // 確認メールのリンクの有効期限(秒)。resetPasswordTokenExpiresInと同じ理由
+      // (既定値と同じ値だが、画面・メールの「有効期限は1時間」表示を既定値の変更に
+      // 左右されないよう明示的に設定する)
+      expiresIn: 3600,
       // サインアップ時に自動でメール確認メールを送信する。この送信も下記と同じ60秒制限を
       // 通るため、登録から60秒以内の(確認メール再送ボタン経由の)再送は送られない
       // (段階4で再送ボタンに60秒のカウントダウンを付ける前提とする)
@@ -105,6 +118,22 @@ export function auth(env: AuthEnv) {
         termsAcceptedAt: { type: 'date', required: false, input: false },
         termsVersion: { type: 'string', required: false, input: false },
         privacyPolicyVersion: { type: 'string', required: false, input: false },
+      },
+      // メールアドレスの変更(段階4-2、docs/architecture.md 第6.7節「メール確認待ち」画面の
+      // 「メールアドレスを修正する」から使う)。updateEmailWithoutVerification: trueにより、
+      // Better Authの仕様上「確認前(emailVerified: false)のアドレスに限り」その場でアドレスが
+      // 変わり、新しいアドレスに確認メールが送られる(確認メールはsendVerificationEmailを通るため、
+      // 上記の60秒制限が新しいアドレスに対しても効く)。
+      //
+      // 確認済み(emailVerified: true)の人からの変更は、hooks.before(下記)でサーバー側から
+      // 拒否している: changeEmailを有効にすると確認済みの人もこのエンドポイントを使えて
+      // しまうが、Better Authの既定の確認済みユーザー向けフロー(sendChangeEmailConfirmation)は
+      // 「今のアドレスへの確認」を送らずに変更を進められるため、ログイン状態(セッション)を
+      // 盗まれた場合にアカウントを乗っ取られる危険がある。アカウント設定にアドレス変更の
+      // 画面を作るときに、今のアドレスへの確認を実装したうえで、この制限を外す
+      changeEmail: {
+        enabled: true,
+        updateEmailWithoutVerification: true,
       },
     },
     // レート制限(docs/architecture.md 参照)。既定のmemory保存はWorkersのisolateごとに
@@ -160,26 +189,37 @@ export function auth(env: AuthEnv) {
               endpoints: ['/sign-up/email'],
             }),
           ],
-    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否する(docs/architecture.md 第7節)。
-    // Better Auth公式のcaptchaプラグインと異なりこの用途向けの公式プラグインは無いため、
-    // hooks.beforeで/sign-up/emailのパスだけを見て検証する
+    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否し(docs/architecture.md 第7節)、
+    // 確認済みユーザーからの/change-email(段階4-2、上記user.changeEmailのコメント参照)を
+    // 拒否する。Better Auth公式のcaptchaプラグインと異なりこれらの用途向けの公式プラグインは
+    // 無いため、hooks.beforeでパスを見て個別に検証する
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== '/sign-up/email') {
+        if (ctx.path === '/sign-up/email') {
+          if (ctx.body?.agreeToTerms !== true) {
+            throw new APIError('BAD_REQUEST', {
+              code: 'TERMS_NOT_ACCEPTED',
+              message: '利用規約とプライバシーポリシーへの同意が必要です',
+            })
+          }
+
+          // 同意はここまでの検証で確認済みのため、以降の処理(ユーザー作成等)に
+          // agreeToTerms自体を持ち込ませないよう取り除く。ctx.bodyはこの後の処理でも
+          // 同じオブジェクトを参照し続けるため、プロパティを直接削除すれば反映される
+          delete ctx.body.agreeToTerms
           return
         }
 
-        if (ctx.body?.agreeToTerms !== true) {
-          throw new APIError('BAD_REQUEST', {
-            code: 'TERMS_NOT_ACCEPTED',
-            message: '利用規約とプライバシーポリシーへの同意が必要です',
-          })
-        }
+        if (ctx.path === '/change-email') {
+          const session = await getSessionFromCtx(ctx)
 
-        // 同意はここまでの検証で確認済みのため、以降の処理(ユーザー作成等)に
-        // agreeToTerms自体を持ち込ませないよう取り除く。ctx.bodyはこの後の処理でも
-        // 同じオブジェクトを参照し続けるため、プロパティを直接削除すれば反映される
-        delete ctx.body.agreeToTerms
+          if (session?.user.emailVerified) {
+            throw new APIError('FORBIDDEN', {
+              code: 'EMAIL_CHANGE_NOT_AVAILABLE',
+              message: 'メールアドレスの変更は現在ご利用いただけません',
+            })
+          }
+        }
       }),
     },
     databaseHooks: {
