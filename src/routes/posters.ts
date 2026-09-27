@@ -2,9 +2,9 @@ import puppeteer from '@cloudflare/puppeteer'
 import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
-import QRCode from 'qrcode-svg'
 import { links, posters, qrcodes } from '@/db/schema'
 import { generatePosterHtml } from '@/lib/poster-template'
+import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
@@ -326,7 +326,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       qrContent = targetUrl
     }
 
-    const qrCodeSvg = new QRCode({ content: qrContent }).svg()
+    // SVGの生成はqrcodes.tsのGET /:id/imageと共通のrenderQrcodeSvgを使う(向きの修正
+    // (swap: true)を含め、QRコードの見た目が食い違わないようにするため)
+    const qrCodeSvg = renderQrcodeSvg(qrContent)
 
     // 4. poster(title/subtitle/size/styleOptions)とQRコードのSVG内容からハッシュ値を計算し、
     // R2オブジェクトキーを作る(内容が変われば別のキーになるキャッシュキー)

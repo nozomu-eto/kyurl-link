@@ -2,10 +2,11 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-import { qrcodes } from '@/db/schema'
+import { links, qrcodes } from '@/db/schema'
 import { linkSchema } from '@/shared/schemas/link'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
+import { decodeGrayscalePixels, readPngDimensions } from '../../test/png-inspect'
 
 // サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
 // requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
@@ -204,6 +205,127 @@ describe('GET /api/v1/qrcodes/:id/image', () => {
 
     const svg = await response.text()
     expect(svg).toContain('<svg')
+  })
+
+  it('formatを指定しない場合はSVGが返る(既存の<img src>表示を変えないため)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/svg+xml')
+  })
+
+  it('format=svgを明示した場合もSVGが返る', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=svg`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/svg+xml')
+  })
+
+  it('format=pngのみでsizeを指定しない場合、初期値の1024pxのPNGが返る', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600')
+
+    const png = new Uint8Array(await response.arrayBuffer())
+    const { width, height } = readPngDimensions(png)
+    expect(width).toBe(1024)
+    expect(height).toBe(1024)
+  })
+
+  it.each([512, 1024, 2048])('format=png&size=%iで、指定した縦横のPNGが返る', async (size) => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png&size=${size}`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+
+    const png = new Uint8Array(await response.arrayBuffer())
+    const { width, height } = readPngDimensions(png)
+    expect(width).toBe(size)
+    expect(height).toBe(size)
+  })
+
+  it('PNGの画素が白と黒だけであること(中間色が無いこと)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png&size=512`)
+    const png = new Uint8Array(await response.arrayBuffer())
+    const pixels = await decodeGrayscalePixels(png)
+    const uniqueValues = new Set(pixels)
+    expect(Array.from(uniqueValues).sort((a, b) => a - b)).toEqual([0, 255])
+  })
+
+  it('不正なformatを指定すると400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=webp`)
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it.each(['500', '4096', 'abc'])('format=pngで不正なsize(%s)を指定すると400(VALIDATION_ERROR)になる', async (size) => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png&size=${size}`)
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('format=svgのときは、不正なsizeを指定しても無視されSVGが返る(sizeの検証はformat=pngのときだけ)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=svg&size=999999`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/svg+xml')
+  })
+
+  it('削除済みのQRコードでは、format=pngでも404になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const deleteResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(deleteResponse.status).toBe(204)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png`)
+    expect(response.status).toBe(404)
+  })
+
+  it('対象のlinkが削除済みの場合、format=pngでも404になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    const createResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'link', targetId: link.id }),
+    })
+    expect(createResponse.status).toBe(201)
+    const qrcode = qrcodeSchema.parse(await createResponse.json())
+
+    // 対象linkをソフトデリートする
+    const db = drizzle(env.DB)
+    await db.update(links).set({ deletedAt: new Date() }).where(eq(links.id, link.id))
+
+    const response = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}/image?format=png`)
+    expect(response.status).toBe(404)
   })
 })
 
