@@ -5,6 +5,7 @@ import { NONCE, secureHeaders, type SecureHeadersVariables } from 'hono/secure-h
 import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
+import { computeLinkDisplayStatus } from '@/lib/link-status'
 import { runLinkSecurityFullScan, runLinkSecurityTrackingScan } from '@/lib/link-security-scan-batch'
 import { goneePageHtml, notFoundPageHtml, securityWarningPageHtml } from '@/lib/redirect-pages'
 import accountRequests from '@/routes/account-requests'
@@ -135,22 +136,17 @@ app.get('/:shortCode', async (c) => {
     return c.html(notFoundPageHtml(), 404)
   }
 
-  // 明示的に停止・期限切れとされたか、有効期限(expiresAt)を過ぎている場合は410。
-  // 404と違い「かつて存在したが今は使えない」ことを案内する。
+  // 明示的に停止(所有者による、または運営によるmoderationStatus)されたか、有効期限
+  // (expiresAt)を過ぎている場合は410。404と違い「かつて存在したが今は使えない」ことを
+  // 案内する。判定はcomputeLinkDisplayStatus(src/lib/link-status.ts)に共通化し、
+  // GET /api/v1/links(displayStatus)と基準が食い違わないようにする。
   // アカウント削除申請時のカスケード処理(POST /api/v1/account-requests)は、
   // deletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.md 第7.1節②
   // 「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)ため、この判定を
   // deletedAtのチェックより先に行う必要がある(先にdeletedAtで404にしてしまうと、
   // カスケード停止によるものか個別削除によるものかを区別できず、常に404になってしまうため)
-  const isExpiredByDate = record.expiresAt !== null && new Date(record.expiresAt) < new Date()
-  if (record.status === 'suspended' || record.status === 'expired' || isExpiredByDate) {
-    return c.html(goneePageHtml(), 410)
-  }
-
-  // 運営による強制停止(moderationStatus: 'suspended')の場合も410。既存のstatus判定とは
-  // 別のフィールドで、所有者がstatusをactiveに戻しても停止を解除できないようにするために持つ
-  // (docs/architecture.md参照)
-  if (record.moderationStatus === 'suspended') {
+  const displayStatus = computeLinkDisplayStatus(record)
+  if (displayStatus === 'suspended' || displayStatus === 'expired') {
     return c.html(goneePageHtml(), 410)
   }
 

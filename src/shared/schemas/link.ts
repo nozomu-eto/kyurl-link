@@ -9,10 +9,16 @@ export const linkSchema = z.object({
   originalUrl: z.string(),
   // 短縮URLに使われるコード(例: kyurl.link/{shortCode})
   shortCode: z.string(),
-  // linkの状態(有効/期限切れ/停止)
+  // linkの状態(DB保存値)。'expired'はPATCHでは指定できなくなった(linkUpdateInputSchema参照)ため、
+  // 有効期限切れによる無効化はこの列を書き換えず、displayStatusで都度計算する
+  // (docs/architecture.md・src/lib/link-status.ts参照)
   status: z.enum(['active', 'expired', 'suspended']),
   // 有効期限(ISO文字列)。無期限の場合はnull
   expiresAt: z.string().nullable(),
+  // 表示用の実効ステータス。statusとは別に、moderationStatus・status・expiresAtから
+  // その場で計算した「今どう扱うべきか」を表す(src/lib/link-status.ts参照)。
+  // 画面の状態バッジ等、表示にはこちらを使う
+  displayStatus: z.enum(['active', 'expired', 'suspended']),
   // 悪意あるURL検知の結果(docs/architecture.md 第4節)。statusとは意味が異なる別フィールド。
   // unscanned: 未検査またはURLhaus照会がfail-openした / clean: 問題なし / flagged: 不審と判定された
   securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
@@ -44,8 +50,10 @@ export const linkCreateInputSchema = z.object({
 // (originalUrl/shortCodeは作成後不変、id/createdAtはそもそもクライアントが変更できない)。
 // どちらのフィールドも省略可能とし、指定されたものだけを更新するPATCHの入力として扱う
 export const linkUpdateInputSchema = z.object({
-  // linkの状態(有効/期限切れ/停止)
-  status: z.enum(['active', 'expired', 'suspended']).optional(),
+  // linkの状態。'expired'は指定できない(有効期限切れは自動的に決まるため、手動では選べない。
+  // docs/architecture.md 第6.7節「詳細:...「期限切れ」は有効期限で自動的に決まり、手動では
+  // 選べない」)。指定すると400 VALIDATION_ERRORになる
+  status: z.enum(['active', 'suspended']).optional(),
   // 有効期限。作成時と同様、ISO 8601形式かつoffset必須で検証する。nullを指定すると無期限に変更する
   expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 })

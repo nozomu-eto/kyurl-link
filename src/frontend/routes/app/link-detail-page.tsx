@@ -6,7 +6,7 @@ import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
 import { Button } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { SelectField } from '@/frontend/components/form-field'
-import { LINK_STATUS_OPTIONS } from '@/frontend/components/link-status-badge'
+import { LINK_STATUS_OPTIONS, LinkStatusBadge } from '@/frontend/components/link-status-badge'
 import { Page } from '@/frontend/components/page'
 
 // linkDetailLoader: link詳細画面の表示に必要な3種類の情報をまとめて取得するloader。
@@ -39,7 +39,7 @@ export async function linkDetailLoader({ params }: LoaderFunctionArgs) {
 }
 
 // LinkDetailPage: 短縮URL1件分の詳細画面。クリック統計・紐づくQRコード一覧の確認、
-// 状態(有効/期限切れ/停止)の変更、削除ができる
+// 状態(有効/停止。期限切れは自動的に決まる)の変更、削除ができる
 export function LinkDetailPage() {
   const { link, clicks, relatedQrcodeItems } = useLoaderData<typeof linkDetailLoader>()
   const navigate = useNavigate()
@@ -51,10 +51,11 @@ export function LinkDetailPage() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // 状態(active/expired/suspended)のセレクトボックス変更ハンドラ。
-  // 変更内容を即座にPATCH /links/:idへ送信する(保存ボタンを別途設けない、その場で反映する方式)
+  // 状態(active/suspended。期限切れは自動的に決まるため手動では選べない)のセレクトボックス
+  // 変更ハンドラ。変更内容を即座にPATCH /links/:idへ送信する(保存ボタンを別途設けない、
+  // その場で反映する方式)
   async function handleStatusChange(event: ChangeEvent<HTMLSelectElement>) {
-    const nextStatus = event.target.value as 'active' | 'expired' | 'suspended'
+    const nextStatus = event.target.value as 'active' | 'suspended'
     setErrorMessage(null)
     setIsUpdatingStatus(true)
 
@@ -104,6 +105,9 @@ export function LinkDetailPage() {
         </p>
         <p>
           <strong>有効期限:</strong> {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('ja-JP') : '無期限'}
+        </p>
+        <p>
+          <strong>状態:</strong> <LinkStatusBadge status={link.displayStatus} />
         </p>
         <SelectField
           fieldId="link-detail-status"

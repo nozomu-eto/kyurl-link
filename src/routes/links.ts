@@ -2,8 +2,9 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
-import { buildLinkClicksSql } from '@/lib/link-clicks-query'
+import { LINK_CLICKS_DAYS_OPTIONS, buildLinkClicksSql, type LinkClicksDays } from '@/lib/link-clicks-query'
 import { determineLinkSecurityStatus } from '@/lib/link-security-check'
+import { computeLinkDisplayStatus } from '@/lib/link-status'
 import { generateShortCode } from '@/lib/short-code'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
@@ -11,11 +12,12 @@ import { requireVerifiedEmail } from '@/middleware/require-verified-email'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
 // DB上のlinkレコード(lastScannedAtはDateオブジェクト)を、レスポンス用スキーマの形
-// (lastScannedAtをISO文字列化したもの)に変換する
+// (lastScannedAtをISO文字列化・displayStatusを計算したもの)に変換する
 function toLinkResponse(record: typeof links.$inferSelect) {
   return linkSchema.parse({
     ...record,
     lastScannedAt: record.lastScannedAt.toISOString(),
+    displayStatus: computeLinkDisplayStatus(record),
   })
 }
 
@@ -246,6 +248,21 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       updateValues.expiresAt = parsed.data.expiresAt
     }
 
+    // 期限切れの自動復帰(docs/architecture.md 第6.7節「期限切れの後でも、延長または無期限に
+    // すると再開できる」)。既存レコードがstatus: 'expired'で、かつリクエストにstatusが
+    // 含まれていない場合に限り、更新後のexpiresAt(リクエストで指定された値、無ければ既存の値)が
+    // 未来またはnull(無期限)になるならstatusをactiveに戻す。
+    // リクエストでstatusが明示的に指定されている場合(例: suspendedへの変更)は、この自動復帰を
+    // 発動させず指定された値をそのまま使う(上のif文で既にupdateValues.statusへ設定済みのため、
+    // ここでは何もしない)
+    if (existing.status === 'expired' && parsed.data.status === undefined) {
+      const nextExpiresAt = parsed.data.expiresAt !== undefined ? parsed.data.expiresAt : existing.expiresAt
+      const isStillInTheFuture = nextExpiresAt === null || new Date(nextExpiresAt).getTime() > Date.now()
+      if (isStillInTheFuture) {
+        updateValues.status = 'active'
+      }
+    }
+
     const [updated] = await db
       .update(links)
       .set(updateValues)
@@ -295,6 +312,22 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const id = c.req.param('id')
     const userId = c.get('user').id
 
+    // クエリdays(7/30/90、初期値30)。許可した3値以外はSQLへ文字列を直接埋め込まないよう、
+    // buildLinkClicksSql側にも渡す前にここで検証する
+    const rawDays = c.req.query('days')
+    const days = rawDays === undefined ? 30 : Number(rawDays)
+    if (!LINK_CLICKS_DAYS_OPTIONS.includes(days as LinkClicksDays)) {
+      return c.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: `daysには${LINK_CLICKS_DAYS_OPTIONS.join('/')}のいずれかを指定してください`,
+          },
+        },
+        400,
+      )
+    }
+
     // 既存のGET /:idと同じ絞り込み(所有者チェック含む)で対象linkの存在を確認する
     const [record] = await db
       .select({ id: links.id })
@@ -314,7 +347,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    const sql = buildLinkClicksSql(id)
+    const sql = buildLinkClicksSql(id, days as LinkClicksDays)
 
     // Analytics Engine SQL APIへ問い合わせる。認証はACCOUNT_ID(アカウントを特定するID)と
     // ANALYTICS_API_TOKEN(APIトークン、wrangler secretで設定済み)の組み合わせで行う
