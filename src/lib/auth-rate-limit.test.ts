@@ -19,7 +19,7 @@ async function signUp(email: string) {
       'Content-Type': 'application/json',
       Origin: env.BETTER_AUTH_URL,
     },
-    body: JSON.stringify({ email, password: TEST_PASSWORD, name: 'Rate Limit Test User' }),
+    body: JSON.stringify({ email, password: TEST_PASSWORD, name: 'Rate Limit Test User', agreeToTerms: true }),
   })
   expect(response.status).toBe(200)
 }

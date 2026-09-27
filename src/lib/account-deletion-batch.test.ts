@@ -26,6 +26,7 @@ async function signUp() {
       email: `test-${crypto.randomUUID()}@example.com`,
       password: TEST_PASSWORD,
       name: 'Test User',
+      agreeToTerms: true,
     }),
   })
 
@@ -179,6 +180,31 @@ describe('runAccountDeletionBatch', () => {
     expect(processedCount).toBe(0)
 
     const db = drizzle(env.DB)
+    const [remainingUser] = await db.select().from(user).where(eq(user.id, userId))
+    expect(remainingUser).toBeDefined()
+  })
+
+  it('取り消し済み(status: cancelled)のaccountRequestは、scheduledDeletionAtを過ぎていても処理対象にならない', async () => {
+    const { sessionCookie, userId } = await signUp()
+    const accountRequestId = await requestAccountDeletion(sessionCookie)
+
+    const cancelResponse = await SELF.fetch('https://example.com/api/v1/account-requests/cancel', {
+      method: 'POST',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(cancelResponse.status).toBe(200)
+
+    // 猶予期間を過ぎた状態を再現する(runAccountDeletionBatchはstatus: 'pending'のみを対象にするため、
+    // statusが'cancelled'に変わっていればこの日時になっていても処理されないはず)
+    const db = drizzle(env.DB)
+    await db
+      .update(accountRequests)
+      .set({ scheduledDeletionAt: new Date(Date.now() - 1000) })
+      .where(eq(accountRequests.id, accountRequestId))
+
+    const processedCount = await runAccountDeletionBatch(env)
+    expect(processedCount).toBe(0)
+
     const [remainingUser] = await db.select().from(user).where(eq(user.id, userId))
     expect(remainingUser).toBeDefined()
   })

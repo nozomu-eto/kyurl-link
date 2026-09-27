@@ -45,6 +45,35 @@ export function FormField({ inputProps, ...fieldProps }: FieldBaseProps & { inpu
   )
 }
 
+// CheckboxField: 「◯◯に同意します」のような1個のチェックボックスをカード状の枠で囲む共通部品
+// (docs/mocks/Signup.html)。labelにはリンク等を含められるようReactNodeで受け取る
+export function CheckboxField({
+  fieldId,
+  checked,
+  onChange,
+  label,
+}: {
+  fieldId: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label: ReactNode
+}) {
+  return (
+    <div className="checkbox-field">
+      <label className="checkbox-field__label" htmlFor={fieldId}>
+        <input
+          type="checkbox"
+          id={fieldId}
+          className="checkbox-field__input"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>{label}</span>
+      </label>
+    </div>
+  )
+}
+
 export type SelectOption = { value: string; label: string }
 
 // SelectField: 選択肢(<select>)版のFormField。選択肢はoptionsで渡し、

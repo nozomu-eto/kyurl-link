@@ -31,13 +31,22 @@ export default defineConfig(async () => {
         // 同一の誤ったパスワードによるサインインを連続実行した際に、同じ内部Promiseチェーンの
         // 既知の挙動として確認された(スタックトレースはINVALID_PASSWORDの場合と同一の
         // better-call内部の経路を指す)
+        // FIELD_NOT_ALLOWEDは、src/lib/auth-terms.test.ts(段階3-5)で、additionalFieldsに
+        // input: falseを指定したtermsVersion等をサインアップのbodyに直接指定した場合に、
+        // 同じ内部Promiseチェーンの既知の挙動として確認された(該当テストのアサーション
+        // 自体は400・エラーコードで正しく検証できており実害は無い)
         // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この除外が
         // まだ必要か再確認すること。
         // 注意: vitestのprojects機能導入時、この除外をworkersプロジェクト側のtestに移したところ
         // 効かなくなることを確認したため、ルート直下のtestに置く(onUnhandledErrorはプロジェクト単位
         // ではなくプロセス全体に対して効くオプションのため)
         const err = error as { name?: string; body?: { code?: string } }
-        if (err.name === 'APIError' && (err.body?.code === 'INVALID_PASSWORD' || err.body?.code === 'INVALID_EMAIL_OR_PASSWORD')) {
+        if (
+          err.name === 'APIError' &&
+          (err.body?.code === 'INVALID_PASSWORD' ||
+            err.body?.code === 'INVALID_EMAIL_OR_PASSWORD' ||
+            err.body?.code === 'FIELD_NOT_ALLOWED')
+        ) {
           return false
         }
       },

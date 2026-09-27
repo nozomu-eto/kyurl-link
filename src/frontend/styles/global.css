@@ -876,6 +876,43 @@ h1 {
   font-size: 0.85rem;
 }
 
+/* ボタン直下に表示する補足文言(例: 「同意にチェックを入れると登録できます」)。
+   ボタンにaria-describedbyで関連付け、押せない理由を読み上げにも反映させる(docs/mocks/Signup.html) */
+.form-note {
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* 「◯◯に同意します」のような1個のチェックボックスをカード状の枠で囲む部品(docs/mocks/Signup.html)。
+   タップ領域を確保するためlabel全体をクリック可能にし、最小高さは--tap-targetに合わせる */
+.checkbox-field {
+  margin-bottom: var(--space-5);
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+}
+
+.checkbox-field__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.checkbox-field__input {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-brand);
+}
+
 /* 成否メッセージ(フォーム送信エラー・確認完了等)。上下の間隔は親の.page/.page-containerが持つ */
 .alert {
   margin: 0;

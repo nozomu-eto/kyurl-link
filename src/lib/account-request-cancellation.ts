@@ -5,12 +5,14 @@ import { accountRequests, links, posters, qrcodes } from '@/db/schema'
 // 猶予期間中(accountRequestsがstatus='pending'の間)にログインした場合、アカウント削除申請を
 // 取り消し、申請時にソフトデリートされたリソースを復元する(docs/architecture.md 第7.1節
 // 「③猶予期間: この間にログインすれば deletedAt をクリアして削除を取り消し可能」)
-// dbはdrizzle(env.DB)由来のインスタンスを受け取る。呼び出し元(auth.ts)ではBetter Authの
-// テーブルも含めたschema付きインスタンスを渡すため、任意のTSchemaを受け付けられるようにする
+// dbはdrizzle(env.DB)由来のインスタンスを受け取る。呼び出し元(src/routes/account-requests.ts)
+// ではBetter Authのテーブルも含めたschema付きインスタンスを渡す場合もあるため、
+// 任意のTSchemaを受け付けられるようにする。
+// 戻り値は取り消した申請(status: 'cancelled'に更新後のもの)。取り消す対象が無ければnull
 export async function cancelPendingAccountRequestIfAny<TSchema extends Record<string, unknown>>(
   db: DrizzleD1Database<TSchema>,
   userId: string,
-): Promise<void> {
+): Promise<typeof accountRequests.$inferSelect | null> {
   // 1. pending状態の申請を1件取得する。無ければ取り消す対象が無いため何もしない
   const [pendingRequest] = await db
     .select()
@@ -19,7 +21,7 @@ export async function cancelPendingAccountRequestIfAny<TSchema extends Record<st
     .limit(1)
 
   if (!pendingRequest) {
-    return
+    return null
   }
 
   // 2. links/qrcodes/postersのうち、userIdが一致し、かつdeletedAtがこのaccountRequestの
@@ -52,4 +54,6 @@ export async function cancelPendingAccountRequestIfAny<TSchema extends Record<st
     // 3. accountRequestsの該当レコードのstatusを'cancelled'に更新する
     db.update(accountRequests).set({ status: 'cancelled' }).where(eq(accountRequests.id, pendingRequest.id)),
   ])
+
+  return { ...pendingRequest, status: 'cancelled' }
 }

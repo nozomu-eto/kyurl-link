@@ -28,6 +28,7 @@ async function signUp() {
       email: `rate-limit-${crypto.randomUUID()}@example.com`,
       password: 'password1234',
       name: 'Rate Limit Test User',
+      agreeToTerms: true,
     }),
   })
   const setCookie = response.headers.get('set-cookie')

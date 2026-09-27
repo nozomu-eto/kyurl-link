@@ -16,6 +16,16 @@ export const user = sqliteTable("user", {
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  // 規約同意の記録(段階3-5、docs/architecture.md 第7節)。いずれもnull可で、既存ユーザーは
+  // 同意の記録が無いためnullのままにする。サインアップ時にサーバー側(src/lib/auth.tsの
+  // databaseHooks.user.create.before)でのみ設定し、利用者が送った値では上書きされないよう
+  // Better Authのuser.additionalFieldsで全てinput: falseにする
+  termsAcceptedAt: integer("terms_accepted_at", { mode: "timestamp_ms" }),
+  // 同意した利用規約の制定・改定日(例: "2026-09-18")。値はsrc/shared/constants/legal-versions.ts
+  termsVersion: text("terms_version"),
+  // 同意したプライバシーポリシーの制定・改定日。同意のチェックボックスは両方への同意のため、
+  // 両方の版を別々に記録する
+  privacyPolicyVersion: text("privacy_policy_version"),
 });
 
 export const session = sqliteTable(

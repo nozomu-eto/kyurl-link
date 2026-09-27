@@ -1,12 +1,14 @@
 import { betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { captcha } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
 import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
-import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
 import { buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
 import { parseTrustedOrigins } from '@/lib/auth-trusted-origins'
+import { shouldSendResendLimitedEmail } from '@/lib/email-resend-limit'
+import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/shared/constants/legal-versions'
 
 // linksテーブルとBetter Authのテーブル(user/session/account/verification)をまとめたスキーマ。
 // drizzle()とdrizzleAdapter()の両方に同じものを明示的に渡す
@@ -63,8 +65,14 @@ export function auth(env: AuthEnv) {
     emailAndPassword: {
       enabled: true,
       // パスワードリセットメールの送信。既存のEMAIL バインディング(Cloudflare Email
-      // Service)を使い、account-deletion-emails.tsと同じ送信元(no-reply@kyurl.link)にする
+      // Service)を使い、account-deletion-emails.tsと同じ送信元(no-reply@kyurl.link)にする。
+      // 同じメールアドレスにつき60秒に1回まで(docs/architecture.md 第7節)。制限に当たった場合は
+      // 送信せずに終える(429にすると登録の有無を外部から調べられてしまうため、
+      // src/lib/email-resend-limit.tsのコメント参照)
       sendResetPassword: async ({ user, url }) => {
+        if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'reset', user.email))) {
+          return
+        }
         await env.EMAIL.send({
           from: 'no-reply@kyurl.link',
           to: user.email,
@@ -73,14 +81,30 @@ export function auth(env: AuthEnv) {
       },
     },
     emailVerification: {
-      // サインアップ時に自動でメール確認メールを送信する
+      // サインアップ時に自動でメール確認メールを送信する。この送信も下記と同じ60秒制限を
+      // 通るため、登録から60秒以内の(確認メール再送ボタン経由の)再送は送られない
+      // (段階4で再送ボタンに60秒のカウントダウンを付ける前提とする)
       sendOnSignUp: true,
+      // 確認メールの送信。同じメールアドレスにつき60秒に1回まで(上記sendResetPasswordと同じ理由)
       sendVerificationEmail: async ({ user, url }) => {
+        if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'verify', user.email))) {
+          return
+        }
         await env.EMAIL.send({
           from: 'no-reply@kyurl.link',
           to: user.email,
           ...buildEmailVerificationEmail(url),
         })
+      },
+    },
+    user: {
+      // 規約同意の記録(docs/architecture.md 第7節)。3項目とも利用者が送った値では
+      // 上書きされないようinput: falseにする(Better Auth公式の「サーバーが決める項目」の扱い)。
+      // 実際の値はdatabaseHooks.user.create.beforeで設定する
+      additionalFields: {
+        termsAcceptedAt: { type: 'date', required: false, input: false },
+        termsVersion: { type: 'string', required: false, input: false },
+        privacyPolicyVersion: { type: 'string', required: false, input: false },
       },
     },
     // レート制限(docs/architecture.md 参照)。既定のmemory保存はWorkersのisolateごとに
@@ -136,17 +160,40 @@ export function auth(env: AuthEnv) {
               endpoints: ['/sign-up/email'],
             }),
           ],
+    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否する(docs/architecture.md 第7節)。
+    // Better Auth公式のcaptchaプラグインと異なりこの用途向けの公式プラグインは無いため、
+    // hooks.beforeで/sign-up/emailのパスだけを見て検証する
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-up/email') {
+          return
+        }
+
+        if (ctx.body?.agreeToTerms !== true) {
+          throw new APIError('BAD_REQUEST', {
+            code: 'TERMS_NOT_ACCEPTED',
+            message: '利用規約とプライバシーポリシーへの同意が必要です',
+          })
+        }
+
+        // 同意はここまでの検証で確認済みのため、以降の処理(ユーザー作成等)に
+        // agreeToTerms自体を持ち込ませないよう取り除く。ctx.bodyはこの後の処理でも
+        // 同じオブジェクトを参照し続けるため、プロパティを直接削除すれば反映される
+        delete ctx.body.agreeToTerms
+      }),
+    },
     databaseHooks: {
-      session: {
+      user: {
         create: {
-          // セッション作成 = ログイン成立のタイミングで、猶予期間中(status='pending')の
-          // 退会申請があれば自動的に取り消す(docs/architecture.md 第7.1節「③猶予期間:
-          // この間にログインすればdeletedAtをクリアして削除を取り消し可能」)。
-          // サインイン・サインアップいずれもセッションが新規作成されるため、この1箇所で
-          // まとめて扱える
-          after: async (session) => {
-            await cancelPendingAccountRequestIfAny(db, session.userId)
-          },
+          // ユーザー作成直前に、規約同意の記録を設定する。上のhooks.beforeで同意の無い登録は
+          // 既に拒否済みのため、ここに到達した登録は同意済みとして扱ってよい
+          before: async () => ({
+            data: {
+              termsAcceptedAt: new Date(),
+              termsVersion: TERMS_VERSION,
+              privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+            },
+          }),
         },
       },
     },
