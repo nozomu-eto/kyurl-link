@@ -58,6 +58,9 @@ export function ResetPasswordConfirmPage() {
     return (
       <Page contained title="パスワード再設定">
         <AlertMessage tone="success">パスワードを再設定しました。新しいパスワードでログインしてください。</AlertMessage>
+        {/* auth.tsのrevokeSessionsOnPasswordReset: trueにより、この端末以外のログイン状態は
+            すべて無効になっている(段階4-2) */}
+        <p className="field__hint">他の端末ではログアウトされました。</p>
         <ButtonLink to="/login">
           ログイン画面へ
         </ButtonLink>

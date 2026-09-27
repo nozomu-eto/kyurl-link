@@ -31,6 +31,15 @@ export function translateAuthErrorCode(code: string | undefined): string {
       return 'パスワードが長すぎます'
     case 'TERMS_NOT_ACCEPTED':
       return '利用規約とプライバシーポリシーへの同意が必要です'
+    // Better Auth側のリクエストボディのzod検証失敗(不正な形式のメールアドレス等)。
+    // 特定のエンドポイントに限らず共通のコードのため、汎用の文言にする
+    case 'VALIDATION_ERROR':
+      return '入力内容の形式が正しくありません'
+    // src/lib/auth.tsのhooks.beforeで、確認済みユーザーからの/change-emailを拒否した場合の
+    // コード。この画面(verify-email-pending-page.tsx)は未確認ユーザーにしか
+    // メールアドレス修正フォームを出さないため通常は発生しないが、念のため用意しておく
+    case 'EMAIL_CHANGE_NOT_AVAILABLE':
+      return 'メールアドレスの変更は現在ご利用いただけません'
     default:
       return '処理に失敗しました。時間をおいて再度お試しください'
   }
