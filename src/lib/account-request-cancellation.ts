@@ -2,12 +2,15 @@ import { and, eq } from 'drizzle-orm'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { accountRequests, links, posters, qrcodes } from '@/db/schema'
 
-// 猶予期間中(accountRequestsがstatus='pending'の間)にログインした場合、アカウント削除申請を
-// 取り消し、申請時にソフトデリートされたリソースを復元する(docs/architecture.md 第7.1節
-// 「③猶予期間: この間にログインすれば deletedAt をクリアして削除を取り消し可能」)
-// dbはdrizzle(env.DB)由来のインスタンスを受け取る。呼び出し元(src/routes/account-requests.ts)
-// ではBetter Authのテーブルも含めたschema付きインスタンスを渡す場合もあるため、
-// 任意のTSchemaを受け付けられるようにする。
+// アカウント削除申請(status='pending')を取り消し、申請時にソフトデリートされたリソースを
+// 復元する。POST /api/v1/account-requests/cancel(src/routes/account-requests.ts)からのみ
+// 呼ばれる、明示的な取り消し操作の実処理(docs/architecture.md 第7.1節「③猶予期間:
+// 取り消しはボタンによる明示的な操作でのみ行い、ログインしただけでは取り消さない」。
+// 更新版11でログイン時の自動取り消しをやめ、この関数の呼び出し元も自動取り消しの
+// databaseHooksからこのAPIに変更した)
+// dbはdrizzle(env.DB)由来のインスタンスを受け取る。TSchemaを汎用にしているのは、
+// 過去にBetter Authのテーブルも含めたschema付きインスタンスを渡していた名残であり、
+// 現在の唯一の呼び出し元はschema無しのdrizzle(env.DB)を渡す
 // 戻り値は取り消した申請(status: 'cancelled'に更新後のもの)。取り消す対象が無ければnull
 export async function cancelPendingAccountRequestIfAny<TSchema extends Record<string, unknown>>(
   db: DrizzleD1Database<TSchema>,

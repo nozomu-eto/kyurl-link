@@ -206,10 +206,25 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // 直前にpending状態の申請の存在を確認済みのため、ここでnullが返ることは無い
     const cancelled = await cancelPendingAccountRequestIfAny(db, userId)
 
-    return c.json(toAccountRequestResponse(cancelled!))
+    // 直前のpending確認からここまでの間に、ほぼ同時の別リクエストで既に取り消されている
+    // 可能性がある(確認と取り消しの間に競合状態がありうる)。その場合はnullが返るため、
+    // 「取り消せる申請が無い」ものとして404を返す(非nullの前提で応答を組み立てて
+    // 500エラーになっていたPR #20時点の不具合の修正)
+    if (!cancelled) {
+      return c.json(
+        {
+          error: {
+            code: 'NOT_FOUND',
+            message: '取り消せるアカウント削除の申請が見つかりません',
+          },
+        },
+        404,
+      )
+    }
+
+    return c.json(toAccountRequestResponse(cancelled))
   })
 
 export default app

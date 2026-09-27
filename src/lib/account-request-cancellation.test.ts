@@ -241,4 +241,22 @@ describe('POST /api/v1/account-requests/cancel(明示的な取り消し)', () =>
     })
     expect(await accountRequestResponse.json()).toMatchObject({ status: 'pending' })
   })
+
+  it('取り消しを連続で2回呼ぶと、2回目は404(取り消せる申請が無い)になる', async () => {
+    // ほぼ同時に2回押された場合、1回目でcancelPendingAccountRequestIfAnyがnullを返し、
+    // 非nullの前提で応答を組み立てて500エラーになっていた不具合(PR #20)の修正確認。
+    // 実際の競合(2つのリクエストが同時に実行される状況)そのものは再現しないが、
+    // 「1回目の成功後、対象が無くなった状態でもう一度呼ぶと404になる」という
+    // 最終的に保証したい挙動は連続呼び出しでも検証できる
+    const { sessionCookie } = await signUp()
+    await requestAccountDeletion(sessionCookie)
+
+    const firstResponse = await cancelAccountDeletion(sessionCookie)
+    expect(firstResponse.status).toBe(200)
+
+    const secondResponse = await cancelAccountDeletion(sessionCookie)
+    expect(secondResponse.status).toBe(404)
+    const body = await secondResponse.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('NOT_FOUND')
+  })
 })

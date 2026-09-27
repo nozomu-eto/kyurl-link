@@ -994,6 +994,52 @@ h1 {
   color: var(--color-status-suspended-text);
 }
 
+/* アカウント削除の猶予期間中に、ダッシュボード・アカウント設定の上部に表示する常設の案内
+   (docs/mocks/AccountSettings.html)。色は停止中の状態バッジと同じ系統のトークンを使う */
+.account-deletion-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-base);
+  background-color: var(--color-status-suspended-bg);
+  margin-bottom: var(--space-5);
+}
+
+.account-deletion-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* h2(スクリーンリーダーの「見出しで移動」で見つけられるようにするため)だが、
+   既定の余白・大きさは打ち消し、見た目はこれまでと変えない */
+.account-deletion-banner__heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-status-suspended-text);
+}
+
+.account-deletion-banner__text {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+/* スマホ(768px未満)では文章の下にボタンを横幅いっぱいで並べる */
+@media (max-width: 768px) {
+  .account-deletion-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-deletion-banner .button {
+    width: 100%;
+  }
+}
+
 /* 掲示物エディタ(フォーム+プレビューの横並び) */
 .editor-layout {
   display: flex;
