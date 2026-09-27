@@ -8,11 +8,13 @@
 export const URL_MAX_LENGTH = 2048
 
 // 掲示物(poster)のタイトルの文字数上限。
-// A6/A5の掲示物レイアウトに収まる見出しとして想定する長さ
-export const POSTER_TITLE_MAX_LENGTH = 60
+// docs/architecture.md 第6.7節「タイトル(必須、最大20文字。「12文字以内だと遠くからでも
+// 読みやすい」と案内)」(更新版11で60→20に変更)
+export const POSTER_TITLE_MAX_LENGTH = 20
 
-// 掲示物(poster)のサブタイトルの文字数上限
-export const POSTER_SUBTITLE_MAX_LENGTH = 120
+// 掲示物(poster)のサブタイトル(ひとことメッセージ)の文字数上限。
+// docs/architecture.md 第6.7節「ひとことメッセージ(任意、最大40文字)」(更新版11で120→40に変更)
+export const POSTER_SUBTITLE_MAX_LENGTH = 40
 
 // QRコードの管理用の名前の文字数上限(docs/architecture.md 第6.7節「管理用の名前:任意、
 // 最大40文字。QR画像には表示しない」)

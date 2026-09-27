@@ -3,7 +3,18 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, posters, qrcodes } from '@/db/schema'
-import { generatePosterHtml } from '@/lib/poster-template'
+import { computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { computePosterLinkStatus, type PosterLinkStatus } from '@/lib/poster-link-status'
+import {
+  generatePosterA4SheetHtml,
+  generatePosterFaceHtml,
+  generatePosterHtml,
+  getA4SheetMaxFaces,
+  POSTER_PDF_OPTIONS,
+  POSTER_PNG_DEVICE_SCALE_FACTOR,
+  POSTER_PNG_ELEMENT_SELECTOR,
+  POSTER_TEMPLATE_VERSION,
+} from '@/lib/poster-template'
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
@@ -19,12 +30,24 @@ import {
 const DEFAULT_LAYOUT_TEMPLATE = 'default'
 
 // DB上のposterレコード(styleOptionsはJSON文字列)を、レスポンス用スキーマの形
-// (styleOptionsをJSON.parseしたオブジェクト)に変換する
-function toPosterResponse(record: typeof posters.$inferSelect) {
+// (styleOptionsをJSON.parseしたオブジェクト・linkStatusを追加したもの)に変換する
+function toPosterResponse(record: typeof posters.$inferSelect, linkStatus: PosterLinkStatus) {
   return posterSchema.parse({
     ...record,
     styleOptions: record.styleOptions === null ? null : JSON.parse(record.styleOptions),
+    linkStatus,
   })
+}
+
+// 掲示物(poster)→QRコード(qrcodes)→短縮URL(links)をleftJoinでまとめて取得するクエリを
+// 組み立てる。一覧・詳細のどちらも、掲示物ごとに追加の問い合わせをせず1回のクエリで
+// linkStatus計算に必要な情報を取得するために共有する
+function selectPostersWithLinkFields(db: ReturnType<typeof drizzle>) {
+  return db
+    .select({ poster: posters, qrcode: qrcodes, link: links })
+    .from(posters)
+    .leftJoin(qrcodes, eq(posters.qrCodeId, qrcodes.id))
+    .leftJoin(links, eq(qrcodes.targetId, links.id))
 }
 
 // poster(掲示物)リソースのルート。links.ts/qrcodes.tsと同じパターンでメソッドチェーンで定義する。
@@ -40,14 +63,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
     // 他人のposterが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
     // ページングは未実装のため暫定的に固定値を返す
-    const items = await db
-      .select()
-      .from(posters)
-      .where(and(isNull(posters.deletedAt), eq(posters.userId, userId)))
+    const rows = await selectPostersWithLinkFields(db).where(and(isNull(posters.deletedAt), eq(posters.userId, userId)))
 
     const response = posterListResponseSchema.parse({
-      items: items.map((item) => toPosterResponse(item)),
-      total: items.length,
+      items: rows.map((row) => toPosterResponse(row.poster, computePosterLinkStatus(row.qrcode, row.link))),
+      total: rows.length,
       limit: 20,
       offset: 0,
     })
@@ -99,7 +119,8 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     // id・userId(所有者)・layoutTemplate・styleOptionsはサーバー側で決定して保存する
-    // (layoutTemplateは今回'default'固定、styleOptionsは作成時null固定)
+    // (layoutTemplateは今回'default'固定、styleOptionsは作成時null固定)。
+    // subtitleは省略時undefinedになるためnullへ変換する
     const [created] = await db
       .insert(posters)
       .values({
@@ -114,7 +135,10 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       })
       .returning()
 
-    return c.json(toPosterResponse(created), 201)
+    // linkStatus計算のため、作成したposterを対象にqrcode/linkを含めて再取得する
+    const [row] = await selectPostersWithLinkFields(db).where(eq(posters.id, created.id)).limit(1)
+
+    return c.json(toPosterResponse(created, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)), 201)
   })
   // 詳細取得
   .get('/:id', authMiddleware, async (c) => {
@@ -122,15 +146,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const id = c.req.param('id')
     const userId = c.get('user').id
 
-    const [record] = await db
-      .select()
-      .from(posters)
+    const [row] = await selectPostersWithLinkFields(db)
       .where(and(eq(posters.id, id), eq(posters.userId, userId)))
       .limit(1)
 
     // 見つからない、ソフトデリート済み、または他人のposterの場合は404。
     // 他人のリソースが存在すること自体を漏らさないため、区別しない
-    if (!record || record.deletedAt !== null) {
+    if (!row || row.poster.deletedAt !== null) {
       return c.json(
         {
           error: {
@@ -142,7 +164,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    return c.json(toPosterResponse(record))
+    return c.json(toPosterResponse(row.poster, computePosterLinkStatus(row.qrcode, row.link)))
   })
   // title/subtitle/styleOptionsのみ更新可能
   .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
@@ -204,7 +226,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .where(and(eq(posters.id, id), eq(posters.userId, userId)))
       .returning()
 
-    return c.json(toPosterResponse(updated))
+    const [row] = await selectPostersWithLinkFields(db).where(eq(posters.id, id)).limit(1)
+
+    return c.json(toPosterResponse(updated, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)))
   })
   // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
   .delete('/:id', authMiddleware, async (c) => {
@@ -283,6 +307,25 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
+    // 2.5 paperクエリパラメータ(a4/fit、初期値a4)を検証する。format=pngの場合はpaperを
+    // 無視する(検証もしない。3-3のqrcodesのsizeと同じ扱い)ため、format=pdfのときだけ検証する
+    let paper: 'a4' | 'fit' = 'a4'
+    if (format === 'pdf') {
+      const rawPaper = c.req.query('paper') ?? 'a4'
+      if (rawPaper !== 'a4' && rawPaper !== 'fit') {
+        return c.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'paperにはa4またはfitを指定してください',
+            },
+          },
+          400,
+        )
+      }
+      paper = rawPaper
+    }
+
     // 3. poster.qrCodeIdからqrcodeレコードを取得し、GET /api/v1/qrcodes/:id/imageと
     // 同様の方法で対象URLを解決してQRコードのSVGを生成する
     const [qrcode] = await db.select().from(qrcodes).where(eq(qrcodes.id, poster.qrCodeId)).limit(1)
@@ -330,20 +373,24 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // (swap: true)を含め、QRコードの見た目が食い違わないようにするため)
     const qrCodeSvg = renderQrcodeSvg(qrContent)
 
-    // 4. poster(title/subtitle/size/styleOptions)とQRコードのSVG内容からハッシュ値を計算し、
-    // R2オブジェクトキーを作る(内容が変われば別のキーになるキャッシュキー)
+    // 4. poster(title/subtitle/size/styleOptions)・QRコードのSVG内容・paper(pdfのみ)・
+    // テンプレートの版からハッシュ値を計算し、R2オブジェクトキーを作る
+    // (内容や書き出し設定が変われば別のキーになるキャッシュキー)
     const hashSource = JSON.stringify({
       title: poster.title,
       subtitle: poster.subtitle,
       size: poster.size,
       styleOptions: poster.styleOptions,
       qrCodeSvg,
+      paper: format === 'pdf' ? paper : undefined,
     })
-    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashSource))
-    const hash = Array.from(new Uint8Array(hashBuffer))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('')
-    const objectKey = `${poster.id}/${format}/${hash}`
+    const objectKey = await computePosterExportCacheKey({
+      posterId: poster.id,
+      format,
+      paper,
+      templateVersion: POSTER_TEMPLATE_VERSION,
+      hashSource,
+    })
     const contentType = format === 'pdf' ? 'application/pdf' : 'image/png'
 
     // 5. 認可チェック(手順1)が完了した後で、R2(POSTER_CACHE)に既存オブジェクトが無いか確認する。
@@ -353,16 +400,43 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       return c.body(cachedObject.body, 200, { 'Content-Type': contentType })
     }
 
-    // 6. キャッシュが無ければ、generatePosterHtmlでHTMLを生成し、Browser Rendering
-    // (@cloudflare/puppeteer)でページを開いてcontentをセットし、formatに応じてPDF/PNGを生成する
-    const html = generatePosterHtml({ title: poster.title, subtitle: poster.subtitle, size: poster.size }, qrCodeSvg)
+    // 6. キャッシュが無ければHTMLを生成し、Browser Rendering(@cloudflare/puppeteer)で
+    // ページを開いてcontentをセットし、formatに応じてPDF/PNGを生成する。
+    // format=pdf かつ paper=a4 の場合のみ、同じ掲示物をA4シートの全面に並べたHTMLにする
+    // (段階5の「まとめて印刷」では別々の掲示物を並べる呼び出し方に対応する)。
+    // それ以外(format=pdf かつ paper=fit、またはformat=pngの場合。PNGはpaperを無視して
+    // 常に掲示物1面分にする)は、掲示物サイズそのままの単体HTMLにする
+    const html =
+      format === 'pdf' && paper === 'a4'
+        ? generatePosterA4SheetHtml(poster.size, Array(getA4SheetMaxFaces(poster.size)).fill(generatePosterFaceHtml(poster, qrCodeSvg)))
+        : generatePosterHtml({ title: poster.title, subtitle: poster.subtitle, size: poster.size }, qrCodeSvg)
 
     const browser = await puppeteer.launch(c.env.BROWSER)
     let binary: Uint8Array<ArrayBuffer>
     try {
       const page = await browser.newPage()
+
+      if (format === 'png') {
+        // 既定のビューポート(800×600)のままだと掲示物の一部しか写らない不具合の修正。
+        // deviceScaleFactorでSNSに使える解像度にする(PDFは@pageのサイズがそのまま
+        // 用紙サイズになるため、ビューポートの変更は不要)
+        await page.setViewport({ width: 800, height: 600, deviceScaleFactor: POSTER_PNG_DEVICE_SCALE_FACTOR })
+      }
+
       await page.setContent(html)
-      const buffer = format === 'pdf' ? await page.pdf() : await page.screenshot({ type: 'png' })
+
+      let buffer: Uint8Array
+      if (format === 'pdf') {
+        buffer = await page.pdf(POSTER_PDF_OPTIONS)
+      } else {
+        // 画面全体ではなく、掲示物の要素だけを撮影する(PNGはpaperに関係なく掲示物1面分)
+        const posterElement = await page.$(POSTER_PNG_ELEMENT_SELECTOR)
+        if (!posterElement) {
+          throw new Error(`掲示物の要素(${POSTER_PNG_ELEMENT_SELECTOR})が見つかりませんでした`)
+        }
+        buffer = await posterElement.screenshot({ type: 'png' })
+      }
+
       // Buffer(Uint8Array<ArrayBufferLike>)をHonoのc.body()が受け付けるUint8Array<ArrayBuffer>に変換する
       binary = new Uint8Array(buffer)
     } finally {

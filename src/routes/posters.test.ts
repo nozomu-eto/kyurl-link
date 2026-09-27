@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-import { posters } from '@/db/schema'
+import { links, posters, qrcodes } from '@/db/schema'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
+import { countPdfPages, readPdfMediaBox } from '../../test/pdf-inspect'
+import { readPngDimensions } from '../../test/png-inspect'
 
 // サインアップし、authMiddlewareを通すためのセッションCookieを取得する。
 // requireVerifiedEmailミドルウェアを通すため、作成直後にemailVerifiedをtrueにしておく
@@ -48,15 +50,37 @@ async function createQrcode(sessionCookie: string) {
   return qrcodeSchema.parse(await response.json())
 }
 
+// linkStatusのテスト用に、認証済みlinkを1件作成する
+async function createLink(sessionCookie: string) {
+  const response = await SELF.fetch('https://example.com/api/v1/links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ originalUrl: 'https://example.com/poster-link-target' }),
+  })
+  expect(response.status).toBe(201)
+  return response.json<{ id: string }>()
+}
+
+// linkStatusのテスト用に、targetType: 'link'のqrcodeを1件作成する
+async function createLinkQrcode(sessionCookie: string, linkId: string) {
+  const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ targetType: 'link', targetId: linkId }),
+  })
+  expect(response.status).toBe(201)
+  return qrcodeSchema.parse(await response.json())
+}
+
 // 認証済みposterを1件作成する
-async function createPoster(sessionCookie: string, qrCodeId: string) {
+async function createPoster(sessionCookie: string, qrCodeId: string, size: 'A6' | 'A5' = 'A6') {
   const response = await SELF.fetch('https://example.com/api/v1/posters', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Cookie: sessionCookie,
     },
-    body: JSON.stringify({ title: 'テスト掲示物', size: 'A6', qrCodeId }),
+    body: JSON.stringify({ title: 'テスト掲示物', size, qrCodeId }),
   })
   expect(response.status).toBe(201)
   return posterSchema.parse(await response.json())
@@ -159,6 +183,199 @@ describe('POST /api/v1/posters', () => {
     expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({ subtitle })
   })
+
+  it('titleが空白のみの場合、前後の空白を除去した結果が空になるため400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: '   ', size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('subtitleに空文字(トリム後に空になる文字列を含む)を指定するとnullになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+
+    const response = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'テスト掲示物', subtitle: '   ', size: 'A6', qrCodeId: qrcode.id }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ subtitle: null })
+  })
+})
+
+describe('PATCH /api/v1/posters/:id のtitle/subtitle', () => {
+  it('titleを省略した場合は更新されない', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ subtitle: '更新後のサブタイトル' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ title: poster.title, subtitle: '更新後のサブタイトル' })
+  })
+
+  it('subtitleを省略した場合は更新されない', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const created = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'テスト掲示物', subtitle: '既存のサブタイトル', size: 'A6', qrCodeId: qrcode.id }),
+    })
+    const poster = posterSchema.parse(await created.json())
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: '更新後のタイトル' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ title: '更新後のタイトル', subtitle: '既存のサブタイトル' })
+  })
+
+  it('subtitleに空文字を指定するとnullになる(消せる)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const created = await SELF.fetch('https://example.com/api/v1/posters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ title: 'テスト掲示物', subtitle: '既存のサブタイトル', size: 'A6', qrCodeId: qrcode.id }),
+    })
+    const poster = posterSchema.parse(await created.json())
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ subtitle: '   ' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(await patchResponse.json()).toMatchObject({ subtitle: null })
+  })
+})
+
+describe('上限を超える既存データ', () => {
+  it('上限変更前に保存された長いtitle/subtitleを持つレコードも、GETでエラー無く読み出せる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const longTitle = 'あ'.repeat(POSTER_TITLE_MAX_LENGTH + 40)
+    const longSubtitle = 'い'.repeat(POSTER_SUBTITLE_MAX_LENGTH + 80)
+    const db = drizzle(env.DB)
+    await db.update(posters).set({ title: longTitle, subtitle: longSubtitle }).where(eq(posters.id, poster.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(getResponse.status).toBe(200)
+    expect(await getResponse.json()).toMatchObject({ title: longTitle, subtitle: longSubtitle })
+  })
+})
+
+describe('linkStatus', () => {
+  it('QRコードがtargetType: rawUrlの場合はnoneになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+    expect(poster.linkStatus).toBe('none')
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ linkStatus: 'none' })
+  })
+
+  it('対象linkが有効な場合はactiveになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+    expect(poster.linkStatus).toBe('active')
+  })
+
+  it('対象linkのexpiresAtが過去の場合はexpiredになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const db = drizzle(env.DB)
+    const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    await db.update(links).set({ expiresAt: pastDate }).where(eq(links.id, link.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ linkStatus: 'expired' })
+  })
+
+  it('対象linkのstatusがsuspendedの場合はsuspendedになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'suspended' }),
+    })
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ linkStatus: 'suspended' })
+  })
+
+  it('対象linkがソフトデリート済みの場合はdeletedになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const deleteResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(deleteResponse.status).toBe(204)
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ linkStatus: 'deleted' })
+  })
+
+  it('QRコードがソフトデリート済みの場合はdeletedになる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    // qrcodeを直接ソフトデリートする(通常のDELETE /api/v1/qrcodes/:idはposters.qrCodeIdの
+    // 外部キー制約(onDelete: 'restrict')の対象外。物理削除ではなくdeletedAtの更新のため)
+    const db = drizzle(env.DB)
+    await db.update(qrcodes).set({ deletedAt: new Date() }).where(eq(qrcodes.id, qrcode.id))
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ linkStatus: 'deleted' })
+  })
+
+  it('一覧(GET /api/v1/posters)でもlinkStatusが計算される', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    await createPoster(sessionCookie, qrcode.id)
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/posters', { headers: { Cookie: sessionCookie } })
+    const body = await listResponse.json<{ items: { linkStatus: string }[] }>()
+    expect(body.items.length).toBeGreaterThan(0)
+    for (const item of body.items) {
+      expect(item.linkStatus).toBe('none')
+    }
+  })
 })
 
 describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
@@ -256,6 +473,126 @@ describe('GET /api/v1/posters/:id/export', () => {
     // オブジェクト数が増えていない(=新規生成されずキャッシュがそのまま使われた)ことを確認する
     const listAfterSecond = await env.POSTER_CACHE.list({ prefix: `${poster.id}/pdf/` })
     expect(listAfterSecond.objects.length).toBe(1)
+  }, 30000)
+
+  it('paperに不正な値を指定すると400(VALIDATION_ERROR)になる(Browser Renderingを起動する前に検証するため、CI環境でも実行できる)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf&paper=b5`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json<{ error: { code: string } }>()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  // 1mm = 72/25.4pt。Chromeは単位変換の丸めで値がわずかにずれるため、±2pt(約0.7mm)の
+  // 誤差を許容する(段階3-4の作業指示に明記)
+  const MM_TO_PT = 72 / 25.4
+  const MEDIA_BOX_TOLERANCE_PT = 2
+
+  function expectMediaBoxSizeMm(mediaBox: [number, number, number, number], widthMm: number, heightMm: number) {
+    const [x0, y0, x1, y1] = mediaBox
+    expect(x1 - x0).toBeGreaterThanOrEqual(widthMm * MM_TO_PT - MEDIA_BOX_TOLERANCE_PT)
+    expect(x1 - x0).toBeLessThanOrEqual(widthMm * MM_TO_PT + MEDIA_BOX_TOLERANCE_PT)
+    expect(y1 - y0).toBeGreaterThanOrEqual(heightMm * MM_TO_PT - MEDIA_BOX_TOLERANCE_PT)
+    expect(y1 - y0).toBeLessThanOrEqual(heightMm * MM_TO_PT + MEDIA_BOX_TOLERANCE_PT)
+  }
+
+  // 以降は実際にBrowser Renderingを起動してPDF/PNGを検証する(既存のR2キャッシュテストと同じ理由でCIではスキップする)
+  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)('paper=a4(A6)は1ページのA4縦(210×297mm)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A6')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf&paper=a4`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    const pdf = new Uint8Array(await response.arrayBuffer())
+    expect(countPdfPages(pdf)).toBe(1)
+    expectMediaBoxSizeMm(readPdfMediaBox(pdf), 210, 297)
+  }, 30000)
+
+  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)('paper=a4(A5)は1ページのA4横向き(297×210mm)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A5')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf&paper=a4`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    const pdf = new Uint8Array(await response.arrayBuffer())
+    expect(countPdfPages(pdf)).toBe(1)
+    expectMediaBoxSizeMm(readPdfMediaBox(pdf), 297, 210)
+  }, 30000)
+
+  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)('paper=fit(A6)は1ページのA6(105×148mm)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A6')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf&paper=fit`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    const pdf = new Uint8Array(await response.arrayBuffer())
+    expect(countPdfPages(pdf)).toBe(1)
+    expectMediaBoxSizeMm(readPdfMediaBox(pdf), 105, 148)
+  }, 30000)
+
+  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)('paper=fit(A5)は1ページのA5(148×210mm)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A5')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=pdf&paper=fit`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    const pdf = new Uint8Array(await response.arrayBuffer())
+    expect(countPdfPages(pdf)).toBe(1)
+    expectMediaBoxSizeMm(readPdfMediaBox(pdf), 148, 210)
+  }, 30000)
+
+  it.skipIf(process.env.CI_SKIP_BROWSER_TEST)('format=pngの場合、paperが不正な値でも無視され200になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=png&paper=not-a-real-value`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+  }, 30000)
+
+  it.each([
+    ['A6', 105, 148],
+    ['A5', 148, 210],
+  ] as const)('PNGの縦横比が掲示物サイズ(%s)の縦横比と一致する', async (size, widthMm, heightMm) => {
+    if (process.env.CI_SKIP_BROWSER_TEST) {
+      return
+    }
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, size)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export?format=png`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(response.status).toBe(200)
+    const png = new Uint8Array(await response.arrayBuffer())
+    const { width, height } = readPngDimensions(png)
+
+    // 撮影対象(.poster要素)自体の縦横比が掲示物サイズの縦横比と一致することを確認する
+    // (ぴったり同じ値にはならない可能性があるため、比率の差を許容する)
+    const expectedRatio = widthMm / heightMm
+    const actualRatio = width / height
+    expect(Math.abs(actualRatio - expectedRatio)).toBeLessThan(0.02)
   }, 30000)
 })
 
