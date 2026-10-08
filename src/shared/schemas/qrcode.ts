@@ -2,19 +2,6 @@ import { z } from 'zod'
 import { QRCODE_NAME_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { httpUrlSchema } from '@/shared/schemas/url'
 
-// QRコードは白黒固定(読み取りやすさを優先)にする方針(docs/architecture.md 第6.7節
-// 「QRコード:白黒(黒の模様・白の背景)のみ。色の変更機能は提供しない」)に伴い、
-// 入力側のstyleOptionsは実質空オブジェクトのみを許可する(以前のforegroundColor/backgroundColorを
-// 含むキーを送ると400にする)。将来的なカスタマイズ再導入の余地を残すため、キー自体は
-// z.strictObject({})のまま(空オブジェクト)にしておく
-const qrcodeStyleOptionsInputSchema = z.strictObject({})
-
-// レスポンス用のstyleOptions。styleOptionsInputSchema導入前に保存された既存レコードには
-// foregroundColor/backgroundColor等のキーが残っている可能性があり、それらをGETで取得した際に
-// パースエラーにしないため、入力用より緩いスキーマ(任意のキーを許容)を使う。
-// DB上のデータそのものは書き換えない(このスキーマは表示のためだけに使う)
-const qrcodeStyleOptionsResponseSchema = z.looseObject({})
-
 // QRコードの管理用の名前。任意、最大40文字、前後の空白を除去し、空文字(トリム後に
 // 空になった場合を含む)はnullとして扱う(docs/architecture.md 第6.7節「管理用の名前:任意、
 // 最大40文字。QR画像には表示しない」)。
@@ -40,8 +27,6 @@ const qrcodeNameSchema = z
   })
 
 // QRコードリソース1件分のレスポンス用スキーマ。
-// styleOptionsはDB上はJSON文字列で保存するが、レスポンスではJSON.parseしたオブジェクトとして
-// 返す運用のため、ここではオブジェクト形状(またはnull)で定義する
 export const qrcodeSchema = z.object({
   // qrcodeリソースの一意なID
   id: z.string(),
@@ -53,16 +38,13 @@ export const qrcodeSchema = z.object({
   targetUrl: z.string().nullable(),
   // 管理用の名前。未設定の場合はnull
   name: z.string().nullable(),
-  // QRコードのスタイル設定。未設定の場合はnull
-  styleOptions: qrcodeStyleOptionsResponseSchema.nullable(),
 })
 
 // qrcode作成APIの入力用スキーマ。
 // qrcodeSchemaはレスポンス(DB保存結果)の形を表すのに対し、こちらはリクエストボディの検証に使う。
 // targetTypeの値によって必須フィールドが変わるため、discriminatedUnionで
 // 'link'ならtargetId必須・'rawUrl'ならtargetUrl必須を表現する。
-// id/styleOptionsは入力に含めない(idはサーバー生成、styleOptionsは作成時null固定で
-// 更新はqrcodeUpdateInputSchema経由でのみ可能)。nameは任意で両方の分岐に共通して指定できる
+// idは入力に含めない(サーバー生成)。nameは任意で両方の分岐に共通して指定できる
 export const qrcodeCreateInputSchema = z.discriminatedUnion('targetType', [
   z.object({
     targetType: z.literal('link'),
@@ -80,12 +62,12 @@ export const qrcodeCreateInputSchema = z.discriminatedUnion('targetType', [
 ])
 
 // qrcode更新APIの入力用スキーマ。
-// 作成後に変更できるのはname・styleOptionsのみ(targetType/targetId/targetUrlは作成後不変のため含めない)
+// 作成後に変更できるのはnameのみ(targetType/targetId/targetUrlは作成後不変のため含めない)。
+// 古いクライアントがstyleOptions等の未知のキーを送ってきても、zObjectの既定動作で
+// 取り除かれて無視される(400にしない)
 export const qrcodeUpdateInputSchema = z.object({
   // 管理用の名前。省略時は更新しない
   name: qrcodeNameSchema,
-  // QRコードのスタイル設定。省略時は更新しない
-  styleOptions: qrcodeStyleOptionsInputSchema.optional(),
 })
 
 // qrcodeの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)。

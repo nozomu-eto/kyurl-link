@@ -16,13 +16,9 @@ import {
   qrcodeUpdateInputSchema,
 } from '@/shared/schemas/qrcode'
 
-// DB上のqrcodeレコード(styleOptionsはJSON文字列)を、レスポンス用スキーマの形
-// (styleOptionsをJSON.parseしたオブジェクト)に変換する
+// DB上のqrcodeレコードを、レスポンス用スキーマの形(不要なカラムを除いたもの)に変換する
 function toQrcodeResponse(record: typeof qrcodes.$inferSelect) {
-  return qrcodeSchema.parse({
-    ...record,
-    styleOptions: record.styleOptions === null ? null : JSON.parse(record.styleOptions),
-  })
+  return qrcodeSchema.parse(record)
 }
 
 // qrcode(QRコード)リソースのルート。links.tsと同じパターンでメソッドチェーンで定義する。
@@ -84,7 +80,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       }
     }
 
-    // id・userId(所有者)・styleOptionsはサーバー側で決定して保存する(styleOptionsは作成時はnull固定)。
+    // id・userId(所有者)はサーバー側で決定して保存する。
     // nameは任意入力のため、省略時(undefined)はnullとして保存する
     const [created] = await db
       .insert(qrcodes)
@@ -95,7 +91,6 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
         targetId: input.targetType === 'link' ? input.targetId : null,
         targetUrl: input.targetType === 'rawUrl' ? input.targetUrl : null,
         name: input.name ?? null,
-        styleOptions: null,
       })
       .returning()
 
@@ -129,7 +124,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(toQrcodeResponse(record))
   })
-  // name・styleOptionsのみ更新可能
+  // nameのみ更新可能
   .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(qrcodeUpdateInputSchema), async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
@@ -158,13 +153,16 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // リクエストで指定されたフィールドのみを更新対象にする。DB保存時はJSON文字列化する
+    // リクエストで指定されたフィールドのみを更新対象にする
     const updateValues: Partial<typeof qrcodes.$inferInsert> = {}
     if (input.name !== undefined) {
       updateValues.name = input.name
     }
-    if (input.styleOptions !== undefined) {
-      updateValues.styleOptions = JSON.stringify(input.styleOptions)
+
+    // 更新対象が1つもない場合(空ボディや、無視される古いキーのみの場合)は、
+    // UPDATE文が不正になるためDBを更新せず現在の内容をそのまま返す
+    if (Object.keys(updateValues).length === 0) {
+      return c.json(toQrcodeResponse(existing))
     }
 
     const [updated] = await db

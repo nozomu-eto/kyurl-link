@@ -1,0 +1,1 @@
+ALTER TABLE `qrcodes` DROP COLUMN `style_options`;

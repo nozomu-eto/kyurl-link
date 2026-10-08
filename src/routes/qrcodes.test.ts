@@ -83,7 +83,6 @@ describe('POST /api/v1/qrcodes', () => {
       targetType: 'link',
       targetId: link.id,
       targetUrl: null,
-      styleOptions: null,
     })
   })
 
@@ -127,7 +126,6 @@ describe('POST /api/v1/qrcodes', () => {
       targetType: 'rawUrl',
       targetId: null,
       targetUrl: 'https://example.com/raw',
-      styleOptions: null,
     })
   })
 
@@ -331,9 +329,26 @@ describe('GET /api/v1/qrcodes/:id/image', () => {
 })
 
 describe('qrcode PATCH・DELETE', () => {
-  it('PATCH /api/v1/qrcodes/:idでstyleOptions(空オブジェクト)を指定すると200になる', async () => {
-    // QRコードは白黒固定になったため、styleOptionsは実質空オブジェクトのみ許可される
-    // (色のキーは下のテストの通り400になる)
+  it('PATCH /api/v1/qrcodes/:idは、古いクライアントが送るstyleOptionsを無視して200を返す', async () => {
+    // styleOptionsは廃止済み。色のキーを含んでいても400にせず、nameだけが更新されることを確認する
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({ name: '更新後', styleOptions: { foregroundColor: '#000000' } }),
+    })
+    expect(patchResponse.status).toBe(200)
+    const body = await patchResponse.json()
+    expect(body).toMatchObject({ id: qrcode.id, name: '更新後' })
+    expect(body).not.toHaveProperty('styleOptions')
+  })
+
+  it('PATCH /api/v1/qrcodes/:idは、styleOptionsのみ送られた場合も更新せず200を返す', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createRawUrlQrcode(sessionCookie)
 
@@ -346,33 +361,10 @@ describe('qrcode PATCH・DELETE', () => {
       body: JSON.stringify({ styleOptions: {} }),
     })
     expect(patchResponse.status).toBe(200)
-    expect(await patchResponse.json()).toMatchObject({
-      id: qrcode.id,
-      styleOptions: {},
-    })
+    const body = await patchResponse.json()
+    expect(body).toMatchObject({ id: qrcode.id })
+    expect(body).not.toHaveProperty('styleOptions')
   })
-
-  it.each([{ foregroundColor: '#000000' }, { backgroundColor: '#ffffff' }, { color: '#000000' }])(
-    'PATCH /api/v1/qrcodes/:idでstyleOptionsに色のキー等(%o)を指定すると400(VALIDATION_ERROR)になる',
-    async (styleOptions) => {
-      // QRコードは読み取りやすさを優先し白地に黒で出力する方針になったため、色のキーを
-      // 送ると(foregroundColor/backgroundColorを含め)拒否されることを確認する
-      const sessionCookie = await signUpAndGetSessionCookie()
-      const qrcode = await createRawUrlQrcode(sessionCookie)
-
-      const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: sessionCookie,
-        },
-        body: JSON.stringify({ styleOptions }),
-      })
-      expect(patchResponse.status).toBe(400)
-      const body = await patchResponse.json<{ error: { code: string } }>()
-      expect(body.error.code).toBe('VALIDATION_ERROR')
-    },
-  )
 
   it('PATCH /api/v1/qrcodes/:idでnameを変更すると反映され、前後の空白は除去される', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
@@ -422,27 +414,6 @@ describe('qrcode PATCH・DELETE', () => {
     expect(patchResponse.status).toBe(400)
     const body = await patchResponse.json<{ error: { code: string } }>()
     expect(body.error.code).toBe('VALIDATION_ERROR')
-  })
-
-  it('GET /api/v1/qrcodes/:idは、既存データ相当(styleOptionsに色のキーを含むレコード)を取得してもエラーにならない', async () => {
-    // styleOptionsの検証を厳しくする前に保存された既存レコードを想定し、D1へ直接
-    // foregroundColor/backgroundColorを含むJSON文字列を書き込む(公開前修正v2 T6と同様の手法)
-    const sessionCookie = await signUpAndGetSessionCookie()
-    const qrcode = await createRawUrlQrcode(sessionCookie)
-
-    const db = drizzle(env.DB)
-    await db
-      .update(qrcodes)
-      .set({ styleOptions: JSON.stringify({ foregroundColor: '#123456', backgroundColor: '#abcdef' }) })
-      .where(eq(qrcodes.id, qrcode.id))
-
-    const getResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
-      headers: { Cookie: sessionCookie },
-    })
-    expect(getResponse.status).toBe(200)
-    expect(await getResponse.json()).toMatchObject({
-      styleOptions: { foregroundColor: '#123456', backgroundColor: '#abcdef' },
-    })
   })
 
   it('DELETE /api/v1/qrcodes/:id実行後、GET /api/v1/qrcodes/:idは404になる', async () => {
