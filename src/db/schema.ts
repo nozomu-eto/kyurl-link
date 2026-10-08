@@ -82,9 +82,6 @@ export const qrcodes = sqliteTable('qrcodes', {
   // 管理用の名前(任意、最大40文字)。QR画像には表示せず、一覧等の管理画面上でのみ使う
   // (docs/architecture.md 第6.7節「管理用の名前:任意、最大40文字。QR画像には表示しない」)
   name: text('name'),
-  // QRコードのスタイル設定をJSON文字列として保持する。今回は保存のみで画像生成には未使用、
-  // 将来のカスタマイズ機能用の受け皿
-  styleOptions: text('style_options'),
   // レコード作成日時。D1(SQLite)側でunixepoch()により自動設定する
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -154,7 +151,7 @@ export const posters = sqliteTable('posters', {
   subtitle: text('subtitle'),
   // レイアウトテンプレートの識別子。今回は固定値'default'のみ扱う
   layoutTemplate: text('layout_template').notNull(),
-  // 掲示物のスタイル設定をJSON文字列として保持する(qrcodes.styleOptionsと同じ扱い)
+  // 掲示物のスタイル設定をJSON文字列として保持する
   styleOptions: text('style_options'),
   // 掲示物のサイズ(A6縦・A5縦)
   size: text('size', { enum: ['A6', 'A5'] }).notNull(),

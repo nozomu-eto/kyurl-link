@@ -308,7 +308,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | DELETE | `/qrcodes/:id` | ✓ | ソフトデリート |
 | GET | `/qrcodes/:id/image` | 不要 | PNG/SVG画像。クエリ`format`(`png` / `svg`、初期値`svg`。既存の`<img src>`表示を変えないため)と`size`(`512` / `1024` / `2048`、PNGのみ、初期値1024)を追加 |
 
-`POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を追加する。色の指定は受け付けない(黒・白固定)。PR #4で`styleOptions`に仮置きされた`foregroundColor` / `backgroundColor`は廃止する(掲示物の`styleOptions`の同名の仮置き項目も同様)(更新版11で追記)。
+`POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を追加する。色の指定は受け付けない(黒・白固定)。PR #4で`styleOptions`に仮置きされた`foregroundColor` / `backgroundColor`は廃止する(掲示物の`styleOptions`の同名の仮置き項目も同様)(更新版11で追記)。その後、QRコードの`styleOptions`自体(APIの入出力とqrcodesテーブルの`style_options`列)も削除した(POR-124)。古いクライアントが`styleOptions`を送っても無視する(400にしない)。
 
 **掲示物** `/api/v1/posters`
 
