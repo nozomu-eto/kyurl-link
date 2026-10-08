@@ -6,6 +6,7 @@ import { buildRequestReceivedEmail } from '@/lib/account-deletion-emails'
 import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
 import { auth } from '@/lib/auth'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
+import { jsonValidator } from '@/middleware/json-validator'
 import { accountRequestCreateInputSchema, accountRequestSchema } from '@/shared/schemas/account-request'
 
 // 猶予期間(docs/architecture.md 第7.1節「猶予期間は7日間」)
@@ -56,28 +57,15 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(toAccountRequestResponse(latestRequest))
   })
   // 削除申請
-  .post('/', authMiddleware, async (c) => {
-    const body = await c.req.json().catch(() => null)
-    const parsed = accountRequestCreateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+  .post('/', authMiddleware, jsonValidator(accountRequestCreateInputSchema), async (c) => {
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     // 誤操作防止のため、パスワード再入力で本人確認を行う(docs/architecture.md 第7.1節)。
     // verifyPasswordは検証に失敗すると例外を投げるため、401として扱う
     try {
       await auth(c.env).api.verifyPassword({
-        body: { password: parsed.data.password },
+        body: { password: input.password },
         headers: c.req.raw.headers,
       })
     } catch {

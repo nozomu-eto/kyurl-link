@@ -6,6 +6,7 @@ import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
+import { jsonValidator } from '@/middleware/json-validator'
 import { resolveQrcodeContent } from '@/lib/qrcode-content'
 import { QRCODE_IMAGE_SIZE_OPTIONS, type QrcodeImageSize, renderQrcodePng, renderQrcodeSvg } from '@/lib/qrcode-image'
 import {
@@ -52,23 +53,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
-    // リクエストボディをJSONとして読み取り、qrcodeCreateInputSchemaで検証する
-    const body = await c.req.json().catch(() => null)
-    const parsed = qrcodeCreateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), jsonValidator(qrcodeCreateInputSchema), async (c) => {
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     const db = drizzle(c.env.DB)
     const userId = c.get('user').id
@@ -76,11 +63,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // targetType='link'の場合、指定されたtargetIdが実在し、ソフトデリートされておらず、
     // かつログインユーザー自身のlinkであることを確認する。
     // userIdの条件を付けないと、他人のlinkにも自由にQRコードを紐付けられてしまうため必須
-    if (parsed.data.targetType === 'link') {
+    if (input.targetType === 'link') {
       const [targetLink] = await db
         .select({ id: links.id })
         .from(links)
-        .where(and(eq(links.id, parsed.data.targetId), isNull(links.deletedAt), eq(links.userId, userId)))
+        .where(and(eq(links.id, input.targetId), isNull(links.deletedAt), eq(links.userId, userId)))
         .limit(1)
 
       if (!targetLink) {
@@ -104,10 +91,10 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .values({
         id: crypto.randomUUID(),
         userId,
-        targetType: parsed.data.targetType,
-        targetId: parsed.data.targetType === 'link' ? parsed.data.targetId : null,
-        targetUrl: parsed.data.targetType === 'rawUrl' ? parsed.data.targetUrl : null,
-        name: parsed.data.name ?? null,
+        targetType: input.targetType,
+        targetId: input.targetType === 'link' ? input.targetId : null,
+        targetUrl: input.targetType === 'rawUrl' ? input.targetUrl : null,
+        name: input.name ?? null,
         styleOptions: null,
       })
       .returning()
@@ -143,25 +130,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(toQrcodeResponse(record))
   })
   // name・styleOptionsのみ更新可能
-  .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
+  .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(qrcodeUpdateInputSchema), async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
 
-    const body = await c.req.json().catch(() => null)
-    const parsed = qrcodeUpdateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     const db = drizzle(c.env.DB)
 
@@ -186,11 +160,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // リクエストで指定されたフィールドのみを更新対象にする。DB保存時はJSON文字列化する
     const updateValues: Partial<typeof qrcodes.$inferInsert> = {}
-    if (parsed.data.name !== undefined) {
-      updateValues.name = parsed.data.name
+    if (input.name !== undefined) {
+      updateValues.name = input.name
     }
-    if (parsed.data.styleOptions !== undefined) {
-      updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
+    if (input.styleOptions !== undefined) {
+      updateValues.styleOptions = JSON.stringify(input.styleOptions)
     }
 
     const [updated] = await db

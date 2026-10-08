@@ -2,7 +2,7 @@
 import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { apiClient } from '@/frontend/lib/api-client'
 import { Button } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { FormField } from '@/frontend/components/form-field'
@@ -45,7 +45,7 @@ export function QrCodeEditorPage() {
     setSuccessMessage(null)
     setIsSaving(true)
 
-    const response = await apiClient.api.v1.qrcodes[':id'].$patch(bypassPatchInputTypeCheck({ param: { id: qrcode.id }, json: { name } }))
+    const response = await apiClient.api.v1.qrcodes[':id'].$patch({ param: { id: qrcode.id }, json: { name } })
 
     setIsSaving(false)
 

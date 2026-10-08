@@ -10,6 +10,7 @@ import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
+import { jsonValidator } from '@/middleware/json-validator'
 import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateInputSchema } from '@/shared/schemas/link'
 
 // DB上のlinkレコード(lastScannedAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -55,28 +56,14 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
-    // リクエストボディをJSONとして読み取り、linkCreateInputSchemaで検証する
-    const body = await c.req.json().catch(() => null)
-    const parsed = linkCreateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), jsonValidator(linkCreateInputSchema), async (c) => {
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     // expiresAtが現在時刻以前(過去または現在と同時刻)の場合は、作成した瞬間に無効な
     // linkが生まれてしまうため拒否する。形式検証(zodのz.iso.datetime)だけでは
     // 「過去日時かどうか」までは判定できないため、ここで別途チェックする
-    if (parsed.data.expiresAt != null && new Date(parsed.data.expiresAt).getTime() <= Date.now()) {
+    if (input.expiresAt != null && new Date(input.expiresAt).getTime() <= Date.now()) {
       return c.json(
         {
           error: {
@@ -118,7 +105,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 悪意あるURL検知(docs/architecture.md 第4節「作成時のヒューリスティック+URLhaus照合」)。
     // POST /links全体が長時間ブロックされないよう、checkUrlAgainstUrlhaus側で短いタイムアウトを
     // 設けている(URLhaus照会が失敗・タイムアウトした場合はfail-open、securityStatus: 'unscanned')
-    const securityStatus = await determineLinkSecurityStatus(parsed.data.originalUrl, c.env.URLHAUS_API_KEY)
+    const securityStatus = await determineLinkSecurityStatus(input.originalUrl, c.env.URLHAUS_API_KEY)
 
     // id・status・shortCode・userId(所有者)・securityStatus・lastScannedAtはサーバー側で決定して保存する
     const [created] = await db
@@ -126,10 +113,10 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .values({
         id: crypto.randomUUID(),
         userId: c.get('user').id,
-        originalUrl: parsed.data.originalUrl,
+        originalUrl: input.originalUrl,
         shortCode,
         status: 'active',
-        expiresAt: parsed.data.expiresAt ?? null,
+        expiresAt: input.expiresAt ?? null,
         securityStatus,
         lastScannedAt: new Date(),
       })
@@ -171,28 +158,15 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // status・expiresAtのみ更新可能
-  .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
+  .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(linkUpdateInputSchema), async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
 
-    const body = await c.req.json().catch(() => null)
-    const parsed = linkUpdateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     // 作成時と同様、expiresAtが現在時刻以前の場合は拒否する(nullは無期限への変更を意味するため対象外)
-    if (parsed.data.expiresAt != null && new Date(parsed.data.expiresAt).getTime() <= Date.now()) {
+    if (input.expiresAt != null && new Date(input.expiresAt).getTime() <= Date.now()) {
       return c.json(
         {
           error: {
@@ -228,7 +202,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 運営により強制停止(moderationStatus: 'suspended')されている間は、所有者がstatusを
     // 変更してactiveに戻す(停止を解除する)ことを拒否する。expiresAtの変更は禁止しない
     // (moderationStatusとは独立した項目のため)
-    if (existing.moderationStatus === 'suspended' && parsed.data.status !== undefined) {
+    if (existing.moderationStatus === 'suspended' && input.status !== undefined) {
       return c.json(
         {
           error: {
@@ -242,11 +216,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // リクエストで指定されたフィールドのみを更新対象にする
     const updateValues: Partial<typeof links.$inferInsert> = {}
-    if (parsed.data.status !== undefined) {
-      updateValues.status = parsed.data.status
+    if (input.status !== undefined) {
+      updateValues.status = input.status
     }
-    if (parsed.data.expiresAt !== undefined) {
-      updateValues.expiresAt = parsed.data.expiresAt
+    if (input.expiresAt !== undefined) {
+      updateValues.expiresAt = input.expiresAt
     }
 
     // 期限切れの自動復帰(docs/architecture.md 第6.7節「期限切れの後でも、延長または無期限に
@@ -256,8 +230,8 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // リクエストでstatusが明示的に指定されている場合(例: suspendedへの変更)は、この自動復帰を
     // 発動させず指定された値をそのまま使う(上のif文で既にupdateValues.statusへ設定済みのため、
     // ここでは何もしない)
-    if (existing.status === 'expired' && parsed.data.status === undefined) {
-      const nextExpiresAt = parsed.data.expiresAt !== undefined ? parsed.data.expiresAt : existing.expiresAt
+    if (existing.status === 'expired' && input.status === undefined) {
+      const nextExpiresAt = input.expiresAt !== undefined ? input.expiresAt : existing.expiresAt
       const isStillInTheFuture = nextExpiresAt === null || new Date(nextExpiresAt).getTime() > Date.now()
       if (isStillInTheFuture) {
         updateValues.status = 'active'
