@@ -1,9 +1,7 @@
 /** @jsxImportSource react */
 import { type FormEvent, useState } from 'react'
-import { Link } from 'react-router'
-import { AlertMessage } from '@/frontend/components/alert-message'
 import { authClient } from '@/frontend/lib/auth-client'
-import { Button } from '@/frontend/components/button'
+import { Button, ButtonLink } from '@/frontend/components/button'
 import { FormCard } from '@/frontend/components/card'
 import { FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
@@ -11,7 +9,8 @@ import { Page } from '@/frontend/components/page'
 // ResetPasswordRequestPage: パスワードリセットの申請画面(メールアドレスを入力するだけ)。
 // 送信後は、そのメールアドレスが登録済みかどうかに関わらず同じ文言を表示する
 // (登録済みメールアドレスの有無を外部に漏らさないため。Better Auth自体もこの方針で
-// 常に同じレスポンスを返す設計になっている)
+// 常に同じレスポンスを返す設計になっている)。申請後の表示は
+// docs/mocks/AuthResetSent.htmlに合わせる(段階4-2)
 export function ResetPasswordRequestPage() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -32,10 +31,25 @@ export function ResetPasswordRequestPage() {
   if (isSubmitted) {
     return (
       <Page contained title="パスワード再設定のご案内">
-        <AlertMessage tone="success">
-          入力いただいたメールアドレスが登録されている場合、パスワード再設定用のメールをお送りしました。メールをご確認ください。
-        </AlertMessage>
-        <Link to="/login">ログイン画面へ戻る</Link>
+        <p>入力されたメールアドレスが登録されている場合、パスワード再設定用のリンクをお送りしました。</p>
+        <p className="field__hint">
+          リンクの有効期限は1時間です。一度使うと無効になります。
+          <br />
+          届かない場合は、迷惑メールフォルダもご確認ください。
+        </p>
+        <ButtonLink to="/login">ログイン画面へ戻る</ButtonLink>
+        <p>
+          {/* 入力画面に戻し、入力欄を空にする(段階4-2) */}
+          <Button
+            variant="text"
+            onClick={() => {
+              setIsSubmitted(false)
+              setEmail('')
+            }}
+          >
+            別のメールアドレスで試す
+          </Button>
+        </p>
       </Page>
     )
   }

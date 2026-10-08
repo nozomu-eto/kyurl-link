@@ -8,6 +8,7 @@ import { Button } from '@/frontend/components/button'
 import { FormCard } from '@/frontend/components/card'
 import { CheckboxField, FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
+import { recordVerificationEmailSentAt } from '@/frontend/lib/verify-email-resend-timer'
 
 const AGREE_NOTE_ID = 'signup-agree-note'
 
@@ -41,7 +42,7 @@ export function SignupPage() {
     setErrorMessage(null)
     setIsSubmitting(true)
 
-    const { error } = await authClient.signUp.email({
+    const { data, error } = await authClient.signUp.email({
       name,
       email,
       password,
@@ -69,6 +70,13 @@ export function SignupPage() {
       turnstileRef.current?.reset()
       setTurnstileToken(null)
       return
+    }
+
+    // 新規登録の時点でauth.ts(emailVerification.sendOnSignUp: true)により確認メールが
+    // 既に送信されているため、メール確認待ち画面の再送ボタンの60秒待ち時間の起点として
+    // ここで記録しておく(記録しないと、画面遷移直後に押しても黙って送られない状態になる)
+    if (data) {
+      recordVerificationEmailSentAt(data.user.id)
     }
 
     await navigate('/verify-email')
