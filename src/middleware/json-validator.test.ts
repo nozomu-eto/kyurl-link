@@ -33,4 +33,15 @@ describe('jsonValidator', () => {
       error: { code: 'VALIDATION_ERROR', message: 'リクエストボディが不正です', details: z.flattenError(schema.safeParse(null).error!) },
     })
   })
+
+  it('JSONとして正しいボディでもContent-Typeがjsonでなければ、VALIDATION_ERRORの400を返す', async () => {
+    // text/plainはプリフライト無しで他サイトから送れるため、受理せず拒否する
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ name: 'a' }),
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } })
+  })
 })
