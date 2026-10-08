@@ -2,7 +2,7 @@
 import { type ChangeEvent, useState } from 'react'
 import { Link, type LoaderFunctionArgs, useLoaderData, useNavigate, useRevalidator } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { apiClient } from '@/frontend/lib/api-client'
 import { Button } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { SelectField } from '@/frontend/components/form-field'
@@ -59,9 +59,7 @@ export function LinkDetailPage() {
     setErrorMessage(null)
     setIsUpdatingStatus(true)
 
-    const response = await apiClient.api.v1.links[':id'].$patch(
-      bypassPatchInputTypeCheck({ param: { id: link.id }, json: { status: nextStatus } }),
-    )
+    const response = await apiClient.api.v1.links[':id'].$patch({ param: { id: link.id }, json: { status: nextStatus } })
 
     setIsUpdatingStatus(false)
 

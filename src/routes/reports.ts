@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { links, reports } from '@/db/schema'
 import { verifyTurnstileToken } from '@/lib/turnstile'
 import { reportRateLimitMiddleware } from '@/middleware/rate-limit'
+import { jsonValidator } from '@/middleware/json-validator'
 import { reportCreateInputSchema, reportSchema } from '@/shared/schemas/report'
 
 // DB上のreportレコード(createdAtはDateオブジェクト)を、レスポンス用スキーマの形
@@ -21,28 +22,14 @@ function toReportResponse(record: typeof reports.$inferSelect) {
 const app = new Hono<{ Bindings: CloudflareBindings }>()
   .basePath('/reports')
   // 通報受付
-  .post('/', reportRateLimitMiddleware, async (c) => {
-    // リクエストボディをJSONとして読み取り、reportCreateInputSchemaで検証する
-    const body = await c.req.json().catch(() => null)
-    const parsed = reportCreateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+  .post('/', reportRateLimitMiddleware, jsonValidator(reportCreateInputSchema), async (c) => {
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     // bot対策(docs/architecture.md参照)。未ログインで利用できるエンドポイントのため、
     // Turnstileのトークンをsiteverify APIで検証し、失敗した場合は400を返す
     const clientIp = c.req.header('cf-connecting-ip') ?? undefined
-    const isTurnstileValid = await verifyTurnstileToken(parsed.data.turnstileToken, c.env.TURNSTILE_SECRET_KEY, clientIp)
+    const isTurnstileValid = await verifyTurnstileToken(input.turnstileToken, c.env.TURNSTILE_SECRET_KEY, clientIp)
     if (!isTurnstileValid) {
       return c.json(
         {
@@ -59,7 +46,7 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
 
     // 通報者は内部IDを知らないため、まずshortCodeから対象linkを検索する。
     // ソフトデリート済みの壊れたリンクへの通報もありうるため、deletedAtのチェックは行わない
-    const [targetLink] = await db.select({ id: links.id }).from(links).where(eq(links.shortCode, parsed.data.shortCode)).limit(1)
+    const [targetLink] = await db.select({ id: links.id }).from(links).where(eq(links.shortCode, input.shortCode)).limit(1)
 
     if (!targetLink) {
       return c.json(
@@ -79,7 +66,7 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
       .values({
         id: crypto.randomUUID(),
         linkId: targetLink.id,
-        reason: parsed.data.reason,
+        reason: input.reason,
         status: 'pending',
       })
       .returning()

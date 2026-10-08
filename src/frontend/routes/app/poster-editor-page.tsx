@@ -2,7 +2,7 @@
 import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { apiClient, bypassPatchInputTypeCheck } from '@/frontend/lib/api-client'
+import { apiClient } from '@/frontend/lib/api-client'
 import { Button, buttonClassName } from '@/frontend/components/button'
 import { Card, FormCard } from '@/frontend/components/card'
 import { FormField } from '@/frontend/components/form-field'
@@ -53,9 +53,7 @@ export function PosterEditorPage() {
     setSuccessMessage(null)
     setIsSaving(true)
 
-    const response = await apiClient.api.v1.posters[':id'].$patch(
-      bypassPatchInputTypeCheck({ param: { id: poster.id }, json: { title, subtitle: subtitle || null } }),
-    )
+    const response = await apiClient.api.v1.posters[':id'].$patch({ param: { id: poster.id }, json: { title, subtitle: subtitle || null } })
 
     setIsSaving(false)
 

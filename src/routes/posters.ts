@@ -20,6 +20,7 @@ import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
+import { jsonValidator } from '@/middleware/json-validator'
 import {
   posterCreateInputSchema,
   posterListResponseSchema,
@@ -76,23 +77,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(response)
   })
   // 新規作成
-  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), async (c) => {
-    // リクエストボディをJSONとして読み取り、posterCreateInputSchemaで検証する
-    const body = await c.req.json().catch(() => null)
-    const parsed = posterCreateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+  .post('/', authMiddleware, requireVerifiedEmail, blockAccountDeletionPending, userRateLimitMiddleware('WRITE_RATE_LIMITER'), jsonValidator(posterCreateInputSchema), async (c) => {
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     const db = drizzle(c.env.DB)
     const userId = c.get('user').id
@@ -103,7 +90,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const [targetQrcode] = await db
       .select({ id: qrcodes.id })
       .from(qrcodes)
-      .where(and(eq(qrcodes.id, parsed.data.qrCodeId), isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
+      .where(and(eq(qrcodes.id, input.qrCodeId), isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
       .limit(1)
 
     if (!targetQrcode) {
@@ -127,12 +114,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .values({
         id: crypto.randomUUID(),
         userId,
-        title: parsed.data.title,
-        subtitle: parsed.data.subtitle ?? null,
+        title: input.title,
+        subtitle: input.subtitle ?? null,
         layoutTemplate: DEFAULT_LAYOUT_TEMPLATE,
         styleOptions: null,
-        size: parsed.data.size,
-        qrCodeId: parsed.data.qrCodeId,
+        size: input.size,
+        qrCodeId: input.qrCodeId,
       })
       .returning()
 
@@ -168,25 +155,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.json(toPosterResponse(row.poster, computePosterLinkStatus(row.qrcode, row.link)))
   })
   // title/subtitle/styleOptionsのみ更新可能
-  .patch('/:id', authMiddleware, requireVerifiedEmail, async (c) => {
+  .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(posterUpdateInputSchema), async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
 
-    const body = await c.req.json().catch(() => null)
-    const parsed = posterUpdateInputSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'リクエストボディが不正です',
-            details: parsed.error.flatten(),
-          },
-        },
-        400,
-      )
-    }
+    // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
+    const input = c.req.valid('json')
 
     const db = drizzle(c.env.DB)
 
@@ -211,14 +185,14 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // リクエストで指定されたフィールドのみを更新対象にする。styleOptionsのDB保存時はJSON文字列化する
     const updateValues: Partial<typeof posters.$inferInsert> = {}
-    if (parsed.data.title !== undefined) {
-      updateValues.title = parsed.data.title
+    if (input.title !== undefined) {
+      updateValues.title = input.title
     }
-    if (parsed.data.subtitle !== undefined) {
-      updateValues.subtitle = parsed.data.subtitle
+    if (input.subtitle !== undefined) {
+      updateValues.subtitle = input.subtitle
     }
-    if (parsed.data.styleOptions !== undefined) {
-      updateValues.styleOptions = JSON.stringify(parsed.data.styleOptions)
+    if (input.styleOptions !== undefined) {
+      updateValues.styleOptions = JSON.stringify(input.styleOptions)
     }
 
     const [updated] = await db
