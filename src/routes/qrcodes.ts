@@ -1,7 +1,7 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
-import { links, qrcodes } from '@/db/schema'
+import { links, posters, qrcodes } from '@/db/schema'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
 import { blockAccountDeletionPending } from '@/middleware/block-account-deletion-pending'
@@ -16,9 +16,30 @@ import {
   qrcodeUpdateInputSchema,
 } from '@/shared/schemas/qrcode'
 
-// DB上のqrcodeレコードを、レスポンス用スキーマの形(不要なカラムを除いたもの)に変換する
-function toQrcodeResponse(record: typeof qrcodes.$inferSelect) {
-  return qrcodeSchema.parse(record)
+// qrcodeの取得に使う列。qrcodesの全列に加えて、レスポンスに必要な次の2つをサブクエリで同時に取得する
+// (別テーブルの値のため、DBの列を増やさずに済む):
+// - targetShortCode: 紐づく短縮URLのshortCode(targetType='rawUrl'の場合はNULL)
+// - posterCount: このQRコードを使っている掲示物の件数(ソフトデリート済みは除く)
+// 一覧の件数が多くてもD1のバインド変数の上限(IN句の個数)に当たらないよう、IN句ではなく行ごとの相関サブクエリにしている
+//
+// 注意: Drizzleは単一テーブルのselectでは列名にテーブル名を付けずに出力する(`"id"`のようになる)。
+// サブクエリ内で外側のqrcodes.idを`"id"`と書くと、内側のテーブル(posters.id)を指してしまい常に不一致になるため、
+// 外側の列は`${qrcodes}.列名`の形でテーブル名を明示している
+const qrcodeSelection = {
+  ...getTableColumns(qrcodes),
+  targetShortCode: sql<string | null>`(select ${links.shortCode} from ${links} where ${links}.id = ${qrcodes}.target_id)`,
+  posterCount: sql<number>`(select count(*) from ${posters} where ${posters}.qr_code_id = ${qrcodes}.id and ${posters}.deleted_at is null)`,
+}
+
+// DB上のqrcodeレコード(qrcodeSelectionで取得したもの)を、レスポンス用スキーマの形
+// (createdAtをISO文字列化したもの)に変換する
+function toQrcodeResponse(record: typeof qrcodes.$inferSelect & { targetShortCode: string | null; posterCount: number }) {
+  return qrcodeSchema.parse({
+    ...record,
+    createdAt: record.createdAt.toISOString(),
+    // SQLiteのcount(*)は整数だが、念のため数値に正規化する
+    posterCount: Number(record.posterCount),
+  })
 }
 
 // qrcode(QRコード)リソースのルート。links.tsと同じパターンでメソッドチェーンで定義する。
@@ -35,7 +56,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 他人のqrcodeが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
     // ページングは未実装のため暫定的に固定値を返す
     const items = await db
-      .select()
+      .select(qrcodeSelection)
       .from(qrcodes)
       .where(and(isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
 
@@ -92,9 +113,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
         targetUrl: input.targetType === 'rawUrl' ? input.targetUrl : null,
         name: input.name ?? null,
       })
-      .returning()
+      .returning({ id: qrcodes.id })
 
-    return c.json(toQrcodeResponse(created), 201)
+    // 作成直後のレコードを、レスポンスに必要な値(読み取り先のshortCode・掲示物の件数)付きで取り直す
+    const [createdRecord] = await db.select(qrcodeSelection).from(qrcodes).where(eq(qrcodes.id, created.id)).limit(1)
+
+    return c.json(toQrcodeResponse(createdRecord), 201)
   })
   // 詳細取得
   .get('/:id', authMiddleware, async (c) => {
@@ -103,7 +127,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const userId = c.get('user').id
 
     const [record] = await db
-      .select()
+      .select(qrcodeSelection)
       .from(qrcodes)
       .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
       .limit(1)
@@ -135,7 +159,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const db = drizzle(c.env.DB)
 
     const [existing] = await db
-      .select()
+      .select(qrcodeSelection)
       .from(qrcodes)
       .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
       .limit(1)
@@ -165,11 +189,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       return c.json(toQrcodeResponse(existing))
     }
 
-    const [updated] = await db
+    await db
       .update(qrcodes)
       .set(updateValues)
       .where(and(eq(qrcodes.id, id), eq(qrcodes.userId, userId)))
-      .returning()
+
+    // 更新後のレコードを、レスポンスに必要な値(読み取り先のshortCode・掲示物の件数)付きで取り直す
+    const [updated] = await db.select(qrcodeSelection).from(qrcodes).where(eq(qrcodes.id, id)).limit(1)
 
     return c.json(toQrcodeResponse(updated))
   })

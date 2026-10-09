@@ -192,6 +192,88 @@ describe('POST /api/v1/qrcodes', () => {
   })
 })
 
+// 掲示物を1件作成する(posterCountのテスト用)
+async function createPoster(sessionCookie: string, qrCodeId: string) {
+  const response = await SELF.fetch('https://example.com/api/v1/posters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+    body: JSON.stringify({ title: 'テスト掲示物', size: 'A6', qrCodeId }),
+  })
+  expect(response.status).toBe(201)
+  return response.json<{ id: string }>()
+}
+
+describe('qrcodeのレスポンスに含まれる作成日・読み取り先・掲示物の件数', () => {
+  it('作成直後のレスポンスに、createdAt(ISO文字列)・targetShortCode・posterCount(0)が含まれる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+
+    const response = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'link', targetId: link.id }),
+    })
+    expect(response.status).toBe(201)
+
+    const body = qrcodeSchema.parse(await response.json())
+    expect(body.targetShortCode).toBe(link.shortCode)
+    expect(body.posterCount).toBe(0)
+    expect(new Date(body.createdAt).toISOString()).toBe(body.createdAt)
+    expect(Date.now() - new Date(body.createdAt).getTime()).toBeLessThan(60_000)
+  })
+
+  it("targetType: 'rawUrl' のqrcodeでは、targetShortCodeはnullになる", async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+
+    expect(qrcode.targetShortCode).toBeNull()
+    expect(qrcode.posterCount).toBe(0)
+  })
+
+  it('GET /qrcodes・GET /qrcodes/:idで、掲示物の件数が数えられ、削除済みの掲示物は数えない', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createRawUrlQrcode(sessionCookie)
+    const otherQrcode = await createRawUrlQrcode(sessionCookie)
+    await createPoster(sessionCookie, qrcode.id)
+    const deletedPoster = await createPoster(sessionCookie, qrcode.id)
+    await createPoster(sessionCookie, otherQrcode.id)
+    const deleteResponse = await SELF.fetch(`https://example.com/api/v1/posters/${deletedPoster.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(deleteResponse.status).toBe(204)
+
+    const detailResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, { headers: { Cookie: sessionCookie } })
+    expect(qrcodeSchema.parse(await detailResponse.json()).posterCount).toBe(1)
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', { headers: { Cookie: sessionCookie } })
+    const list = await listResponse.json<{ items: unknown[] }>()
+    const items = list.items.map((item) => qrcodeSchema.parse(item))
+    expect(items.find((item) => item.id === qrcode.id)?.posterCount).toBe(1)
+    expect(items.find((item) => item.id === otherQrcode.id)?.posterCount).toBe(1)
+  })
+
+  it('PATCHのレスポンスにも、読み取り先のshortCodeと掲示物の件数が含まれる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const createResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'link', targetId: link.id }),
+    })
+    const qrcode = qrcodeSchema.parse(await createResponse.json())
+    await createPoster(sessionCookie, qrcode.id)
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/qrcodes/${qrcode.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ name: '更新後' }),
+    })
+    expect(patchResponse.status).toBe(200)
+    expect(qrcodeSchema.parse(await patchResponse.json())).toMatchObject({ name: '更新後', targetShortCode: link.shortCode, posterCount: 1 })
+  })
+})
+
 describe('GET /api/v1/qrcodes/:id/image', () => {
   it('認証なしで200を返し、Content-Typeがimage/svg+xmlであることを確認する', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()

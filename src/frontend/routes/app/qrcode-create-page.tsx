@@ -3,10 +3,11 @@ import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
-import { Button } from '@/frontend/components/button'
+import { Button, ButtonLink } from '@/frontend/components/button'
 import { FormCard } from '@/frontend/components/card'
-import { Field, FormField, SelectField } from '@/frontend/components/form-field'
+import { Field, FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
+import { RadioCardGroup } from '@/frontend/components/radio-card-group'
 import { QRCODE_NAME_MAX_LENGTH, URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // qrcodeCreateLoader: QRコード作成画面のloader。
@@ -29,9 +30,17 @@ export async function qrcodeCreateLoader({ params }: LoaderFunctionArgs) {
   return { fixedLink: null, selectableLinkItems: body.items }
 }
 
-// QrCodeCreatePage: QRコードの新規作成フォーム。
-// 対象は「既存の短縮URL(link)」または「直接指定するURL(rawUrl)」のいずれかを選ぶ
+// 読み取り先の選択肢(docs/architecture.md 第6.7節「作成済みの短縮URL(おすすめ)」「URLを直接指定」)
+const TARGET_KIND_OPTIONS = [
+  { value: 'link', label: '作成済みの短縮URL', badge: 'おすすめ', description: '印刷後も転送先を変えられ、読み取り数も確認できます。' },
+  { value: 'rawUrl', label: 'URLを直接指定', description: '短縮せず、元のURLをそのままQRコードにします。' },
+] as const
+
+// QrCodeCreatePage: QRコードの新規作成フォーム(docs/mocks/QrCreate.html・MobileQrCreate.html)。
+// 読み取り先は「既存の短縮URL(link)」または「直接指定するURL(rawUrl)」のいずれかを選ぶ
 // (docs/architecture.md「QRコードは短縮後・短縮前どちらのURLにも紐づけ可能」に対応)。
+// 直接指定では、印刷後に読み取り先を変更できず読み取り数も確認できない旨の注意と、
+// 短縮URL作成への導線を表示する。
 // :linkIdから遷移してきた場合は対象linkを固定し、選択UI自体を出さない
 export function QrCodeCreatePage() {
   const { fixedLink, selectableLinkItems } = useLoaderData<typeof qrcodeCreateLoader>()
@@ -97,22 +106,20 @@ export function QrCodeCreatePage() {
       <FormCard onSubmit={handleSubmit}>
         {fixedLink ? (
           <p>
-            対象の短縮URL: <strong>{`${window.location.origin}/${fixedLink.shortCode}`}</strong>
+            読み取り先の短縮URL: <strong>{`${window.location.origin}/${fixedLink.shortCode}`}</strong>
           </p>
         ) : (
           <>
-            <SelectField
-              fieldId="qrcode-create-target-kind"
-              label="対象の種類"
-              options={[
-                { value: 'link', label: '作成済みの短縮URL' },
-                { value: 'rawUrl', label: '直接URLを指定' },
-              ]}
-              selectProps={{ value: targetKind, onChange: (e) => setTargetKind(e.target.value as 'link' | 'rawUrl') }}
+            <RadioCardGroup
+              legend="QRコードの読み取り先"
+              name="qrcode-create-target-kind"
+              options={TARGET_KIND_OPTIONS}
+              value={targetKind}
+              onChange={setTargetKind}
             />
 
             {targetKind === 'link' ? (
-              <Field fieldId="qrcode-create-link-select" label="対象の短縮URL">
+              <Field fieldId="qrcode-create-link-select" label="読み取り先の短縮URL">
                 {selectableLinkItems && selectableLinkItems.length > 0 ? (
                   <select
                     id="qrcode-create-link-select"
@@ -127,40 +134,51 @@ export function QrCodeCreatePage() {
                     ))}
                   </select>
                 ) : (
-                  <p className="field__hint">まだ短縮URLがありません。先に短縮URLを作成してください。</p>
+                  <p className="field__hint">
+                    まだ短縮URLがありません。<Link to="/app/links/new">先に短縮URLを作成</Link>してください。
+                  </p>
                 )}
               </Field>
             ) : (
-              <FormField
-                fieldId="qrcode-create-raw-url"
-                label="対象URL"
-                inputProps={{
-                  type: 'url',
-                  required: true,
-                  // サーバー側スキーマ(httpUrlSchema)の上限と揃える
-                  maxLength: URL_MAX_LENGTH,
-                  placeholder: 'https://example.com',
-                  value: rawUrl,
-                  onChange: (e) => setRawUrl(e.target.value),
-                }}
-              />
+              <>
+                <FormField
+                  fieldId="qrcode-create-raw-url"
+                  label="読み取り先のURL"
+                  inputProps={{
+                    type: 'url',
+                    required: true,
+                    // サーバー側スキーマ(httpUrlSchema)の上限と揃える
+                    maxLength: URL_MAX_LENGTH,
+                    placeholder: 'https://example.com',
+                    value: rawUrl,
+                    onChange: (e) => setRawUrl(e.target.value),
+                  }}
+                />
+                <AlertMessage tone="warning">
+                  <strong>このQRコードは、印刷後に読み取り先を変更できません。</strong>
+                  読み取り数の確認もできません。ページのURLが変わる可能性がある場合は、短縮URLを作ってからQRコードにするのがおすすめです。{' '}
+                  <Link to="/app/links/new">短縮URLを作成する</Link>
+                </AlertMessage>
+              </>
             )}
           </>
         )}
 
         <FormField
           fieldId="qrcode-create-name"
-          label="名前(任意)"
-          hint="一覧などで表示する管理用の名前です。QR画像には表示されません。"
-          inputProps={{ maxLength: QRCODE_NAME_MAX_LENGTH, value: name, onChange: (e) => setName(e.target.value) }}
+          label="名前(管理用・任意)"
+          hint="未入力の場合は作成日で表示します。QR画像には表示されません。"
+          inputProps={{ maxLength: QRCODE_NAME_MAX_LENGTH, placeholder: '例:入口の案内用', value: name, onChange: (e) => setName(e.target.value) }}
         />
 
-        <Button
-          type="submit"
-          disabled={isSubmitting || (!fixedLink && targetKind === 'link' && !selectedLinkId)}
-        >
-          {isSubmitting ? '作成中…' : 'QRコードを作成'}
-        </Button>
+        <div className="button-group">
+          <Button type="submit" disabled={isSubmitting || (!fixedLink && targetKind === 'link' && !selectedLinkId)}>
+            {isSubmitting ? '作成中…' : 'QRコードを作成'}
+          </Button>
+          <ButtonLink variant="text" to="/app/qrcodes">
+            キャンセル
+          </ButtonLink>
+        </div>
       </FormCard>
     </Page>
   )

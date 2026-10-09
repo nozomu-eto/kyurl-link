@@ -2,9 +2,9 @@
 import type { ReactNode } from 'react'
 
 // AlertMessage: フォーム送信結果やAPIエラーを画面上部に帯状で表示する共通部品。
-// tone='error'は失敗、tone='success'は成功・完了系の文言を表示する際に使う
+// tone='error'は失敗、tone='success'は成功・完了系、tone='warning'は操作前の注意喚起の文言を表示する際に使う
 type AlertMessageProps = {
-  tone: 'error' | 'success'
+  tone: 'error' | 'success' | 'warning'
   children: ReactNode
 }
 

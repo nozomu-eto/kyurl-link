@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { type FormEvent, useState } from 'react'
-import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate } from 'react-router'
+import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate, useSearchParams } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
 import { Button } from '@/frontend/components/button'
@@ -27,14 +27,16 @@ export async function posterCreateLoader({ params }: LoaderFunctionArgs) {
 
 // PosterCreatePage: 掲示物(ポスター)の新規作成フォーム。
 // タイトル・サブタイトル(任意)・サイズ(A6縦/A5縦)を入力し、対象QRコードは
-// URL(/app/qrcodes/:qrCodeId/posters/new)から固定で受け取る
+// URL(/app/qrcodes/:qrCodeId/posters/new)から固定で受け取る。サイズの初期値は?size=A6|A5で指定できる
 export function PosterCreatePage() {
   const { qrcode } = useLoaderData<typeof posterCreateLoader>()
   const navigate = useNavigate()
+  // QRコード詳細の「A6サイズで作成」「A5サイズで作成」から来た場合は、?size=で用紙サイズを引き継ぐ
+  const [searchParams] = useSearchParams()
 
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
-  const [size, setSize] = useState<'A6' | 'A5'>('A6')
+  const [size, setSize] = useState<'A6' | 'A5'>(searchParams.get('size') === 'A5' ? 'A5' : 'A6')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // メール未確認によるエラー(EMAIL_NOT_VERIFIED)の場合のみ、「メール確認待ち」画面への
   // 導線を追加で表示するために、エラーコードも別途保持する

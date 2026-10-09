@@ -310,6 +310,8 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 `POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を追加する。色の指定は受け付けない(黒・白固定)。PR #4で`styleOptions`に仮置きされた`foregroundColor` / `backgroundColor`は廃止する(掲示物の`styleOptions`の同名の仮置き項目も同様)(更新版11で追記)。その後、QRコードの`styleOptions`自体(APIの入出力とqrcodesテーブルの`style_options`列)も削除した(POR-124)。古いクライアントが`styleOptions`を送っても無視する(400にしない)。
 
+QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes`、`GET` / `PATCH /qrcodes/:id`のレスポンスに`createdAt`(作成日時、ISO文字列)・`targetShortCode`(`targetType: 'link'`のときの短縮URLのコード。rawUrlはnull)・`posterCount`(使っている掲示物の件数。ソフトデリート済みは除く)を追加した。いずれもDBの列は増やさず、サブクエリで取得する(POR-82)。
+
 **掲示物** `/api/v1/posters`
 
 | Method | Path | 認証 | 概要 |
