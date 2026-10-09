@@ -1329,27 +1329,153 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-/* 掲示物エディタ(フォーム+プレビューの横並び) */
-.editor-layout {
+/* 掲示物の作成・編集画面(docs/mocks/PosterEditor.html・MobilePosterEdit.html・MobilePosterPreview.html)。
+   PCは入力(左)とプレビュー・書き出し(右)を並べ、スマホ(768px以下)はタブで切り替える */
+.poster-editor {
   display: flex;
   gap: var(--space-8);
-  flex-wrap: wrap;
   align-items: flex-start;
 }
 
-.editor-layout__form {
-  flex: 1 1 320px;
+.poster-editor__panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
-/* 掲示物の簡易プレビュー。幅・高さはA6/A5の比率から画面側で計算して指定する */
-.poster-preview {
+/* スマホ用のタブとサムネイル、「プレビューで確認する」ボタンはPCでは出さない */
+.poster-editor-tabs,
+.poster-editor__thumbnail,
+.poster-editor__to-preview {
+  display: none;
+}
+
+.poster-editor-tabs__tab {
+  flex: 1;
+  min-height: var(--tap-target);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.poster-editor-tabs__tab[aria-selected='true'] {
+  border-bottom-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.poster-editor__thumbnail {
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.poster-editor__thumbnail-label {
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.poster-editor__print-guide {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg);
+  font-size: 0.875rem;
+}
+
+.poster-editor__print-guide ul {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .poster-editor {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .poster-editor-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .poster-editor__thumbnail,
+  .poster-editor__to-preview {
+    display: flex;
+  }
+
+  .poster-editor__to-preview .button {
+    width: 100%;
+  }
+
+  /* 選ばれているタブのパネルだけを表示する */
+  .poster-editor[data-active-tab='edit'] .poster-editor__panel--preview,
+  .poster-editor[data-active-tab='preview'] .poster-editor__panel--edit {
+    display: none;
+  }
+}
+
+/* 掲示物のプレビュー。実寸(mm)で組まれたHTMLを入れたiframeを、置き場所の幅に合わせて縮小して表示する */
+.poster-preview-frame {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+  background-color: var(--color-bg);
+}
+
+.poster-preview-frame__scaled {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.poster-preview-frame__iframe {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+}
+
+/* リンクが期限切れ・停止中の掲示物を書き出すときの確認ダイアログ */
+.stopped-dialog {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stopped-dialog > * {
+  margin: 0;
+}
+
+.stopped-dialog__link {
+  display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  flex-shrink: 0;
-  text-align: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg);
+}
+
+.stopped-dialog__note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 /* 利用規約・プライバシーポリシーの条文 */

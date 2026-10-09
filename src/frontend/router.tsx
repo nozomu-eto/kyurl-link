@@ -8,7 +8,6 @@ import { DashboardPage, dashboardLoader } from '@/frontend/routes/app/dashboard-
 import { LinkCreatePage } from '@/frontend/routes/app/link-create-page'
 import { LinkCreatedPage, linkCreatedLoader } from '@/frontend/routes/app/link-created-page'
 import { LinkDetailPage, linkDetailLoader } from '@/frontend/routes/app/link-detail-page'
-import { PosterCreatePage, posterCreateLoader } from '@/frontend/routes/app/poster-create-page'
 import { PosterEditorPage, posterEditorLoader } from '@/frontend/routes/app/poster-editor-page'
 import { QrCodeCreatePage, qrcodeCreateLoader } from '@/frontend/routes/app/qrcode-create-page'
 import { QrCodeEditorPage, qrcodeEditorLoader } from '@/frontend/routes/app/qrcode-editor-page'
@@ -55,7 +54,8 @@ export const router = createBrowserRouter([
       { path: 'qrcodes', element: <QrCodeListPage />, loader: qrcodeListLoader },
       { path: 'qrcodes/new', element: <QrCodeCreatePage />, loader: qrcodeCreateLoader },
       { path: 'qrcodes/:qrCodeId', element: <QrCodeEditorPage />, loader: qrcodeEditorLoader },
-      { path: 'qrcodes/:qrCodeId/posters/new', element: <PosterCreatePage />, loader: posterCreateLoader },
+      { path: 'posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
+      { path: 'qrcodes/:qrCodeId/posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: 'posters/:posterId', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: 'account', element: <AccountSettingsPage />, loader: accountSettingsLoader },
       { path: 'account/delete', element: <AccountDeletionPage /> },
