@@ -913,6 +913,52 @@ h1 {
   accent-color: var(--color-brand);
 }
 
+/* ========== 選択肢のボタン群(ChoiceButtonGroup。有効期限の[無期限][1か月後]…など) ========== */
+
+.choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.choice-group > .field__label {
+  padding: 0;
+}
+
+.choice-group__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.choice-group__button {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.choice-group__button:hover {
+  background-color: var(--color-brand-tint);
+}
+
+/* 選択中は紺の塗りで示す(色だけに頼らないよう、aria-pressedでも状態を伝えている) */
+.choice-group__button[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
 /* 成否メッセージ(フォーム送信エラー・確認完了等)。上下の間隔は親の.page/.page-containerが持つ */
 .alert {
   margin: 0;
@@ -992,6 +1038,120 @@ h1 {
 .status-badge--suspended {
   background-color: var(--color-status-suspended-bg);
   color: var(--color-status-suspended-text);
+}
+
+/* 短縮URLの表示(kyurl.link/コード)。数字・ロゴ用の書体で、コード部分だけ太字にする */
+.short-url {
+  font-family: var(--font-family-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.short-url__code {
+  font-weight: 700;
+}
+
+/* ========== 短縮URLの作成完了画面(docs/mocks/LinkCreated.html) ========== */
+
+.created-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.created-summary__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.created-summary__url {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.created-summary__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.created-summary__url-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.created-summary__url-row .short-url {
+  font-size: 1.5rem;
+}
+
+.created-summary__destination {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.created-qrcode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.created-qrcode__image {
+  display: block;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+}
+
+/* 「次にできること」の選択肢。広い画面は横3列、狭い画面は縦並び */
+.next-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.next-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  text-decoration: none;
+}
+
+.next-action:hover {
+  background-color: var(--color-brand-tint);
+}
+
+.next-action__title {
+  font-weight: 700;
+  color: var(--color-link);
+}
+
+.next-action__description {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 /* アカウント削除の猶予期間中に、ダッシュボード・アカウント設定の上部に表示する常設の案内
