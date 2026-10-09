@@ -14,7 +14,8 @@ import {
   POSTER_PNG_DEVICE_SCALE_FACTOR,
   POSTER_PNG_ELEMENT_SELECTOR,
   POSTER_TEMPLATE_VERSION,
-} from '@/lib/poster-template'
+} from '@/shared/poster-template'
+import { resolveQrcodeContent } from '@/lib/qrcode-content'
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
@@ -154,7 +155,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(toPosterResponse(row.poster, computePosterLinkStatus(row.qrcode, row.link)))
   })
-  // title/subtitle/styleOptionsのみ更新可能
+  // title/subtitle/styleOptions/size/qrCodeIdを更新できる
   .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(posterUpdateInputSchema), async (c) => {
     const id = c.req.param('id')
     const userId = c.get('user').id
@@ -183,6 +184,27 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
+    // 使うQRコードを変える場合は、作成時と同じく、自分の・削除されていないQRコードであることを確認する
+    if (input.qrCodeId !== undefined) {
+      const [targetQrcode] = await db
+        .select({ id: qrcodes.id })
+        .from(qrcodes)
+        .where(and(eq(qrcodes.id, input.qrCodeId), isNull(qrcodes.deletedAt), eq(qrcodes.userId, userId)))
+        .limit(1)
+
+      if (!targetQrcode) {
+        return c.json(
+          {
+            error: {
+              code: 'INVALID_TARGET',
+              message: '指定されたqrcodeが存在しないか、削除されています',
+            },
+          },
+          400,
+        )
+      }
+    }
+
     // リクエストで指定されたフィールドのみを更新対象にする。styleOptionsのDB保存時はJSON文字列化する
     const updateValues: Partial<typeof posters.$inferInsert> = {}
     if (input.title !== undefined) {
@@ -193,6 +215,12 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
     if (input.styleOptions !== undefined) {
       updateValues.styleOptions = JSON.stringify(input.styleOptions)
+    }
+    if (input.size !== undefined) {
+      updateValues.size = input.size
+    }
+    if (input.qrCodeId !== undefined) {
+      updateValues.qrCodeId = input.qrCodeId
     }
 
     const [updated] = await db
@@ -317,32 +345,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    let qrContent: string
-    if (qrcode.targetType === 'link') {
-      const targetId = qrcode.targetId
-      if (!targetId) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
-      }
-
-      const [targetLink] = await db
-        .select({ shortCode: links.shortCode })
-        .from(links)
-        .where(and(eq(links.id, targetId), isNull(links.deletedAt)))
-        .limit(1)
-
-      if (!targetLink) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
-      }
-
-      qrContent = `${new URL(c.req.url).origin}/${targetLink.shortCode}`
-    } else {
-      const targetUrl = qrcode.targetUrl
-      if (!targetUrl) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象URLが見つかりません' } }, 404)
-      }
-
-      qrContent = targetUrl
+    // QRコードに埋め込む内容は、GET /api/v1/qrcodes/:id/imageと共通の関数で決める
+    // (短縮URL経由は`{origin}/{shortCode}`、直接指定はそのURL)
+    const contentResult = await resolveQrcodeContent(db, qrcode, new URL(c.req.url).origin)
+    if (!contentResult.ok) {
+      return c.json({ error: { code: 'NOT_FOUND', message: contentResult.message } }, 404)
     }
+    const qrContent = contentResult.content
 
     // SVGの生成はqrcodes.tsのGET /:id/imageと共通のrenderQrcodeSvgを使う(向きの修正
     // (swap: true)を含め、QRコードの見た目が食い違わないようにするため)

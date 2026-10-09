@@ -10,6 +10,11 @@ const PAGE_SIZES = {
   A5: { width: 148, height: 210 },
 } as const
 
+// 掲示物1面の寸法(mm)。画面のプレビューが、書き出しと同じ縦横比で表示するために使う
+export function getPosterPageSizeMm(size: 'A6' | 'A5'): { width: number; height: number } {
+  return PAGE_SIZES[size]
+}
+
 // 各面の端から確保する安全域(mm)。家庭用プリンターやコンビニのプリントは用紙の端から
 // 約5mmを印刷できないため、文字・QRコードをこの余白より内側に収める。
 // 現在の内側余白(8mm)はこの値を下回らないようにすること

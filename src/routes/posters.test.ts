@@ -3,7 +3,10 @@ import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { links, posters, qrcodes } from '@/db/schema'
+import { buildPosterExportHashSource, computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
+import { POSTER_TEMPLATE_VERSION } from '@/shared/poster-template'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
@@ -267,6 +270,71 @@ describe('PATCH /api/v1/posters/:id のtitle/subtitle', () => {
   })
 })
 
+describe('PATCH /api/v1/posters/:id のsize/qrCodeId', () => {
+  it('sizeを変更できる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A6')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ size: 'A5' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(posterSchema.parse(await response.json()).size).toBe('A5')
+  })
+
+  it('使うQRコードを、自分の別のQRコードに変更できる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const otherQrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ qrCodeId: otherQrcode.id }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(posterSchema.parse(await response.json()).qrCodeId).toBe(otherQrcode.id)
+  })
+
+  it('他のユーザーのQRコード・存在しないQRコードには変更できない(400 INVALID_TARGET)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const otherUserCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const othersQrcode = await createQrcode(otherUserCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    for (const qrCodeId of [othersQrcode.id, 'not-existing-qrcode-id']) {
+      const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+        body: JSON.stringify({ qrCodeId }),
+      })
+      expect(response.status).toBe(400)
+      expect((await response.json<{ error: { code: string } }>()).error.code).toBe('INVALID_TARGET')
+    }
+  })
+
+  it('不正なsizeは400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ size: 'A4' }),
+    })
+
+    expect(response.status).toBe(400)
+  })
+})
+
 describe('上限を超える既存データ', () => {
   it('上限変更前に保存された長いtitle/subtitleを持つレコードも、GETでエラー無く読み出せる', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
@@ -475,6 +543,63 @@ describe('GET /api/v1/posters/:id/export', () => {
     const listAfterSecond = await env.POSTER_CACHE.list({ prefix: `${poster.id}/pdf/` })
     expect(listAfterSecond.objects.length).toBe(1)
   }, 30000)
+
+  // QRコードに埋め込む内容は、qrcodes.tsのGET /:id/imageと共通のresolveQrcodeContentで決める。
+  // exportハンドラが計算するキャッシュキーと同じキーのR2オブジェクトを先に置いておき、それが返れば
+  // (Browser Renderingを起動せずに)QRコードの内容が期待どおりに決まっていることを確認できる
+  async function expectExportUsesQrContent(sessionCookie: string, poster: { id: string; title: string; subtitle: string | null; size: string; styleOptions: unknown }, qrContent: string) {
+    const cacheKey = await computePosterExportCacheKey({
+      posterId: poster.id,
+      format: 'pdf',
+      paper: 'a4',
+      templateVersion: POSTER_TEMPLATE_VERSION,
+      hashSource: buildPosterExportHashSource({
+        title: poster.title,
+        subtitle: poster.subtitle,
+        size: poster.size,
+        styleOptions: poster.styleOptions,
+        qrCodeSvg: renderQrcodeSvg(qrContent),
+        format: 'pdf',
+        paper: 'a4',
+      }),
+    })
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46])
+    await env.POSTER_CACHE.put(cacheKey, dummyPdf)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, { headers: { Cookie: sessionCookie } })
+    expect(response.status).toBe(200)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(dummyPdf)
+  }
+
+  it('短縮URL経由のQRコードは、`{origin}/{shortCode}`をQRコードの内容にする', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+    const [{ shortCode }] = await drizzle(env.DB).select({ shortCode: links.shortCode }).from(links).where(eq(links.id, link.id))
+
+    await expectExportUsesQrContent(sessionCookie, poster, `https://example.com/${shortCode}`)
+  })
+
+  it('URLを直接指定したQRコードは、そのURLをそのままQRコードの内容にする', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    await expectExportUsesQrContent(sessionCookie, poster, 'https://example.com/poster-target')
+  })
+
+  it('QRコードの短縮URLが削除済みの場合は404(対象のlinkが見つかりません)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const qrcode = await createLinkQrcode(sessionCookie, link.id)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+    await drizzle(env.DB).update(links).set({ deletedAt: new Date() }).where(eq(links.id, link.id))
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, { headers: { Cookie: sessionCookie } })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } })
+  })
 
   it('paperに不正な値を指定すると400(VALIDATION_ERROR)になる(Browser Renderingを起動する前に検証するため、CI環境でも実行できる)', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()

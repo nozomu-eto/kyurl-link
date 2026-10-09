@@ -4,7 +4,7 @@
 // - format(pdf/png)
 // - paper(a4/fit)。ただしformat=pngの場合はpaper自体を無視する(PNGは常に掲示物1面分のため、
 //   paperの値によって出力が変わらない。キーにも含めない)
-// - templateVersion(poster-template.tsのPOSTER_TEMPLATE_VERSION)。テンプレートや
+// - templateVersion(shared/poster-template.tsのPOSTER_TEMPLATE_VERSION)。テンプレートや
 //   書き出し設定を変えたら値を上げることで、修正前の誤った内容のPDF/PNGがR2から
 //   返り続けることを防ぐ
 export type PosterExportCacheKeyInput = {

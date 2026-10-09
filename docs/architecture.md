@@ -291,6 +291,8 @@ QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes
 | GET | `/posters/:id/export` | ✓ | PDF/PNG書き出し(Browser Rendering + R2内容ハッシュキャッシュ、第13節)。クエリ`paper`(`a4` / `fit`、初期値`a4`)を追加 |
 | POST | `/posters/batch-export` | ✓ | まとめて印刷 |
 
+`PATCH /posters/:id`では、`title`・`subtitle`に加えて、`size`(A6/A5)と`qrCodeId`(使うQRコード。自分の、削除されていないQRコードに限る。違えば400 `INVALID_TARGET`)も変更できる(掲示物の編集画面で、用紙サイズと使うQRコードをあとから変えられるようにするため)。
+
 `POST` / `PATCH /posters`, `/posters/:id`の`title`は必須・最大20文字、`subtitle`は任意・最大40文字。`GET /posters`, `/posters/:id`のレスポンスに`linkStatus`(`active` / `expired` / `suspended` / `none` / `deleted`)を含める。`none`は元URLを直接読み取るQRの場合。`deleted`は紐づく短縮URLまたはQRコードがソフトデリート済みの場合(リダイレクトは404になるため、`active`とは表示させない)。`active`/`expired`/`suspended`はlinkの`displayStatus`(第7節・`src/lib/link-status.ts`)と同じ基準で判定し(独自の判定はしない)、`computePosterLinkStatus`(`src/lib/poster-link-status.ts`)に切り出す。一覧は掲示物→QRコード→短縮URLをleftJoinでまとめて1回の問い合わせで取得する(掲示物ごとに問い合わせない)。画面の「リンクが期限切れです」表示と書き出し時の確認に使う。`GET /posters/:id/export`の`paper=a4`はA5なら2面・A6なら4面をA4に並べ、切り取り線を付ける。`paper=fit`は掲示物サイズのまま。`format=png`の場合`paper`は無視する。`POST /posters/batch-export`は本文`{ size: 'A5' | 'A6', items: [{ posterId, count }] }`。すべての掲示物がログインユーザーの所有かつ指定サイズであること。合計面数がA4用紙10枚分(A6は40面、A5は20面)を超える場合は400 `LIMIT_EXCEEDED`。PDFを返す。
 
 **通報**は利用規約第9条に基づき、対象link・理由・ステータスを`reports`に記録する(`POST /reports`、未ログインで利用可能)。**アカウント・データ請求**の具体フローは以下第7.1節を参照。
@@ -464,6 +466,8 @@ Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動
 - ブラウザの印刷機能では、用紙サイズ・倍率100%・余白・背景の印刷を、利用者が毎回設定する必要がある。Safariの`@page`の`size`への対応も不完全という報告がある
 
 掲示物のPDF/PNGはCloudflare Browser Renderingで生成し、R2に内容ハッシュをキーにしてキャッシュする。認可(所有者チェック)は必ずキャッシュ参照より先に行う。R2のObject Lifecycle Rules(30日)で自動削除し、アカウント削除時はこの30日を待たず第7.1節の物理削除バッチ内でR2オブジェクトを明示的に削除する。
+
+**プレビューと書き出しの共通化**: 掲示物のHTMLを組み立てるテンプレート(`src/shared/poster-template.ts`)は、サーバーの書き出しと画面のプレビューで同じものを使う。画面のプレビューは、このテンプレートのHTMLをiframeに描画するだけで、Browser Renderingは使わない(配置・大きさの比率は書き出しと一致する。フォントは書き出し環境のものと異なる場合がある)。
 
 **書き出し設定**
 - PDFは`preferCSSPageSize: true`(`@page`のサイズ指定に従う)・`printBackground: true`で出力する。PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影する(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
