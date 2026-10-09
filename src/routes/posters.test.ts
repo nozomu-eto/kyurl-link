@@ -270,6 +270,71 @@ describe('PATCH /api/v1/posters/:id のtitle/subtitle', () => {
   })
 })
 
+describe('PATCH /api/v1/posters/:id のsize/qrCodeId', () => {
+  it('sizeを変更できる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id, 'A6')
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ size: 'A5' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(posterSchema.parse(await response.json()).size).toBe('A5')
+  })
+
+  it('使うQRコードを、自分の別のQRコードに変更できる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const otherQrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ qrCodeId: otherQrcode.id }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(posterSchema.parse(await response.json()).qrCodeId).toBe(otherQrcode.id)
+  })
+
+  it('他のユーザーのQRコード・存在しないQRコードには変更できない(400 INVALID_TARGET)', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const otherUserCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const othersQrcode = await createQrcode(otherUserCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    for (const qrCodeId of [othersQrcode.id, 'not-existing-qrcode-id']) {
+      const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+        body: JSON.stringify({ qrCodeId }),
+      })
+      expect(response.status).toBe(400)
+      expect((await response.json<{ error: { code: string } }>()).error.code).toBe('INVALID_TARGET')
+    }
+  })
+
+  it('不正なsizeは400(VALIDATION_ERROR)になる', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const poster = await createPoster(sessionCookie, qrcode.id)
+
+    const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ size: 'A4' }),
+    })
+
+    expect(response.status).toBe(400)
+  })
+})
+
 describe('上限を超える既存データ', () => {
   it('上限変更前に保存された長いtitle/subtitleを持つレコードも、GETでエラー無く読み出せる', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()

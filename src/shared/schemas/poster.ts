@@ -95,7 +95,8 @@ export const posterCreateInputSchema = z.object({
 })
 
 // poster更新APIの入力用スキーマ。
-// 作成後に変更できるのはtitle/subtitle/styleOptionsのみ(size/qrCodeIdは作成後不変のため含めない)
+// 変更できるのはtitle/subtitle/styleOptions/size/qrCodeId(掲示物の編集画面で、内容・用紙サイズ・使うQRコードを
+// あとから変えられるようにするため)
 export const posterUpdateInputSchema = z.object({
   // 掲示物のタイトル。省略時は更新しない
   title: posterTitleSchema.optional(),
@@ -103,6 +104,10 @@ export const posterUpdateInputSchema = z.object({
   subtitle: posterSubtitleSchema,
   // 掲示物のスタイル設定。省略時は更新しない
   styleOptions: posterStyleOptionsInputSchema.optional(),
+  // 掲示物のサイズ(A6縦・A5縦)。省略時は更新しない
+  size: z.enum(['A6', 'A5']).optional(),
+  // 使うQRコード(qrcodes.id)。省略時は更新しない。自分の、削除されていないQRコードに限る
+  qrCodeId: z.string().optional(),
 })
 
 // posterの一覧取得APIのレスポンススキーマ({ items, total, limit, offset }形式)。
