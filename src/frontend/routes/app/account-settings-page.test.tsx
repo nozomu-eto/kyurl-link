@@ -23,7 +23,7 @@ type PendingDeletionRequest = {
 // AppLayoutのOutlet context(currentUser)を模した最小限のラッパー。
 // AccountSettingsPage自体はuseOutletContextでcurrentUserを受け取る前提のため、
 // テストでもOutletを経由してcontextを渡す必要がある
-function renderAccountSettingsPage(pendingDeletionRequest: PendingDeletionRequest, currentUser: CurrentUser) {
+function renderAccountSettingsPage(pendingDeletionRequest: PendingDeletionRequest, currentUser: CurrentUser, initialEntry = '/') {
   const router = createMemoryRouter(
     [
       {
@@ -32,7 +32,7 @@ function renderAccountSettingsPage(pendingDeletionRequest: PendingDeletionReques
         children: [{ index: true, element: <AccountSettingsPage />, loader: () => ({ pendingDeletionRequest }) }],
       },
     ],
-    { initialEntries: ['/'] },
+    { initialEntries: [initialEntry] },
   )
   return render(<RouterProvider router={router} />)
 }
@@ -73,9 +73,46 @@ describe('AccountSettingsPage', () => {
     expect(await screen.findByText('owner@example.com')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: '変更' }))
+    await user.click(screen.getByRole('button', { name: 'パスワードを変更' }))
 
     expect(screen.getByRole('dialog', { name: 'パスワードの変更' })).toBeTruthy()
     expect(screen.getByLabelText('今のパスワード')).toBeTruthy()
+  })
+
+  it('確認済みのユーザーにはメールアドレスの「変更」ボタンがあり、押すとメールアドレス変更のダイアログが開く', async () => {
+    const user = userEvent.setup()
+    renderAccountSettingsPage(null, { email: 'owner@example.com', emailVerified: true })
+
+    await screen.findByText('owner@example.com')
+    // 確認済みなので、メールアドレスの行に「変更」ボタンがある
+    await user.click(screen.getByRole('button', { name: 'メールアドレスを変更' }))
+
+    expect(screen.getByRole('dialog', { name: 'メールアドレスの変更' })).toBeTruthy()
+  })
+
+  it('未確認のユーザーにはメールアドレスの「変更」ボタンを出さず、確認待ち画面への案内を出す', async () => {
+    renderAccountSettingsPage(null, { email: 'owner@example.com', emailVerified: false })
+
+    await screen.findByText('owner@example.com')
+    expect(screen.queryByRole('button', { name: 'メールアドレスを変更' })).toBeNull()
+    expect(screen.getByRole('link', { name: /未確認/ }).getAttribute('href')).toBe('/verify-email')
+  })
+
+  it('メール内の承認リンクを開いた後(?emailChange=変更後のアドレス)は、新しいアドレスの確認を案内する', async () => {
+    renderAccountSettingsPage(null, { email: 'owner@example.com', emailVerified: true }, '/?emailChange=new%40example.com')
+
+    expect(await screen.findByText(/new@example.com に確認メールを送りました/)).toBeTruthy()
+  })
+
+  it('新しいアドレスの確認リンクを開いた後(ログイン中のアドレスが変更後のアドレスと同じ)は、変更完了を伝える', async () => {
+    renderAccountSettingsPage(null, { email: 'new@example.com', emailVerified: true }, '/?emailChange=new%40example.com')
+
+    expect(await screen.findByText('メールアドレスを new@example.com に変更しました。')).toBeTruthy()
+  })
+
+  it('リンクが無効・期限切れの場合(?error=)は、やり直しの案内を出す', async () => {
+    renderAccountSettingsPage(null, { email: 'owner@example.com', emailVerified: true }, '/?emailChange=new%40example.com&error=TOKEN_EXPIRED')
+
+    expect(await screen.findByText(/有効期限が切れているか、無効なリンク/)).toBeTruthy()
   })
 })

@@ -1,11 +1,11 @@
 import { betterAuth } from 'better-auth'
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { captcha } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
 import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
-import { buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
+import { buildChangeEmailConfirmationEmail, buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
 import { parseTrustedOrigins } from '@/lib/auth-trusted-origins'
 import { shouldSendResendLimitedEmail } from '@/lib/email-resend-limit'
 import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/shared/constants/legal-versions'
@@ -119,21 +119,39 @@ export function auth(env: AuthEnv) {
         termsVersion: { type: 'string', required: false, input: false },
         privacyPolicyVersion: { type: 'string', required: false, input: false },
       },
-      // メールアドレスの変更(段階4-2、docs/architecture.md 第6.7節「メール確認待ち」画面の
-      // 「メールアドレスを修正する」から使う)。updateEmailWithoutVerification: trueにより、
-      // Better Authの仕様上「確認前(emailVerified: false)のアドレスに限り」その場でアドレスが
-      // 変わり、新しいアドレスに確認メールが送られる(確認メールはsendVerificationEmailを通るため、
-      // 上記の60秒制限が新しいアドレスに対しても効く)。
+      // メールアドレスの変更(docs/architecture.md 第6.7節。アカウント設定のメールアドレス変更と、
+      // 「メール確認待ち」画面の「メールアドレスを修正する」の両方から使う)。
       //
-      // 確認済み(emailVerified: true)の人からの変更は、hooks.before(下記)でサーバー側から
-      // 拒否している: changeEmailを有効にすると確認済みの人もこのエンドポイントを使えて
-      // しまうが、Better Authの既定の確認済みユーザー向けフロー(sendChangeEmailConfirmation)は
-      // 「今のアドレスへの確認」を送らずに変更を進められるため、ログイン状態(セッション)を
-      // 盗まれた場合にアカウントを乗っ取られる危険がある。アカウント設定にアドレス変更の
-      // 画面を作るときに、今のアドレスへの確認を実装したうえで、この制限を外す
+      // - 確認前(emailVerified: false)のユーザー: updateEmailWithoutVerification: trueにより、
+      //   その場でアドレスが変わり、新しいアドレスに確認メールが送られる(段階4-2)。
+      //   確認メールはsendVerificationEmailを通るため、下記の60秒制限が新しいアドレスにも効く
+      // - 確認済み(emailVerified: true)のユーザー: sendChangeEmailConfirmationを設定しているため、
+      //   ①今のアドレスへ承認メールが送られる → ②承認リンクを開くと新しいアドレスへ確認メール
+      //   (sendVerificationEmail)が送られる → ③そのリンクを開いた時点でアドレスが変わる、の
+      //   二段階の確認になる。なお、sendChangeEmailConfirmationを設定しないと、Better Authは今のアドレス
+      //   への確認を送らず、新しいアドレスの確認だけで変更を進められる。その場合、ログイン状態
+      //   (セッション)を盗まれたときに、攻撃者が自分のアドレスへ変更してアカウントを乗っ取れて
+      //   しまうため、必ず設定する
+      //
+      // すでに他で使われているアドレスへの変更を申請しても、Better Authは成功と同じ応答を返し、
+      // メールは送らない(登録済みかどうかを外部から推測させないため)
       changeEmail: {
         enabled: true,
         updateEmailWithoutVerification: true,
+        // 今のアドレス(user.email)宛ての承認メール。同じアドレスにつき60秒に1回まで
+        // (制限に当たった場合は送信せずに終える。理由は上のsendResetPasswordと同じ)。
+        // キーを「今のアドレス」にしているのは、ログイン状態を盗んだ第三者が変更先を次々に変えて
+        // 申請しても、本来の持ち主の受信箱へ連続して送りつけられないようにするため
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+          if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'change-email', user.email))) {
+            return
+          }
+          await env.EMAIL.send({
+            from: 'no-reply@kyurl.link',
+            to: user.email,
+            ...buildChangeEmailConfirmationEmail(newEmail, url),
+          })
+        },
       },
     },
     // レート制限(docs/architecture.md 参照)。既定のmemory保存はWorkersのisolateごとに
@@ -189,10 +207,9 @@ export function auth(env: AuthEnv) {
               endpoints: ['/sign-up/email'],
             }),
           ],
-    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否し(docs/architecture.md 第7節)、
-    // 確認済みユーザーからの/change-email(段階4-2、上記user.changeEmailのコメント参照)を
-    // 拒否する。Better Auth公式のcaptchaプラグインと異なりこれらの用途向けの公式プラグインは
-    // 無いため、hooks.beforeでパスを見て個別に検証する
+    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否する(docs/architecture.md 第7節)。
+    // Better Auth公式のcaptchaプラグインと異なりこの用途向けの公式プラグインは無いため、
+    // hooks.beforeでパスを見て個別に検証する
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
@@ -208,17 +225,6 @@ export function auth(env: AuthEnv) {
           // 同じオブジェクトを参照し続けるため、プロパティを直接削除すれば反映される
           delete ctx.body.agreeToTerms
           return
-        }
-
-        if (ctx.path === '/change-email') {
-          const session = await getSessionFromCtx(ctx)
-
-          if (session?.user.emailVerified) {
-            throw new APIError('FORBIDDEN', {
-              code: 'EMAIL_CHANGE_NOT_AVAILABLE',
-              message: 'メールアドレスの変更は現在ご利用いただけません',
-            })
-          }
         }
       }),
     },

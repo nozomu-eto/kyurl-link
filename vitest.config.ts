@@ -39,12 +39,21 @@ export default defineConfig(async () => {
         // パスワード再設定トークンを2回目に使った際に、同じ内部Promiseチェーンの
         // 既知の挙動として確認された(該当テストのアサーション自体は400・エラーコードで
         // 正しく検証できており実害は無い)
+        // FOUND(302リダイレクト)は、src/lib/auth-change-email.test.ts(メールアドレス変更の
+        // 二段階の確認)で、メール内のリンク(/api/auth/verify-email)を開いてcallbackURLへ
+        // リダイレクトされる際に、同じ内部Promiseチェーンの既知の挙動として確認された。
+        // Better Authはリダイレクトを「throw ctx.redirect(...)」で表現するため、正常な応答でも
+        // 同じように二重に報告される(該当テストのアサーションで302とLocationヘッダーを検証済みで実害は無い)。
+        // リダイレクトにはbodyが無いため、body.codeではなくstatus('FOUND')で判定する
         // 将来better-auth/@cloudflare/vitest-pluginのバージョンを上げた際は、この除外が
         // まだ必要か再確認すること。
         // 注意: vitestのprojects機能導入時、この除外をworkersプロジェクト側のtestに移したところ
         // 効かなくなることを確認したため、ルート直下のtestに置く(onUnhandledErrorはプロジェクト単位
         // ではなくプロセス全体に対して効くオプションのため)
-        const err = error as { name?: string; body?: { code?: string } }
+        const err = error as { name?: string; status?: string; body?: { code?: string } }
+        if (err.name === 'APIError' && err.status === 'FOUND') {
+          return false
+        }
         if (
           err.name === 'APIError' &&
           (err.body?.code === 'INVALID_PASSWORD' ||
