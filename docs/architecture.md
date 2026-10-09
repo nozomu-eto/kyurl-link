@@ -1,39 +1,6 @@
-# kyurl.link アーキテクチャドキュメント(更新版11)
+# kyurl.link アーキテクチャドキュメント
 
-2026-09-26 · @Someone
-
-**更新版11での変更点(2026-09-26のセッションで確定)**
-- UI/UX:画面モックが完成(第6.5節)。画面ごとの確定仕様を第6.7節に新設
-- ロゴは作らず文字のみ。テンプレート由来のHonoのファビコンは無効化(第6.5節)
-- 警告インターステシャルに移動先URLを表示(第6.3節)
-- 開示・訂正等の請求は、ポートフォリオ段階ではメール受付に変更(第6.4節②)
-- アカウント削除の取り消しを「ログイン時の自動取り消し」から「明示的なボタン」に変更(第7.1節③)
-- API:クリック統計の期間指定、有効期限の日付指定と再開、QRの管理用の名前・画像サイズ、掲示物の用紙指定・まとめて印刷、削除取り消し、規約同意の記録、メール再送の制限を追加(第7節)
-- 掲示物:A4への面付けとまとめて印刷を追加(第13節)
-
-**更新版10での変更点(2026-09-25のセッションで確定)**
-- セキュリティ: Better Authのレート制限保存先をmemoryからdatabase(D1)に変更し、Workersのisolateをまたいで実効性を持たせた(第9.1節)
-- セキュリティ: 濫用・コスト増加リスクのある書き込み系エンドポイント・掲示物export・通報APIに、Cloudflare Workers Rate Limiting API(ratelimitsバインディング)によるレート制限を追加(第9.2節)
-- セキュリティ: メール未確認ユーザーによる書き込み系エンドポイントの濫用を防ぐため、requireVerifiedEmailミドルウェアを追加(第9.3節)
-- セキュリティ: サインアップ・通報APIにCloudflare Turnstileによるbot対策を追加(第9.4節)
-- セキュリティ: `links.moderationStatus`列を追加し、運営による強制停止を所有者が解除できないようにした(第9.5節)
-
-**更新版9での変更点(2026-09-23のセッションで検討)**
-- UI/UX設計: フロントデザインをエックスサーバー(xserver.ne.jp)風のテイストへ全面的に見直す方針とし、トップページのモックアップを作成(第6.5節)
-- デザイントークン: 3色の値は維持したまま、後から配色を差し替えられる3層構造(パレット→役割→部品)に変更(第6.2節)
-- フォント: 日本語はシステムフォント、数字・ロゴのみBarlowを自前配信する方針(第6.6節、モックアップで確認中)
-- 掲示物: A4用紙への面付け出力(A5×2面/A6×4面)を追加検討項目とした(第15節)
-
-**更新版8での変更点(2026-09-22のセッションで確定)**
-- 悪意あるURL検知(ヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)を実装完了(第4節)
-- 第15節 Open Itemsを上記に合わせて更新
-
-**更新版7での変更点(2026-09-21のセッションで確定)**
-- 悪意あるURL検知: Cloudflare URL Scanner APIの活用を実装見送りで確定(第4節)。あわせてGoogle Safe Browsing Lookup APIの追加導入も検討したが見送り
-- メール送信ドメイン認証: SPF/DKIM/DMARCのDNS反映手順を確定(第11節)
-- UI/UX設計: エラーメッセージ・ライティング方針(第6.3節)、問い合わせ対応フロー(第6.4節)を新規確定
-- 運用設計: 障害対応フローの監視手段をUptimeRobotからHetrixTools(SaaS)に変更(第14.1節、別紙「障害対応フロー」更新版2)
-- 第15節 Open Itemsを上記に合わせて更新
+kyurl.linkの現在の仕様と、設計上の決定・その理由をまとめる。画面モックは `docs/mocks/`、運用手順は `docs/deployment.md` などの各文書を参照。
 
 ## 1. Context and Goals
 
@@ -66,39 +33,46 @@
 - **掲示物キャッシュ**: Cloudflare R2(詳細は第13節)
 - **バックアップ**: D1 Time Travel(詳細は第14節)
 
-(各Cloudflare製品の役割分担は変更ありません)
+## 3. Key Decisions and Trade-offs
 
-## 3. Key Decisions and Trade-offs(変更なし)
+主な決定は次のとおり。各節に理由を書いている。
 
-D1の1台体制、DB設計、短縮コード生成・衝突処理、リダイレクト処理、QRコード生成方式、掲示物(ポスター)機能のスコープ(A6縦・A5縦の2サイズ)、認証(Better Auth・メール+パスワードのみ)、デプロイ手法についての決定事項は変更ありません。
+- **DB**: D1(SQLite)の1台体制。ORMはDrizzle。スキーマ変更はdrizzle-kitで生成したSQLを`wrangler d1 migrations apply`で適用する
+- **短縮コード**: ランダム生成し、DBの一意制約と存在確認で衝突を避ける(重複時は再生成、最大5回)
+- **リダイレクト**: `GET /:shortCode`は、存在しなければ404、停止中(運営による`moderationStatus`・所有者による`status`)または期限切れなら410、削除済みなら404、`securityStatus`が`flagged`なら警告画面、それ以外は302(第4節・第6.3節・第9.5節)
+- **QRコード**: 白黒のみ(色の変更機能は提供しない)。短縮URL経由と元URLの直接指定の両方に対応する(第6.5節・第7節)
+- **掲示物**: A6縦・A5縦の2サイズ。PDF/PNGはBrowser Renderingで生成し、R2に内容ハッシュキーでキャッシュする(第13節)
+- **認証**: Better Auth、メール+パスワードのみ。メール確認は「ソフト確認」(未確認でもログイン・閲覧はでき、書き込みだけ制限する。第9.3節)
+- **デプロイ**: Cloudflare Workers Builds(GitHub連携)。詳細は`docs/deployment.md`
+- **見送った機能**: 位置情報による地域別の表示(機能自体を見送り)。Cloudflare URL ScannerとGoogle Safe Browsingの自動組み込み(第4節)
 
-## 4. 悪意あるURLの検知(更新版8で実装完了)
+## 4. 悪意あるURLの検知
 
-2段階構成(作成時のヒューリスティック+URLhaus照合、日次の全件スキャン)です(当初の3段階構成のうち、24時間以内の追跡スキャンと週1回の全件再スキャンを日次の全件スキャン1つにまとめた)。URLhaus照会がタイムアウト・エラーとなった場合はfail-openとする方針は変更ありません。
+2段階構成(作成時のヒューリスティック+URLhaus照合、日次の全件スキャン)。URLhaus照会がタイムアウト・エラーとなった場合はfail-open(通常どおりリダイレクトを許可)とする。
 
-**実装概要(更新版8)**
+**実装概要**
 
 - **検知結果の保持**: `links`テーブルに`securityStatus`('unscanned'(未検査・fail-open) / 'clean'(問題なし) / 'flagged'(不審))と`lastScannedAt`(最終検査日時)を追加。既存の`status`(active/expired/suspended、意図的な停止を表す)とは意味の異なる別フィールドとした
 - **ヒューリスティック**(`src/lib/url-heuristics.ts`、ネットワーク呼び出し無しの純粋関数): ホスト名がIPアドレスリテラル・URLに'@'を含む(authority混乱攻撃)・ホスト名がPunycode(IDN、ホモグラフ攻撃の疑い)・既知の短縮URLサービスへの再短縮・URL全体が異常に長い(2000文字超)・サブドメイン階層が異常に多い(6階層超)、のいずれか1つでも該当すればflagged
 - **URLhaus照合**(`src/lib/urlhaus-client.ts`): `POST https://urlhaus-api.abuse.ch/v1/url/`にAuth-Keyヘッダー(`URLHAUS_API_KEY`、wrangler secretで設定)を付与して照会する。短いタイムアウト(デフォルト3秒、AbortController)を設け、タイムアウト・エラー・Auth-Key未設定の場合は必ずfail-open(securityStatus: 'unscanned')とし、失敗はログに残す。`src/lib/link-security-check.ts`の`determineLinkSecurityStatus()`がヒューリスティック→URLhaus照合の順で判定を組み立て、作成時チェック・日次の全件スキャンの両方から共通で呼び出される
-- **作成時チェック(第1段階)**: `POST /links`(`src/routes/links.ts`)内で同期的に実行し、結果を`securityStatus`とともに保存する
-- **日次の全件スキャン(第2段階)**: 既存の日次Cron Trigger(`0 0 * * *`、アカウント削除バッチと共用)内で、全active link(未削除)を対象に`runLinkSecurityFullScan()`を実行する(`src/lib/link-security-scan-batch.ts`)。`lastScannedAt`による絞り込みは行わないため、作成後にURLhausへ登録されたリンクも翌日までには再検査される。`src/index.tsx`の`scheduled`ハンドラはアカウント削除バッチ→全件スキャンの順に実行し、一方が失敗しても他方の処理を止めないようtry/catchで独立させている
+- **作成時チェック**: `POST /links`(`src/routes/links.ts`)内で同期的に実行し、結果を`securityStatus`とともに保存する
+- **日次の全件スキャン**: 既存の日次Cron Trigger(`0 0 * * *`、アカウント削除バッチと共用)内で、全active link(未削除)を対象に`runLinkSecurityFullScan()`を実行する(`src/lib/link-security-scan-batch.ts`)。`lastScannedAt`による絞り込みは行わないため、作成後にURLhausへ登録されたリンクも翌日までには再検査される。`src/index.tsx`の`scheduled`ハンドラはアカウント削除バッチ→全件スキャンの順に実行し、一方が失敗しても他方の処理を止めないようtry/catchで独立させている
 - **リダイレクト時の警告表示**: `GET /:shortCode`(`src/index.tsx`)で`securityStatus === 'flagged'`かつ`?proceed=1`が付いていない場合、302の代わりに警告インターステシャル(第6.3節の確定文言、`src/lib/redirect-pages.ts`の`securityWarningPageHtml()`)をHTTP 200で返す。「このまま進む」は同一パスへ`?proceed=1`を付けた相対リンクで実現し、これが付いている場合は通常通り302リダイレクトする。通報導線は既存の`POST /api/v1/reports`をそのまま流用し、警告ページ内の簡易フォーム+インラインスクリプトから呼び出す
 - **スコープ外(未実装のまま)**: `qrcodes.targetType: 'rawUrl'`(短縮URLを経由しない直接URL)は検知対象に含めていない
 
-**Cloudflare URL Scanner APIの活用は実装しないことで確定しました。** 理由は以下の通りです。
+**Cloudflare URL Scanner APIは使わない。** 理由は以下の通り。
 
 - 利用者が入力するURLは第三者の店舗ページ等であり、スキャン結果を「Public」にすると内容が検索可能な形で外部に公開されてしまうため、実運用上は「Unlisted(非公開・限定公開)」一択となる
 - Free/Radarプランは Unlistedスキャンが0件/月、Self serveプランでも500件/月と少なく、想定する後追いスキャン運用(日次の全件スキャン)にはすぐ枯渇する規模感。Enterpriseプラン(5,000件/月)はコスト的にポートフォリオ規模には見合わない
 - フルページ読み込みを伴うためレイテンシが数秒〜あり、作成時の即時判定には使えない(あくまで非同期の後追いスキャン用途に限られる)
 
-したがって、URL Scanner API自体はダッシュボード上での手動調査用途(無料のRadar/Security Center UI)に限定し、自動パイプラインには一切組み込まない。既存のURLhaus照合+fail-open方式を引き続き唯一の自動検知手段として維持する。
+したがって、URL Scanner API自体はダッシュボード上での手動調査用途(無料のRadar/Security Center UI)に限定し、自動パイプラインには組み込まない。URLhaus照合+fail-open方式を唯一の自動検知手段とする。
 
-**(参考・見送り)** Google Safe Browsing Lookup APIの追加導入(URLhausに加えるもう一段の照合)も検討したが、既存のURLhaus+fail-open+2段階スキャン(作成時+日次の全件スキャン)で十分と判断し、当面は見送りとした。
+**Google Safe Browsing Lookup APIは追加しない。** URLhausに加えるもう一段の照合も検討したが、URLhaus+fail-open+2段階スキャン(作成時+日次の全件スキャン)で十分と判断した。
 
 ## 5. 運用上の制約とスケーリング
 
-Workers KV書き込み(1日1,000件)がボトルネックである分析、KVキャッシュを「作成時」から「初回リダイレクト時」に変更する対応方針は変更ありません。
+Workers KV書き込み(1日1,000件)がボトルネックになりうるため、KVキャッシュは「作成時」ではなく「初回リダイレクト時」に書く方針とする。
 
 ### Browser Rendering(掲示物PDF/PNG生成)のテナント数試算
 
@@ -113,8 +87,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 ## 6. UI/UX設計方針
 
-### 6.1 必要な画面一覧(変更なし)
-
+### 6.1 必要な画面一覧
 **認証系**: サインアップ/ログイン、メール確認待ち画面、パスワードリセット申請・実行
 
 **コア機能系**: ダッシュボード(短縮URL一覧)、短縮URL作成フォーム、短縮URL詳細、QRコード生成・カスタマイズ画面、掲示物(ポスター)エディタ(A6/A5切り替え)
@@ -123,15 +96,14 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 **訪問者向け(未ログイン)**: リダイレクト警告インターステシャル、404、410 Gone、トップページ、利用規約・プライバシーポリシー表示
 
-### 6.2 デザイントークン(更新版9で構造を変更、色の値は維持)
-
+### 6.2 デザイントークン
 | 役割 | 色名 | HEX | 備考 |
 | --- | --- | --- | --- |
 | ベース | オフホワイト | `#F7F5F0` | 温かみのある背景色 |
 | メイン | 紺 | `#2F5A93` | 白文字とのコントラスト比 約7.0:1(AAA相当) |
 | アクセント | 朱 | `#D03E2F` | 白背景とのコントラスト比 約4.76:1(AA達成)。大面積専用に`#D44E40`も許容 |
 
-3色の値は現行を維持する。ただし更新版9で、将来の配色変更に備えて**差し替え可能な構造**にすることを決定した。CSS変数を次の3層に分け、部品(コンポーネントのスタイル)は第2層だけを参照する。
+3色の値は上表のとおり。将来の配色変更に備えて**差し替え可能な構造**にする。CSS変数を次の3層に分け、部品(コンポーネントのスタイル)は第2層だけを参照する。
 
 | 層 | 役割 | 例 |
 | --- | --- | --- |
@@ -144,8 +116,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 - 実装時は、各画面のインライン`style`とハードコードされた`#ffffff`等をクラス・変数へ寄せる(寄せないとパレット変更に追従しない)
 - 404・410・警告インターステシャル(Hono側で返すHTML)も同じトークンを共有できるようにする
 
-### 6.3 エラーメッセージ・ライティング方針(更新版7で新規確定)
-
+### 6.3 エラーメッセージ・ライティング方針
 対象は404・410 Gone・悪意あるURL警告インターステシャルの3画面。トーンは「技術的正確性より、一般利用者(非エンジニアの小規模店舗オーナー・その来訪者)にとってのわかりやすさ」を優先。多言語対応は現時点で行わないが、将来対応を見据えて文言は辞書オブジェクト化しやすいシンプルな構造にする。
 
 **404(存在しない短縮コード)**
@@ -169,17 +140,16 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 - アクション: [このまま進む] / [戻る]、小さいリンクで「このリンクに問題があると思われる場合はこちらから報告」(利用規約第9条の通報導線)
 - 方針: 「危険です」と断定せず「安全性を確認できなかった」という表現にし、誤検知時の説明責任を軽くする。
 
-**警告インターステシャルの表示項目(更新版11で追加)**
+**警告インターステシャルの表示項目**
 - 本文の直後に「移動先のURL」を表示する。ラベル「移動先のURL」+元URLの全文(折り返し表示、省略しない)。来訪者が移動先を自分で判断できるようにするため
 - 元URLは利用者の入力値なので、HTMLに埋め込む前に必ずエスケープする
 - ボタンの並びは、安全側の[戻る]を塗りボタンで上に、[このまま進む]を枠線ボタンで下に置く(どちらも横幅いっぱい、高さ52px)
 
-**3画面共通の表示ルール(更新版11で追加)**
+**3画面共通の表示ルール**
 - `redirect-pages.ts` が返す3画面はSPAとは別のサーバー生成HTMLだが、第6.2節の色トークンと第6.6節のフォント方針を共有する
 - `<meta name="viewport" content="width=device-width, initial-scale=1">` を必ず指定する(QRコード経由でスマートフォンから開かれる画面のため)
 
-### 6.4 問い合わせ対応フロー(更新版7で新規確定)
-
+### 6.4 問い合わせ対応フロー
 `info@kyurl.link`に混在する問い合わせを、以下の分類で仕分ける。
 
 | 種別 | 根拠 | 受付経路 | 本人確認 | 記録先 | 対応目安 |
@@ -195,8 +165,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 **対応フロー**: ①受信時に①〜⑥へ仕分け → ⑥は即削除、③相当がメールで来た場合は`/reports`相当の扱いに回す → ①②④⑤は一次返信テンプレートを送付(①はさらに障害対応フローの重大度判定に回す。②は登録済みのメールアドレスからの送信であることを確認し、そうでない場合は登録アドレス宛に確認の返信をしてから対応する)。①②④⑤⑥は月1回程度、件数・傾向を簡易メモとして残す(将来のヘルプページ/FAQ作成の材料とする)。
 
-### 6.5 フロントデザインの全面見直し(更新版9で方針決定、更新版11でモック完成)
-
+### 6.5 フロントデザインの全面見直し
 全体のテイストをエックスサーバー(https://www.xserver.ne.jp/)に寄せる。取り入れるのは構成とトーンであり、ロゴ・イラスト等の素材は使わない。キャンペーン価格の訴求や追従ポップアップ等の販促要素は、無料の小規模店舗向けツールには合わないため取り入れない。
 
 - **取り入れる要素**: 白の固定ヘッダー(右端に塗りのCTA+枠線のログイン)、濃紺のヒーロー帯とタブ見出し付きの特徴カード、中央寄せ見出し+短いアンダーバー、白とベース色のセクション交互配置、小さい角丸(4px程度)と薄い影のカード、番号ブロック(「機能 01」)、チェックアイコン付き箇条書きとキーワードの色付け、ステップ表示・FAQ・最終CTA帯、4列構成のフッター
@@ -215,8 +184,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
   - 削除などの短い確認は、通常のダイアログのまま
 - **モックでのフォント**:モックは表示確認のためGoogle Fontsを読み込んでいるが、実装は第6.6節の方針(システムフォント+Barlowの自前配信)に従う
 
-### 6.6 フォント方針(更新版9、モックアップで確認中)
-
+### 6.6 フォント方針
 - **日本語**: Webフォントは読み込まず、システムフォントを使う(ヒラギノ角ゴ → 游ゴシック → Noto Sans JP → メイリオ)。Noto Sans JPを複数ウェイト読み込むと、QRコード経由でスマホから訪れる来訪者にとって重いため
 - **数字・ロゴ**: Barlow(太字1ウェイト、ラテン文字サブセット)のみ使用する。Fontsourceでバンドルし、Workers静的アセットとして同一ドメインから配信する
 - **Google Fontsを直接読み込まない理由**: 来訪者のIPアドレスがGoogleに送信されるため、プライバシーポリシー第4条(第三者の技術)との関係を整理する必要が生じる。自前配信ならこの論点自体が発生しない
@@ -224,8 +192,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 - **参考(採用せず)**: Cloudflare Fonts(ゾーン設定でGoogle Fontsの読み込みを自ドメイン配信に書き換える機能)は、Workers静的アセットが返すHTMLに適用されるかがドキュメント上明確でないため採用しない。React Router(data mode)にはフォント最適化の機能はない
 - **既知の懸念**: Windowsの游ゴシックは細く見えやすい。見出しの太さが不足する場合は見出しのみ調整する
 
-### 6.7 画面ごとの確定仕様(更新版11で新設)
-
+### 6.7 画面ごとの確定仕様
 **短縮URL**
 - 作成フォーム:URL(必須)、有効期限([無期限][1か月後][3か月後][日付を指定])、「QRコードも一緒に作成する」(初期値オン)とQRの名前(任意)
 - 作成完了画面:短縮URLのコピー、QRのPNG/SVGダウンロード、次の操作([掲示物を作る][詳細・設定を見る][続けて作成する])
@@ -260,15 +227,13 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 
 ## 7. API設計
 
-### 前提・スコープ(変更なし)
-
+### 前提・スコープ
 - **APIバージョニング**: 将来のB2B有料化を見据え `/api/v1/` プレフィックス
 - **認証範囲**: リダイレクト・通報(`POST /reports`)・掲示物の公開プレビュー以外は全て要ログイン(Better Authセッション)
 - **削除方針**: `deletedAt` によるソフトデリート→猶予期間後にバッチで物理削除
 - **ページネーション**: `limit/offset`(将来必要ならcursorに移行)
 
-### リソース(変更なし)
-
+### リソース
 | リソース | 概要 |
 | --- | --- |
 | `links` | 元URL・短縮コード・有効期限・ステータス(active/expired/suspended) |
@@ -278,8 +243,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | `reports` | 利用規約第9条対応。対象link、理由、ステータス |
 | `accountRequests` | 開示・削除請求(プライバシーポリシー第7条)の受付ログ。アカウント削除の具体フローは第7.1節参照 |
 
-### エンドポイント(更新版11で一部変更)
-
+### エンドポイント
 **短縮URL** `/api/v1/links`
 
 | Method | Path | 認証 | 概要 |
@@ -292,9 +256,9 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | GET | `/links/:id/clicks` | ✓ | クリック統計(Analytics Engine SQL APIへの問い合わせ)。クエリ`days`(`7` / `30` / `90`、初期値30)を追加。それ以外の値は400 `VALIDATION_ERROR` |
 | GET | `/:shortCode` | 不要 | 公開リダイレクト |
 
-`PATCH /links/:id`の`expiresAt`の形式はPR #4の検証(ISO 8601・オフセット必須・過去日時は不可)のまま変えない。画面は日付だけを選ばせ、その日の`23:59:59.999+09:00`に変換して送る。更新後の期限が現在より未来で`status`が`expired`の場合は`active`に戻す。`status`に指定できるのは`active` / `suspended`のみ(`expired`は手動指定不可)。`moderationStatus`が`suspended`の場合の403 `MODERATION_LOCKED`はPR #4のまま(更新版11で追記)。
+`PATCH /links/:id`の`expiresAt`は、ISO 8601・オフセット必須・過去日時は不可。画面は日付だけを選ばせ、その日の`23:59:59.999+09:00`に変換して送る。更新後の期限が現在より未来で`status`が`expired`の場合は`active`に戻す。`status`に指定できるのは`active` / `suspended`のみ(`expired`は手動指定不可)。`moderationStatus`が`suspended`の場合、`status`の変更は403 `MODERATION_LOCKED`になる(第9.5節)。
 
-`status`(DB保存値)に`expired`を自動セットするバッチは無く、`status`列は所有者の意図(`active`/`suspended`)だけを表す。有効期限切れの表示は、`GET /links`・`GET /links/:id`のレスポンスに追加した`displayStatus`(`active` / `expired` / `suspended`)で、`moderationStatus` → `status` → `expiresAt`の優先順位でその場計算する(`src/lib/link-status.ts`の`computeLinkDisplayStatus()`に共通化し、`/:shortCode`の410判定にも同じ関数を使う。段階3-1で追記)。
+`status`(DB保存値)に`expired`を自動セットするバッチは無く、`status`列は所有者の意図(`active`/`suspended`)だけを表す。有効期限切れの表示は、`GET /links`・`GET /links/:id`のレスポンスに含める`displayStatus`(`active` / `expired` / `suspended`)で、`moderationStatus` → `status` → `expiresAt`の優先順位でその場計算する(`src/lib/link-status.ts`の`computeLinkDisplayStatus()`に共通化し、`/:shortCode`の410判定にも同じ関数を使う)。
 
 
 
@@ -309,9 +273,11 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | DELETE | `/qrcodes/:id` | ✓ | ソフトデリート |
 | GET | `/qrcodes/:id/image` | 不要 | PNG/SVG画像。クエリ`format`(`png` / `svg`、初期値`svg`。既存の`<img src>`表示を変えないため)と`size`(`512` / `1024` / `2048`、PNGのみ、初期値1024)を追加 |
 
-`POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を追加する。色の指定は受け付けない(黒・白固定)。PR #4で`styleOptions`に仮置きされた`foregroundColor` / `backgroundColor`は廃止する(掲示物の`styleOptions`の同名の仮置き項目も同様)(更新版11で追記)。その後、QRコードの`styleOptions`自体(APIの入出力とqrcodesテーブルの`style_options`列)も削除した(POR-124)。古いクライアントが`styleOptions`を送っても無視する(400にしない)。
+`POST` / `PATCH /qrcodes`, `/qrcodes/:id`に`name`(任意、最大40文字、前後の空白を除去し空文字は`null`)を指定できる。色の指定は受け付けない(黒・白固定)。QRコードに`styleOptions`は無く、古いクライアントが送っても無視する(400にしない)。
 
-QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes`、`GET` / `PATCH /qrcodes/:id`のレスポンスに`createdAt`(作成日時、ISO文字列)・`targetShortCode`(`targetType: 'link'`のときの短縮URLのコード。rawUrlはnull)・`posterCount`(使っている掲示物の件数。ソフトデリート済みは除く)を追加した。いずれもDBの列は増やさず、サブクエリで取得する(POR-82)。
+**QRコード画像のPNG生成方式**: SVGをラスタライズする方式(resvg等のWASM。初期化コストが重い)や、Browser Renderingでの描画(従量課金があり、掲示物書き出しとBrowser Renderingの枠を取り合う)は、白黒の正方形を並べるだけのQRコードには過剰なため採用しない。外部ライブラリ(`@juit/qrcode`等)の追加も検討したが、SVG生成に使っている`qrcode-svg`が、SVG描画に使うのと同じマス目(モジュール)の配列を公開しているため、これを再利用してマス目から直接グレースケールPNGを組み立てる(新規依存なし、`CompressionStream`でzlib圧縮しPNGのIDATに使う)。SVGの生成方法・内容は掲示物のR2キャッシュキーの元になるため変えない(`src/lib/qrcode-image.ts`)。
+
+QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes`、`GET` / `PATCH /qrcodes/:id`のレスポンスに`createdAt`(作成日時、ISO文字列)・`targetShortCode`(`targetType: 'link'`のときの短縮URLのコード。rawUrlはnull)・`posterCount`(使っている掲示物の件数。ソフトデリート済みは除く)を追加した。いずれもDBの列は増やさず、サブクエリで取得する。
 
 **掲示物** `/api/v1/posters`
 
@@ -325,69 +291,64 @@ QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes
 | GET | `/posters/:id/export` | ✓ | PDF/PNG書き出し(Browser Rendering + R2内容ハッシュキャッシュ、第13節)。クエリ`paper`(`a4` / `fit`、初期値`a4`)を追加 |
 | POST | `/posters/batch-export` | ✓ | まとめて印刷 |
 
-`POST` / `PATCH /posters`, `/posters/:id`の`title`は必須・最大20文字、`subtitle`は任意・最大40文字(PR #4で設定した長さ上限の定数をこの値に変更する)。`GET /posters`, `/posters/:id`のレスポンスに`linkStatus`(`active` / `expired` / `suspended` / `none` / `deleted`)を追加する。`none`は元URLを直接読み取るQRの場合。`deleted`は紐づく短縮URLまたはQRコードがソフトデリート済みの場合(リダイレクトは404になるため、`active`とは表示させない)。`active`/`expired`/`suspended`はlinkの`displayStatus`(第7節・`src/lib/link-status.ts`)と同じ基準で判定し(独自の判定はしない)、`computePosterLinkStatus`(`src/lib/poster-link-status.ts`)に切り出す。一覧は掲示物→QRコード→短縮URLをleftJoinでまとめて1回の問い合わせで取得する(掲示物ごとに問い合わせない)。画面の「リンクが期限切れです」表示と書き出し時の確認に使う(段階3-4で追記)。`GET /posters/:id/export`の`paper=a4`はA5なら2面・A6なら4面をA4に並べ、切り取り線を付ける。`paper=fit`は掲示物サイズのまま。`format=png`の場合`paper`は無視する。`POST /posters/batch-export`は本文`{ size: 'A5' | 'A6', items: [{ posterId, count }] }`。すべての掲示物がログインユーザーの所有かつ指定サイズであること。合計面数がA4用紙10枚分(A6は40面、A5は20面)を超える場合は400 `LIMIT_EXCEEDED`。PDFを返す(以上、更新版11で追記)。
+`POST` / `PATCH /posters`, `/posters/:id`の`title`は必須・最大20文字、`subtitle`は任意・最大40文字。`GET /posters`, `/posters/:id`のレスポンスに`linkStatus`(`active` / `expired` / `suspended` / `none` / `deleted`)を含める。`none`は元URLを直接読み取るQRの場合。`deleted`は紐づく短縮URLまたはQRコードがソフトデリート済みの場合(リダイレクトは404になるため、`active`とは表示させない)。`active`/`expired`/`suspended`はlinkの`displayStatus`(第7節・`src/lib/link-status.ts`)と同じ基準で判定し(独自の判定はしない)、`computePosterLinkStatus`(`src/lib/poster-link-status.ts`)に切り出す。一覧は掲示物→QRコード→短縮URLをleftJoinでまとめて1回の問い合わせで取得する(掲示物ごとに問い合わせない)。画面の「リンクが期限切れです」表示と書き出し時の確認に使う。`GET /posters/:id/export`の`paper=a4`はA5なら2面・A6なら4面をA4に並べ、切り取り線を付ける。`paper=fit`は掲示物サイズのまま。`format=png`の場合`paper`は無視する。`POST /posters/batch-export`は本文`{ size: 'A5' | 'A6', items: [{ posterId, count }] }`。すべての掲示物がログインユーザーの所有かつ指定サイズであること。合計面数がA4用紙10枚分(A6は40面、A5は20面)を超える場合は400 `LIMIT_EXCEEDED`。PDFを返す。
 
-**通報**(利用規約第9条)は変更なし(更新版3を参照)。**アカウント・データ請求**の具体フローは以下第7.1節を参照。
+**通報**は利用規約第9条に基づき、対象link・理由・ステータスを`reports`に記録する(`POST /reports`、未ログインで利用可能)。**アカウント・データ請求**の具体フローは以下第7.1節を参照。
 
-**アカウント削除申請の取り消し(更新版11で追加)**
+**アカウント削除申請の取り消し**
 
 | Method | Path | 認証 | 概要 |
 | --- | --- | --- | --- |
 | POST | `/account-requests/cancel` | ✓ | 猶予期間中のアカウント削除申請を取り消す。既存の`cancelPendingAccountRequestIfAny`を流用し、更新後の申請を返す。取り消せる申請が無い場合は404 `NOT_FOUND`。`scheduledDeletionAt`を過ぎた申請は取り消さず409 `GRACE_PERIOD_EXPIRED`(物理削除バッチは1日1回のため、猶予経過後バッチが動くまでの間に取り消すと案内と食い違うため) |
 
-自動取り消し(ログイン時に猶予期間中の申請を自動で取り消す挙動)は廃止し、上記の明示的な操作のみで取り消す(第7.1節③)。これに伴い、申請中(`status: 'pending'`)の利用者がそのままログインして作成を続け、猶予終了時にまとめてソフトデリートされてしまう事態を防ぐため、`POST /links`・`POST /qrcodes`・`POST /posters`に`blockAccountDeletionPending`ミドルウェアを追加し、申請中は403 `ACCOUNT_DELETION_PENDING`を返す。
+取り消しは上記の明示的な操作のみで、ログインしただけでは取り消さない(第7.1節③)。申請中(`status: 'pending'`)の利用者がそのままログインして作成を続け、猶予終了時にまとめてソフトデリートされてしまう事態を防ぐため、`POST /links`・`POST /qrcodes`・`POST /posters`は`blockAccountDeletionPending`ミドルウェアで、申請中は403 `ACCOUNT_DELETION_PENDING`を返す。
 
-**データの変更(更新版11で追加)**
-- `qrcodes`に`name`(text、null可)を追加
-- `user`に`termsAcceptedAt`(ミリ秒のtimestamp)・`termsVersion`(text、同意した利用規約の制定・改定日。例:`2026-09-18`)・`privacyPolicyVersion`(text、同意したプライバシーポリシーの制定・改定日。同意のチェックボックスは両方への同意のため、両方の版を別々に記録する)を追加。いずれもnull可で、既存ユーザーは同意の記録が無いためnullのままにする。サインアップ時に`agreeToTerms: true`が無い場合はサーバー側で拒否する(400 `TERMS_NOT_ACCEPTED`)。3項目とも利用者が送った値では上書きされないよう、Better Authの`user.additionalFields`で`input: false`にする(`src/lib/auth.ts`)
+**データ**
+- `qrcodes.name`(text、null可)
+- `user`に`termsAcceptedAt`(ミリ秒のtimestamp)・`termsVersion`(text、同意した利用規約の制定・改定日。例:`2026-09-18`)・`privacyPolicyVersion`(text、同意したプライバシーポリシーの制定・改定日。同意のチェックボックスは両方への同意のため、両方の版を別々に記録する)を持つ。いずれもnull可(同意の記録が無い古いユーザーはnull)。サインアップ時に`agreeToTerms: true`が無い場合はサーバー側で拒否する(400 `TERMS_NOT_ACCEPTED`)。3項目とも利用者が送った値では上書きされないよう、Better Authの`user.additionalFields`で`input: false`にする(`src/lib/auth.ts`)
 
-**メールの再送制限(更新版11で追加)**
+**メールの再送制限**
 - 登録確認メールの再送と、パスワード再設定の申請と、メールアドレス変更の承認メール(今のアドレス宛て)は、同じメールアドレスにつき60秒に1回まで(Rate Limiting binding。キーは用途の接頭辞+メールアドレスのハッシュ)
 - リンクの有効期限は、確認メール・パスワード再設定ともBetter Authの初期値(1時間)のまま
 
-### 7.1 アカウント削除・データ削除の実装フロー(更新版11で③を変更)
-
+### 7.1 アカウント削除・データ削除の実装フロー
 利用規約第10条・プライバシーポリシー第7条に基づく削除申請を、次のフローで実装する。
 
 | ステップ | 内容 |
 | --- | --- |
 | ①申請 | アカウント設定画面の「アカウント削除」から申請。誤操作防止のためパスワード再入力による確認を必須とする |
 | ②即時処理 | `users`テーブルに`deletedAt`を付与すると同時に、紐づく`links`/`qrcodes`/`posters`にもカスケードで`deletedAt`を付与。リダイレクト機能はこの時点で即座に停止し、410 Goneを返す(第8条3項の期限切れ短縮URLと同様の扱い) |
-| ③猶予期間 | 7日間。この間はログインでき、ダッシュボードとアカウント設定に「あと◯日で完全に削除されます」のバナーと[削除を取り消す]ボタンを表示する。取り消しはボタンによる明示的な操作でのみ行い(`POST /account-requests/cancel`)、ログインしただけでは取り消さない。削除するつもりでデータを確認しに入った利用者が、意図せず取り消してしまうのを防ぐため(更新版11で変更) |
+| ③猶予期間 | 7日間。この間はログインでき、ダッシュボードとアカウント設定に「あと◯日で完全に削除されます」のバナーと[削除を取り消す]ボタンを表示する。取り消しはボタンによる明示的な操作でのみ行い(`POST /account-requests/cancel`)、ログインしただけでは取り消さない。削除するつもりでデータを確認しに入った利用者が、意図せず取り消してしまうのを防ぐため |
 | ④通知メール | 申請受付時と完全削除完了時の2通を、Cloudflare Email Service(`no-reply@kyurl.link`)経由で送信 |
 | ⑤物理削除バッチ | 1日1回のCron Triggerで`deletedAt < now() - 7日`のレコードを検出し、D1から物理削除(users/links/qrcodes/posters/accountRequests関連)。R2の掲示物キャッシュ(`POSTER_CACHE`)は30日のObject Lifecycle Ruleを待たず、このバッチ内で明示的に削除する。Better Authのセッション・認証情報も併せて削除する |
 | ⑥アクセスログの扱い | Analytics EngineのクリックログはD1側のレコードが物理削除された後は`linkId`のみが残る孤立データとなる。個人情報とJOINしなければ本人特定はできない設計のため、既存のおおむね90日の自動削除に委ねる |
 
 **猶予期間を7日とした理由**: プライバシーポリシー第7条の「本人確認の上、法令に従い遅滞なく対応」という表現と矛盾しない範囲で、誤操作による取り消し不能な削除を防ぐための最短限の猶予として設定した。R2の30日Lifecycle Ruleとは独立してバッチ内で即時削除するため、実質的な完全削除は申請から7日後となる。
 
-`src/lib/auth.ts`のログイン時に呼んでいる自動取り消し処理は削除する(更新版11で変更)。
-
-### 共通仕様(変更なし)
-
+### 共通仕様
 - **エラー**: `{ error: { code, message, details? } }` に統一
 - **一覧成功レスポンス**: `{ items: T[], total, limit, offset }`
 - **Hono RPC**: 機能別にルートファイルを分割し`hc<AppType>()`で型共有。zodスキーマは`shared/schemas`に配置
 
-### 後で見直すべき点(変更なし)
-
+### 後で見直すべき点
 - `links`と`qrcodes`のN+1をDrizzleのrelational queryで回避
 - B2B化時にAPIキー認証・プラン別レート上限が必要(Rate Limiting設計と連動)
 - Browser Rendering APIのレート制限(1秒30回)はCloudflareアカウント単位。B2B化でテナント数が増えた場合、①内容ハッシュベースのR2キャッシュ(実装済み想定、第13節)に加え、②Cloudflare Queuesによる平準化、③テナント単位Rate Limitingによるフェアネス制御の追加を検討する
 - アカウント削除バッチ(第7.1節)の物理削除対象テーブルは、今後テーブルが増えた場合に追随して更新する必要がある
+- **日時の精度の混在**: アプリ側のテーブル(`links`・`qrcodes`・`posters`・`reports`の`created_at`、`account_requests`の`scheduled_deletion_at`・`completed_at`)は秒精度(`mode: 'timestamp'`)、Better Authのテーブルと各テーブルの`deleted_at`などはミリ秒精度(`timestamp_ms`)で混在している。Drizzleが`Date`型へ変換するため実害はない(同じ1秒内に作ったものの並び順が決まらない程度)。統一するには本番の5テーブルの作り直し(SQLiteは既定値の変更に列の付け替えが使えない)が必要になるため見送った(POR-125)
 - **Hono RPCの型推論問題への備え**: Hono公式が明記する通り、ルート数の増加に伴い型インスタンス化が増え、IDE(tsserver)のパフォーマンスが低下する可能性がある。本プロジェクトはエンドポイントが約20本あり顕在化しうる規模のため、発生した場合は公式推奨の「クライアントの事前コンパイル」方式(サーバーアプリの型を事前に生成し、tsserverの再計算を回避する。モノレポ構成推奨)で対処する。現状のルート分割・`shared/schemas`構成はモノレポ的な構成に近いため、対策への移行は比較的スムーズに行える見込み
 
-## 8. Rate Limiting設計(変更なし)
+## 8. Rate Limiting設計
 
-方針: Cloudflareネイティブの Rate Limiting binding で開始し、B2B化でプラン別クォータが必要になった時点でDurable Object方式に格上げする段階的アプローチ。`/:shortCode`のリダイレクトはbinding対象外とする方針も含め、バインディング設計・キー設計・レスポンス仕様は更新版3から変更ありません。
+方針: Cloudflareネイティブの Rate Limiting binding で開始し、B2B化でプラン別クォータが必要になった時点でDurable Object方式に格上げする段階的アプローチ。`/:shortCode`のリダイレクトはbinding対象外とする。具体的なバインディング・キー・レスポンスは第9.2節、Better Authのレート制限は第9.1節。
 
 第7節「後で見直すべき点」の通り、Browser Rendering(掲示物生成)のアカウント単位レート制限への対応(Queues・テナント別制御)は、B2B化のタイミングで別途検討する。
 
-## 9. セキュリティ設計(認証以外、変更なし)
+## 9. セキュリティ設計
 
-入力検証・インジェクション対策、認可(IDOR対策)、XSS対策、CSRF対策、シークレット管理、管理(通報対応)エンドポイントの保護、および掲示物PDFキャッシュ(R2)の認可チェック(必ずWorkerのコード内で所有者チェックを行ってからキャッシュを参照する設計)については、更新版4の内容から変更ありません。
+入力検証・インジェクション対策(zodスキーマと文字数上限の定数)、認可(IDOR対策。所有者チェックを必ず行い、他人のリソースは存在自体を漏らさないよう404にする)、XSS対策(来訪者向けHTMLに埋め込む値のエスケープ、CSP)、CSRF対策(Better AuthのOrigin検証)、シークレット管理(wrangler secret)、管理(通報対応)エンドポイントの保護、および掲示物PDFキャッシュ(R2)の認可チェック(必ずWorkerのコード内で所有者チェックを行ってからキャッシュを参照する設計)を基本とする。
 
-### 9.1 Better Authのレート制限(更新版10で追加)
-
+### 9.1 Better Authのレート制限
 Better Authはレート制限の保存先を指定しない場合、既定でメモリ(isolateのプロセス内メモリ)に保存する。Cloudflare Workersはリクエストごとにisolateが分かれ得るため、メモリ保存ではカウンタが共有されず、実質的にレート制限が機能しない。これに対応するため、以下の設定とした(`src/lib/auth.ts`)。
 
 - **保存先**: `rateLimit.storage: 'database'`。D1に`rateLimit`テーブル(`src/db/auth-schema.ts`、マイグレーション`drizzle/0010_last_puppet_master.sql`)を追加し、isolateをまたいでカウンタを共有する
@@ -399,11 +360,8 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
   - `/request-password-reset`: window 300秒(5分)・max 3回 — メール送信を伴いコストが高く、他人のメールアドレスへの迷惑メール送りつけ(総当たり)にも使われ得るため
   - `/send-verification-email`(確認メール再送): 上記と同じ理由でwindow 300秒・max 3回
 
-既存データの確認・対応が必要な場合の運用手順は無し(新規追加のテーブルのため、移行対象データは無い)。
-
-### 9.2 APIエンドポイントのレート制限(更新版10で追加)
-
-以下のエンドポイントには回数制限が無く、濫用やコスト増加のリスクがあったため、Cloudflare Workers Rate Limiting API(`ratelimits`バインディング、2025-09-19にGA)を`src/middleware/rate-limit.ts`のHonoミドルウェアとして導入した。
+### 9.2 APIエンドポイントのレート制限
+濫用やコスト増加のリスクがある次のエンドポイントには、Cloudflare Workers Rate Limiting API(`ratelimits`バインディング)による回数制限を、`src/middleware/rate-limit.ts`のHonoミドルウェアとして掛けている。
 
 - `POST /api/v1/links`・`POST /api/v1/qrcodes`・`POST /api/v1/posters`(大量作成対策)
 - `GET /api/v1/posters/:id/export`(Browser Renderingが動き、内容が変わるたびにR2キャッシュのキーも変わるため、従量課金が直接増える)
@@ -423,11 +381,8 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 
 **テストでの扱い**: `@cloudflare/vitest-pool-workers`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
 
-### 9.3 メール未確認ユーザーの書き込み制限(更新版10で追加)
-
-`src/lib/auth.ts`では既存テストとの兼ね合いから`requireEmailVerification`をあえてオフにしている(ソフト確認方式、第9.1節・emailVerification設定のコメント参照)。そのため、捨てアドレスで作成したアカウントでフィッシング用短縮URLを量産できてしまう懸念があった。
-
-これに対し、ログイン済みかつ`user.emailVerified`がtrueであることを要求する`requireVerifiedEmail`ミドルウェア(`src/middleware/require-verified-email.ts`)を追加し、以下の書き込み系エンドポイントに適用した(`authMiddleware`の直後、レート制限ミドルウェアより前に置く)。
+### 9.3 メール未確認ユーザーの書き込み制限
+`requireEmailVerification`はあえてオフにしている(ソフト確認方式)。オンにするとBetter Authの仕様上サインアップ時にセッションCookieが発行されず、サインアップ直後にそのまま使い始める流れが成り立たないため。その代わり、捨てアドレスで作成したアカウントでフィッシング用短縮URLを量産されないよう、ログイン済みかつ`user.emailVerified`がtrueであることを要求する`requireVerifiedEmail`ミドルウェア(`src/middleware/require-verified-email.ts`)を、次の書き込み系エンドポイントに適用している(`authMiddleware`の直後、レート制限ミドルウェアより前に置く)。
 
 - `POST /links`・`PATCH /links/:id`
 - `POST /qrcodes`・`PATCH /qrcodes/:id`
@@ -435,17 +390,16 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 
 未確認の場合は既存のエラー形式で403(`code: 'EMAIL_NOT_VERIFIED'`)を返す。一覧・詳細の取得、削除、アカウント削除申請(`POST /account-requests`)には適用しない。未確認ユーザーでも自分のデータの閲覧・削除・退会は行えるようにするためで、退会申請時のカスケード停止処理(第7.1節)の挙動にも変更は無い。
 
-フロントエンドの`AlertMessage`表示は既存のエラーハンドリング(`error.message`をそのまま表示する実装、第9.2節参照)にそのまま乗るため追加改修は不要。ただし、書き込み系フォームで403(`EMAIL_NOT_VERIFIED`)を受け取った場合は、汎用のエラーメッセージ表示に加えて、既存の「メール確認待ち」画面(`verify-email-pending-page.tsx`)への導線リンクを併記するよう各作成ページ(`link-create-page.tsx`・`qrcode-create-page.tsx`・`poster-create-page.tsx`)を修正した。
+書き込み系フォームで403(`EMAIL_NOT_VERIFIED`)を受け取った場合は、サーバーのエラーメッセージを表示したうえで、「メール確認待ち」画面(`verify-email-pending-page.tsx`)への導線リンクを併記する(`link-create-page.tsx`・`qrcode-create-page.tsx`・`poster-create-page.tsx`)。
 
-**テストへの影響**: 既存のテストファイルのsignUpヘルパーは、サインアップ直後は`emailVerified: false`のユーザーを返す。上記エンドポイントの正常系テストが403で失敗しないよう、テスト用ヘルパー`test/mark-email-verified.ts`(`markEmailVerified(userId)`、DBの`emailVerified`を直接trueに更新する)を追加し、書き込み系エンドポイントを呼ぶ既存テストファイルのsignUpヘルパー内でサインアップ直後に呼び出すよう統一した。`requireVerifiedEmail`自体の403判定は`src/middleware/require-verified-email.test.ts`で、あえて確認済みにしない未確認ユーザーを使って検証する。
+**テスト**: 書き込み系エンドポイントを呼ぶテストのsignUpヘルパーは、サインアップ直後に`test/mark-email-verified.ts`の`markEmailVerified(userId)`(DBの`emailVerified`を直接trueにする)を呼ぶ。`requireVerifiedEmail`自体の403判定は`src/middleware/require-verified-email.test.ts`で、確認済みにしない未確認ユーザーを使って検証する。
 
-### 9.4 Turnstileによるbot対策(更新版10で追加)
+### 9.4 Turnstileによるbot対策
+サインアップ(Better Auth)と通報(`POST /api/v1/reports`、未ログインで利用可能)のbot対策に、Cloudflare Turnstileを使う。
 
-サインアップ(Better Auth)と通報(`POST /api/v1/reports`、未ログインで利用可能)にbot対策が無かったため、Cloudflare Turnstileを導入した。
+**サインアップ(`/api/auth/sign-up/email`)**: 自前のBetter Authフック(`hooks.before`)やHonoミドルウェアでの個別実装ではなく、Better Auth公式の**captchaプラグイン**(`better-auth/plugins`の`captcha()`、`provider: 'cloudflare-turnstile'`)を採用する。理由は、この用途向けに公式が用意しているプラグインが存在し、siteverify呼び出し・エラーコード(`MISSING_RESPONSE`/`VERIFICATION_FAILED`等)・対象パスのマッチングまで一貫して面倒を見てくれるため、車輪の再発明を避けられること。`endpoints: ['/sign-up/email']`を明示し、既定(サインイン・パスワードリセットも含む)より狭いスコープに絞る(対象はサインアップのみのため)。クライアント側はトークンを`x-captcha-response`ヘッダー(公式の固定ヘッダー名)で送る。
 
-**サインアップ(`/api/auth/sign-up/email`)**: 自前のBetter Authフック(`hooks.before`)やHonoミドルウェアでの個別実装ではなく、Better Auth公式の**captchaプラグイン**(`better-auth/plugins`の`captcha()`、`provider: 'cloudflare-turnstile'`)を採用した。理由は、この用途向けに公式が用意しているプラグインが存在し、siteverify呼び出し・エラーコード(`MISSING_RESPONSE`/`VERIFICATION_FAILED`等)・対象パスのマッチングまで一貫して面倒を見てくれるため、車輪の再発明を避けられること。`endpoints: ['/sign-up/email']`を明示し、既定(サインイン・パスワードリセットも含む)より狭いスコープに絞った(今回の対象はサインアップのみのため)。クライアント側はトークンを`x-captcha-response`ヘッダー(公式の固定ヘッダー名)で送る。
-
-**通報(`POST /api/v1/reports`)**: Better Authのエンドポイントではないため、上記プラグインは使えない。`reportCreateInputSchema`に`turnstileToken`(必須)を追加し、`src/lib/turnstile.ts`の`verifyTurnstileToken()`(siteverify APIを直接呼ぶ)でハンドラ内で検証する。悪意あるURL検知(URLhaus、第4節)とは異なりbot対策そのものが目的のため、照会に失敗した場合もfail-open(素通り)にはせず、必ず拒否(400、`code: 'TURNSTILE_VERIFICATION_FAILED'`)する。
+**通報(`POST /api/v1/reports`)**: Better Authのエンドポイントではないため、上記プラグインは使えない。`reportCreateInputSchema`は`turnstileToken`(必須)を受け取り、`src/lib/turnstile.ts`の`verifyTurnstileToken()`(siteverify APIを直接呼ぶ)でハンドラ内で検証する。悪意あるURL検知(URLhaus、第4節)とは異なりbot対策そのものが目的のため、照会に失敗した場合もfail-open(素通り)にはせず、必ず拒否(400、`code: 'TURNSTILE_VERIFICATION_FAILED'`)する。
 
 **フロントエンド**: サインアップ画面(SPA)は`src/frontend/components/turnstile-widget.tsx`(explicit rendering、公式推奨のSPA向け方式)を使う。警告ページの通報フォーム(`src/lib/redirect-pages.ts`、サーバーレンダリングの静的HTML)は`cf-turnstile`クラスによるimplicit renderingを使う(静的ページ向けの方式)。
 
@@ -453,73 +407,85 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 
 **テストでの扱い**: ローカル開発・テストでは、公式のテスト用サイトキー・シークレットキー(常に成功: サイトキー`1x00000000000000000000AA`・シークレットキー`1x0000000000000000000000000000000AA`)を`.dev.vars`・`.env`に設定する(`.dev.vars.example`・`.env.example`に手順を記載)。ただし、captchaプラグインが有効なままだと既存の全テストファイルのsignUpヘルパー(`x-captcha-response`を送っていない)が軒並み失敗するため、レート制限(第9.1節の`RATE_LIMIT_FORCE_ENABLED`)と同様に、テスト専用の環境変数`TURNSTILE_DISABLED_FOR_TESTS`(`vitest.config.ts`で全テストに対し常に`'true'`を注入)でcaptchaプラグイン自体をpluginsに含めないようにする。プラグイン自体の動作(トークン無し→400・不正トークン→403・正常トークン→成功)は`src/lib/auth-captcha.test.ts`で、この値を個別に`'false'`に上書きしたうえで検証する。通報APIの`turnstileToken`検証は`src/routes/reports.test.ts`で、siteverifyへのfetchをモックして検証する。
 
-### 9.5 運営によるlinkの強制停止(moderationStatus、更新版10で追加)
+### 9.5 運営によるlinkの強制停止(moderationStatus)
 
-`PATCH /api/v1/links/:id`では所有者がstatusを自由に変更できるため、通報を受けて運営がリンクを`status: 'suspended'`にしても、所有者が`status: 'active'`に戻すことで停止を解除できてしまう問題があった。
+`PATCH /api/v1/links/:id`では所有者がstatusを自由に変更できるため、通報を受けて運営がリンクを`status: 'suspended'`にしても、所有者が`status: 'active'`に戻せてしまう。これを防ぐため、`links`テーブルに運営専用の`moderationStatus: 'none' | 'suspended'`(既定値`'none'`)列を持つ(`src/db/schema.ts`)。
 
-`links`テーブルに`moderationStatus: 'none' | 'suspended'`(既定値`'none'`)列を追加した(drizzleスキーマ・マイグレーションは`src/db/schema.ts`・`drizzle/0011_aspiring_micromacro.sql`)。
-
-- `src/index.tsx`のリダイレクト判定に、既存の`status`/`expiresAt`判定と並べて`moderationStatus === 'suspended'`のチェックを追加し、該当する場合は410を返す
-- レスポンス用の`linkSchema`に`moderationStatus`を追加する一方、`linkUpdateInputSchema`(利用者が変更できる項目)には含めない
+- リダイレクト判定(`src/index.tsx`)は、`status`/`expiresAt`と並べて`moderationStatus === 'suspended'`も見て、該当する場合は410を返す
+- レスポンス用の`linkSchema`には`moderationStatus`を含める一方、`linkUpdateInputSchema`(利用者が変更できる項目)には含めない
 - `PATCH /api/v1/links/:id`では、`moderationStatus === 'suspended'`のlinkに対して`status`を変更しようとした場合のみ403(`code: 'MODERATION_LOCKED'`)を返す。`expiresAt`のみの変更は禁止しない(`moderationStatus`とは独立した項目のため)
-- 運営が停止を実行する手段(管理画面・管理API)は今回作らず、D1への直接SQL実行による運用とする(手順は`docs/deployment.md`第8.2節に追記)
-- フロントエンド(`link-detail-page.tsx`)は、`moderationStatus === 'suspended'`の場合に状態(status)のセレクトボックスを無効化し、「運営により停止されています。」と表示する
+- 運営が停止を実行する手段(管理画面・管理API)は今回作らず、D1への直接SQL実行による運用とする(手順は`docs/deployment.md`)
+- フロントエンド(`link-detail-page.tsx`)は、`moderationStatus === 'suspended'`の場合に公開スイッチを無効化し、「運営により停止されているため、変更できません。」と表示する
 
-**アカウント削除時のカスケード停止(`src/routes/account-requests.ts`)との関係**: 退会申請受付時、対象ユーザーの全linkに`deletedAt`と`status: 'suspended'`を同時にセットする既存の挙動は変更していない。`moderationStatus`ではなく既存の`status`列のまま扱うことにした。理由は、両者が表す意味が異なるため: `status`は「そのアカウント・リソースが利用可能かどうか」という所有者側の状態遷移(かつ猶予期間中の再ログインで取り消し可能)を表すのに対し、`moderationStatus`は「運営が内容を理由に独立して停止した」という所有者の意思と無関係な判定を表す。両者を1つのカラムに統合すると、「アカウント削除申請によるsuspended」と「運営によるモデレーション停止」を区別できなくなり、例えば猶予期間中の取り消し処理やアカウント削除申請のキャンセル時に、運営停止まで誤って解除してしまう危険がある。orthogonalな(直交する)2つのカラムのままにすることで、片方の状態遷移がもう片方に意図せず影響しないようにした。
+**アカウント削除時のカスケード停止(`src/routes/account-requests.ts`)との関係**: 退会申請受付時は、対象ユーザーの全linkに`deletedAt`と`status: 'suspended'`を同時にセットする。`moderationStatus`ではなく`status`列を使う。理由は、両者が表す意味が異なるため: `status`は「そのアカウント・リソースが利用可能かどうか」という所有者側の状態遷移(かつ猶予期間中の再ログインで取り消し可能)を表すのに対し、`moderationStatus`は「運営が内容を理由に独立して停止した」という所有者の意思と無関係な判定を表す。両者を1つのカラムに統合すると、「アカウント削除申請によるsuspended」と「運営によるモデレーション停止」を区別できなくなり、例えば猶予期間中の取り消し処理やアカウント削除申請のキャンセル時に、運営停止まで誤って解除してしまう危険がある。直交する2つの列に分けることで、片方の状態遷移がもう片方に意図せず影響しないようにしている。
 
-## 10. テスト設計(フロントのコンポーネントテスト方針を追記)
+### 9.6 メール送信の制限が2種類ある理由
 
-`@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。コンポーネント別方針・省略してよい範囲・CI方針は更新版4から変更ありません。アカウント削除バッチ(第7.1節)については、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する項目を追加する。
+メールを送るエンドポイントには、性質の異なる2種類の制限を重ねている。
+
+| | Better Authのレート制限 | アプリ独自のメール再送制限 |
+| --- | --- | --- |
+| 実装 | `rateLimit.customRules`(`src/lib/auth.ts`) | `src/lib/email-resend-limit.ts` + `EMAIL_RESEND_RATE_LIMITER` |
+| キー | `${ip}\|${path}`(IP単位) | 用途(確認・再設定・メール変更の承認)ごと・メールアドレス単位(ハッシュ化) |
+| 上限 | `/send-verification-email`・`/request-password-reset`は5分に3回など(第9.1節) | 同じ宛先に60秒に1回 |
+| 超過時 | 429を返す | 成功の応答を返し、メールだけ送らない |
+| 目的 | 同じIPからの連打を防ぐ | 同じ宛先への送りつけを防ぎ、登録済みかどうかを推測させない |
+
+**統合しない理由**: IP単位の制限では次のことができない。
+
+- 同じ宛先へのメールの送りつけを防ぐこと(IPを変えれば同じ宛先に送れる)
+- 超過時に成功を返し、登録済みかどうかを推測させないこと(Better Authは超過時に必ず429を返し、`customRules`で変えられるのはwindowとmaxだけでキーは変えられない)
+- 新規登録直後の自動送信を制限すること(この送信は`/send-verification-email`を通らないため、エンドポイント単位のルールの対象外)
+
+また、IP単位では同じIPを共有する別の利用者を巻き込み、IPを変える攻撃者には効かない。
+
+## 10. テスト設計
+`@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。アカウント削除バッチ(第7.1節)は、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する。
 
 フロントエンド(`src/frontend`配下)は、Workersランタイム環境にはDOMが無くReactコンポーネントを実際にレンダリングできないため、vitestの`projects`機能でバックエンド用(`workers`、上記のWorkersランタイム環境)とフロントエンド用(`frontend`、`environment: jsdom`)の2プロジェクトに分けて実行する(`pnpm test`で両方がまとめて実行される)。フロント側は`@testing-library/react` + `@testing-library/user-event`を使い、キーボード操作・フォーカス管理・スクリーンリーダー向けの読み上げ・タイマーやクリップボード操作等の副作用を伴う挙動(Dialogのフォーカストラップ・Escでの終了・CopyButtonのコピー完了表示等)を優先してテストする。単純な表示のみの部品(Card・Page等)や、画面全体のE2E的な遷移確認は対象外とし、無理に網羅しない。
 
-## 11. メール設計・送信ドメイン認証(更新版7でDNS反映手順を追記)
-
-Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動送信と、既存のGoogle Workspace(`info@kyurl.link`)による通報・問い合わせ対応の経路分離、apexドメイン送信によるSPF/DKIM/DMARCの共存方針は更新版4から変更ありません。
+## 11. メール設計・送信ドメイン認証
+Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動送信と、既存のGoogle Workspace(`info@kyurl.link`)による通報・問い合わせ対応の経路を分離する。送信はapexドメイン(`kyurl.link`)から行い、SPF/DKIM/DMARCをGoogle Workspace側と共存させる。
 
 なお、システムからの自動送信メール(登録確認・パスワードリセット・アカウント削除の受付/完了通知)は、いずれも契約や取引の履行に関する事務連絡であり、広告又は宣伝を目的とするものではないため、特定電子メール法(オプトイン規制)の対象である「特定電子メール」には該当しないと整理する。将来メールマガジン等の広告宣伝メールを送信する場合は、別途オプトインの同意取得・記録保存・表示義務への対応が必要になる。
 
-**DNS反映手順(更新版7で確定)**: Cloudflare Email Sendingの認証レコードは`cf-bounce`サブドメインに隔離される設計であり、GWS側のルートドメインMX/SPF/DKIMには影響しない。追加するDNSレコードはMX(`cf-bounce.kyurl.link`)、TXT SPF(`v=spf1 include:_spf.mx.cloudflare.net ~all`、同サブドメイン)、TXT DKIM(`cf-bounce._domainkey.kyurl.link`、Cloudflare発行の公開鍵)、TXT DMARC(`_dmarc.kyurl.link`、ルート)の4件。実施手順はCloudflareダッシュボード → Compute > Email Service > Email Sending → 「Onboard Domain」から提示されるレコード案を確認(GWSのMX/SPFに変更が入っていないことを目視確認)→ 反映後`dig`で伝播確認(通常5〜15分)→ テストメール送信でSPF/DKIM/DMARC=passを確認、の順。**実作業自体は未着手**で、実装フェーズと並行して進める。
+**DNS反映手順**: Cloudflare Email Sendingの認証レコードは`cf-bounce`サブドメインに隔離される設計であり、GWS側のルートドメインMX/SPF/DKIMには影響しない。追加するDNSレコードはMX(`cf-bounce.kyurl.link`)、TXT SPF(`v=spf1 include:_spf.mx.cloudflare.net ~all`、同サブドメイン)、TXT DKIM(`cf-bounce._domainkey.kyurl.link`、Cloudflare発行の公開鍵)、TXT DMARC(`_dmarc.kyurl.link`、ルート)の4件。実施手順はCloudflareダッシュボード → Compute > Email Service > Email Sending → 「Onboard Domain」から提示されるレコード案を確認(GWSのMX/SPFに変更が入っていないことを目視確認)→ 反映後`dig`で伝播確認(通常5〜15分)→ テストメール送信でSPF/DKIM/DMARC=passを確認、の順。**実作業自体は未着手**で、実装フェーズと並行して進める。
 
-## 12. アクセスログの保持・削除の実装方式(変更なし)
+## 12. アクセスログの保持・削除の実装方式
+アクセスログ(クリック)にはWorkers Analytics Engineを使う。書き込むだけでデータが自動的におおむね90日で削除されるため、削除処理を自前で持たずに済む。クリック統計の取得は、D1側のlinkの所有者チェックを先に行ってからAnalytics Engineに問い合わせる2段構成とする。プライバシーポリシー第5条1項は、この実際の挙動(約90〜92日)に合わせて「おおむね90日」としている。
 
-Workers Analytics Engineを採用し、書き込むだけでデータが自動的におおむね90日で削除される方針、D1との2段構成の所有者チェック、クエリタイムアウト等の制約は更新版4から変更ありません。プライバシーポリシー第5条1項は、この実際の挙動(約90〜92日)に合わせ「おおむね90日」に文言修正済み(2026年9月19日改定)。
+## 13. 掲示物PDF/PNG生成・キャッシュ設計
+掲示物のPDF/PNGはCloudflare Browser Renderingで生成し、R2に内容ハッシュをキーにしてキャッシュする。認可(所有者チェック)は必ずキャッシュ参照より先に行う。R2のObject Lifecycle Rules(30日)で自動削除し、アカウント削除時はこの30日を待たず第7.1節の物理削除バッチ内でR2オブジェクトを明示的に削除する。
 
-## 13. 掲示物PDF/PNG生成・キャッシュ設計(更新版11で追記)
+**書き出し設定**
+- PDFは`preferCSSPageSize: true`(`@page`のサイズ指定に従う)・`printBackground: true`で出力する。PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影する(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
+- テンプレートの版`POSTER_TEMPLATE_VERSION`をR2キャッシュキーの計算に含める。テンプレートや書き出し設定を変更した場合はこの値を上げ、変更前のPDF/PNGがR2から返り続けることを防ぐ
 
-Cloudflare Browser Renderingによる生成方式、R2 + 内容ハッシュキーによるキャッシュ方式、認可チェックを必ずキャッシュ参照より先に行う設計、R2 Object Lifecycle Rules(30日)による自動削除は更新版4から変更ありません。アカウント削除時は、この30日ルールを待たず第7.1節の物理削除バッチ内でR2オブジェクトを明示的に削除する。
-
-**書き出し不具合の修正(段階3-4で追加)**
-- `page.pdf()`・`page.screenshot()`を設定なしで呼んでいたため、PDFは既定のレター用紙(8.5×11インチ)+`preferCSSPageSize: false`(`@page`のサイズ指定を無視して内容を縮小する)で用紙サイズが誤り、PNGは既定のビューポート(800×600)全体を撮影するため掲示物の一部しか写らない不具合があった。PDFは`preferCSSPageSize: true`・`printBackground: true`を指定し、PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影するように修正した(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
-- テンプレートの版`POSTER_TEMPLATE_VERSION`をR2キャッシュキーの計算に含め、この修正で1→2に上げた。テンプレートや書き出し設定を変更した場合は、この値を上げることで、修正前の(サイズ・撮影範囲が誤った)PDF/PNGがR2から返り続けることを防ぐ
-
-**A4への面付け(更新版11で追加)**
+**A4への面付け**
 - A5はA4に2面、A6はA4に4面、余白なしでちょうど収まる。面の境界に切り取り線(灰色の破線)を入れる
 - 家庭用プリンターやコンビニのマルチコピー機は用紙の端から約5mmを印刷できないため、テンプレートでは各面の端から5mm以内に文字やQRを置かない
 - コンビニのプリントサービスで選べる普通紙はB5 / A4 / B4 / A3のみで、A5・A6は選べないため、A4への面付けを初期値とする
 
-**まとめて印刷のキャッシュ(更新版11で追加)**
+**まとめて印刷のキャッシュ**
 - 掲示物1枚分の描画結果は、既存の内容ハッシュキーでR2に保存したものをそのまま再利用する
 - A4への配置は組み合わせごとに行い、キー=ハッシュ(サイズ+各掲示物の内容ハッシュと枚数を順番どおりに並べたもの)で保存する。30日のObject Lifecycle Ruleは既存と同じ
 - 1回の処理はA4用紙10枚までとし、Browser Renderingの処理時間と従量課金を読める範囲に収める。将来の有料化時は、この上限をプランで変えられるようにする
 
 ## 14. 運用設計・バックアップ
 
-### 14.1 障害対応フロー(更新版7で監視手段を変更)
-
-個人開発・1人体制のため、一般的な「オンコール担当者間のエスカレーション」ではなく、「自分1人が気づいた時にどう動くか」と「Cloudflare基盤起因の障害をどう切り分けてエスカレーションするか」を軸に運用フローを確定した。詳細は別紙「障害対応フロー(更新版2)」を参照。要点は以下の通り。
+### 14.1 障害対応フロー
+個人開発・1人体制のため、一般的な「オンコール担当者間のエスカレーション」ではなく、「自分1人が気づいた時にどう動くか」と「Cloudflare基盤起因の障害をどう切り分けてエスカレーションするか」を軸に運用フローを定めている。詳細は`docs/incident-response.md`を参照。要点は以下の通り。
 
 - **重大度分類**: `/:shortCode`のリダイレクト(コア機能)停止をSev1として最優先。QR・掲示物生成の不調をSev2、ダッシュボード・認証のみの不調をSev3、軽微な表示崩れ等をSev4とする
 - **対応時間帯**: 24時間365日のSLAは掲げず、「気づき次第・ベストエフォート」を明記した上で、Sev1のみ他作業を止めて即対応する方針とする
-- **検知手段(変更)**: **HetrixTools(無料プラン)**による外形監視(リダイレクト・ヘルスチェックエンドポイントを1分間隔・監視ロケーション4拠点、メール通知)を採用。Cloudflareから独立した外部SaaSのため、Cloudflare全体障害時にも独立して動作する。Workers Logs(`observability.enabled`)は原因調査用途として役割分担する。無料プランの利用規約に商用利用を禁じる明記はなく、UptimeRobotで懸念していたB2B化時の制約は実質解消(ただし90日間ログインがないとモニターが停止するため、定期ログインを運用ルールに含める)
+- **検知手段**: **HetrixTools(無料プラン)**による外形監視(リダイレクト・ヘルスチェックエンドポイントを1分間隔・監視ロケーション4拠点、メール通知)を採用。Cloudflareから独立した外部SaaSのため、Cloudflare全体障害時にも独立して動作する。Workers Logs(`observability.enabled`)は原因調査用途として役割分担する。無料プランの利用規約に商用利用を禁じる明記はなく、UptimeRobotで懸念していたB2B化時の制約は実質解消(ただし90日間ログインがないとモニターが停止するため、定期ログインを運用ルールに含める)
 - **エスカレーション先**: 自分の変更が原因なら自分自身が一次対応、Cloudflare基盤側の障害ならCloudflareサポート(Paidプランのチケット)へ。外部脅威DB(URLhaus等)の障害は第4節の既存方針(fail-open)で対応済みとし、緊急エスカレーション先は設けない
 - **復旧手段**: アプリケーションコードはCloudflareダッシュボードから直前デプロイへ巻き戻し。D1のデータ復旧は以下のTime Travelコマンドで行う
-- **利用者への告知(変更)**: 専用ステータスページは当面用意しない。HetrixToolsのPublic Status Page機能は利用可能な状態にあるため、将来必要になれば設定変更のみで対応できる
+- **利用者への告知**: 専用ステータスページは当面用意しない。HetrixToolsのPublic Status Page機能は利用可能な状態にあるため、将来必要になれば設定変更のみで対応できる
 - **事後振り返り**: Sev1・Sev2発生時のみ簡易ポストモーテムメモ(発生日時/検知方法/影響範囲/原因/対応内容/再発防止策)を残す。Sev3・Sev4は省略可
 
-### 14.2 D1 Time Travel運用(変更なし)
-
-バックアップ方式自体(D1 Time Travel)は変更ないが、実際の運用コマンドと手順を確定した。
+### 14.2 D1 Time Travel運用
+バックアップはD1 Time Travelを使う。運用コマンドと手順は次のとおり。
 
 ```bash
 # 現在のブックマーク(復元ポイント)を確認
@@ -533,83 +499,32 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 - 復元操作の制限: 同一DBに対し**10分間に10回まで**
 - **本番DBに直接復元する前に、必ず別名のテストDB(例: `<DB_NAME>-restore-test`)に一度復元して中身を確認してから本番に反映する**運用とし、誤操作・二次被害を防止する
 
-### 14.3 漏えい等対応(変更なし)
-
-個人情報保護法上の漏えい等報告・本人通知義務は事業規模を問わず発生するため、1人開発でも回せる最低限の対応手順を確定した。詳細は別紙「漏えい等対応マニュアル」を参照。要点は以下の通り。
+### 14.3 漏えい等対応
+個人情報保護法上の漏えい等報告・本人通知義務は事業規模を問わず発生するため、1人開発でも回せる最低限の対応手順を確定した。詳細は`docs/data-breach-response.md`を参照。要点は以下の通り。
 
 - **該当性判定**: 4類型(要配慮個人情報/財産的被害のおそれ/不正アクセス等/1,000人超)のいずれかに該当すれば報告・通知義務が発生。確証がなくても「発生したおそれ」の段階で義務が生じる点に注意
 - **個人情報保護委員会への報告**: 速報(事態を知ってから概ね3〜5日以内)→確報(30日以内、不正の目的による場合は60日以内)の2段階
 - **本人への通知**: 委員会への報告とは別に、登録メールアドレス宛にCloudflare Email Service経由で通知する義務がある。通知事項は概要/漏えい情報の項目/原因/二次被害の有無/本人が取れる防御策の5項目
 - **委託先(Cloudflare)経由の事故**: インフラ起因であっても報告義務は委託元であるkyurl.link運営者側が原則負う
-- **本マニュアルの位置づけ**: 利用規約・プライバシーポリシー本体には含めず、別管理の内部運用文書として保管する方針で確定(規約・ポリシー側の文言変更は行わない)
+- **位置づけ**: 利用規約・プライバシーポリシー本体には含めず、別管理の内部運用文書として保管する
 
-## 15. Open Items(未決定・要検討)— 更新版11
-
-### 解決済み(更新版3までの検討で確定)
-
-- ~~ユーザー通報・削除依頼を受け付ける窓口の設計~~ → `info@kyurl.link`
-- ~~コスト設計~~ → Cloudflare Workers Paidプラン内
-- ~~デプロイ・CI/CD設計~~ → Cloudflareダッシュボード経由でデプロイ
-- ~~利用規約・プライバシーポリシー~~ → 制定済み(2026年9月18日)
-- ~~画面設計・UX/UI全体~~ → 第6節
-- ~~API設計の全体像~~ → 第7節
-- ~~Rate Limitingのバインディング・キー設計~~ → 第8節
-- ~~セキュリティ設計(入力検証・認可・XSS/CSRF等)~~ → 第9節
-- ~~悪意あるURL検知の外部DB照会失敗時の挙動~~ → fail-open、第4節
-- ~~テスト戦略・CI自動実行~~ → 第10節
-
-### 解決済み(更新版4の検討で確定)
-
-- ~~メール設計・送信ドメイン認証~~ → Cloudflare Email Service、apexドメイン送信、GWSと共存(第11節)
-- ~~アクセスログの長期保持・削除の実装方式~~ → Workers Analytics Engineを採用、削除処理は不要に(第12節)
-- ~~掲示物PDF/PNG生成方式~~ → Cloudflare Browser Rendering(第13節)
-- ~~掲示物のキャッシュ設計~~ → R2 + 内容ハッシュキー + Object Lifecycle Rules(第13節)
-- ~~バックアップ設計~~ → D1 Time Travel、追加実装不要(第14節)
-- ~~監視・ログの基本方針~~ → Workers Logs(`observability.enabled`)(第14節)
-
-### 解決済み(更新版6の検討で確定)
-
-- ~~プライバシーポリシー第5条1項の文言修正~~ → 「90日」→「おおむね90日」に修正済み(2026年9月19日改定、プライバシーポリシー本体を参照)
-- ~~アカウント削除・データ削除の実装フロー~~ → ソフトデリート即時反映(リダイレクト即停止)→7日間の猶予→物理削除バッチ、の3段構成で確定(第7.1節)
-- ~~特定電子メール法の適用整理~~ → 自動送信メールは全て取引履行に関する事務連絡であり対象外と整理(第11節)
-- ~~漏えい時の対応体制~~ → 4類型判定・速報3〜5日/確報30〜60日・本人通知の手順を確定。別紙「漏えい等対応マニュアル」を作成、規約・ポリシー本体には含めない方針(第14.3節)
-- ~~障害対応フロー(エスカレーション先・対応時間帯)~~ → 重大度分類・UptimeRobotによる外形監視・Cloudflareサポートへのエスカレーション基準を確定。別紙「障害対応フロー」を作成(第14.1節)
-- ~~D1 Time Travelの具体的な運用手順~~ → `wrangler d1 time-travel info/restore`コマンドとテストDBへの事前復元手順を確定(第14.2節)
-
-### 解決済み(更新版8の検討で確定)
-
-- ~~悪意あるURL検知(ヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)の実装~~ → 実装完了。`links.securityStatus`/`lastScannedAt`の追加、`POST /links`での作成時チェック、既存日次cron(24時間以内スキャン)+新規週次cron(全件再スキャン)、`GET /:shortCode`での警告インターステシャル表示まで含む(第4節)
-
-### 解決済み(更新版7の検討で確定)
-
-- ~~悪意あるURL検知へのCloudflare URL Scanner API活用~~ → 実装見送り確定。あわせてGoogle Safe Browsing Lookup APIの追加導入も検討したが、既存のURLhaus+fail-open+2段階スキャン(作成時+日次の全件スキャン)で十分と判断し見送り(第4節)
-- ~~メール設計・送信ドメイン認証の実際のDNS反映・検証作業~~ → 手順確定(実作業自体は未着手、実装と並行で進める)(第11節)
-- ~~エラーメッセージ・ライティング設計~~ → 404/410/警告インターステシャルの3画面分の文言確定(第6.3節)
-- ~~問い合わせ対応フロー~~ → 分類表・テンプレート確定(第6.4節)
-- ~~障害対応フローの監視SaaS選定・B2B化時の商用利用制限への対応~~ → UptimeRobotからHetrixTools(無料プラン)に変更して確定。無料プランに商用利用禁止の明記はなく、懸念は実質解消(第14.1節、別紙「障害対応フロー」更新版2)
-
-### 解決済み(更新版11の検討で確定)
-
-- ~~フロントデザインの全面見直し(画面モック)~~ → 完成(第6.5節・第6.7節)
-- ~~開示等の請求の受付経路~~ → ポートフォリオ段階はメール受付(第6.4節②)
-- ~~アカウント削除の取り消し方法~~ → 明示的なボタン(第7.1節③)
-- ~~位置情報(geolocation)を使った地域別の表示~~ → 機能自体を見送り
-- ~~QRコードのPNG画像の生成方式~~ → SVGをラスタライズする方式(resvg等のWASM。初期化コストが重い)や、Browser Renderingでの描画(従量課金があり、掲示物書き出しとBrowser Rendering枠を取り合う)は、白黒の正方形を並べるだけのQRコードには過剰なため採用しない。外部ライブラリ(`@juit/qrcode`等)の追加導入も検討したが、SVG生成に既に使っている`qrcode-svg`が、SVG描画に使うのと同じマス目(モジュール)の配列を公開しているため、これを再利用してマス目から直接グレースケールPNGを組み立てる方式(新規依存の追加なし、`CompressionStream`でzlib圧縮しPNGのIDATに使う)に決定した。SVGの生成方法・内容(掲示物のR2キャッシュキーの元になるため)は変更しない(第7節・`src/lib/qrcode-image.ts`)
+## 15. Open Items(未決定・先送り)
 
 ### 実装フェーズに先送り
 
-- オンボーディング/ヘルプ設計 → フロントエンド実装フェーズで画面と併せて決定する方針
+- オンボーディング/ヘルプ設計 → 画面と併せて決定する
 
 ### 後日対応
 
-- 法務・コンプライアンス設計: 個人情報保護法32条公表事項(運営者氏名・住所の開示体制の明記) → プライバシーポリシーへの軽微な追記で対応可能。実際に一般公開・実運用を検討するタイミングで着手
+- 法務・コンプライアンス設計: 個人情報保護法32条公表事項(運営者氏名・住所の開示体制の明記) → プライバシーポリシーへの軽微な追記で対応できる。実際に一般公開・実運用を検討するタイミングで着手する
+- メール送信ドメイン認証の実際のDNS反映・検証作業(手順は第11節で確定済み、実作業は未着手)
 
-### 検討中(更新版9で追加)
+### 検討中
 
-- フロントデザインの全面見直し(第6.5節): モックアップの方向性確認後、スマートフォン版の作成とトークン3層化から実装に着手
-- フォント方針(第6.6節): Windows環境での見え方を確認して確定
-- 掲示物のA4面付け出力: 家庭用プリンターはA4前提のため、A6/A5単体の出力に加えて、A4に面付け(A5×2面/A6×4面、同じ掲示物を並べる)したPDF出力を追加するか検討中。検討時の論点は、①家庭用プリンターは用紙端まで印刷できないため、テンプレートは内側に安全域を取り背景を紙端まで敷かない、②切り取りは中央の十字(A5は中央1本)のみで済むため、紙端に短い目印を付ける方式にする、③書き出し画面で「実際のサイズ(100%)で印刷」を案内する、④書き出しAPIへの面付け指定の追加(例: `GET /posters/:id/export?sheet=a4`)とR2キャッシュキーへの反映、⑤面付けはPDFのみとしPNGは単体出力のまま、の5点。採用する場合は第3節の掲示物スコープ・第13節を更新する
+- フォント方針(第6.6節): Windows環境での見え方を確認して確定する
 
 ### 引き続き未決定
 
+- 掲示物の書き出しを、Browser Rendering(PDF/PNGの生成)からブラウザの印刷機能に切り替えるかどうか。切り替えると、Browser Rendering・R2キャッシュ・書き出しのレート制限が不要になり、コードを大きく減らせる。「掲示物の一覧」「掲示物エディタ」「まとめて印刷」の作り方に影響するため、それらの実装より前に決める(YouTrack POR-128「仕様を変えてコードを減らす」で検討中)
+- 退会を、7日間の猶予つきの削除から即時削除に変えるかどうか(同じくPOR-128で検討中)
 - B2B化時のBrowser Renderingスケーリング対応(Cloudflare Queues・テナント別Rate Limiting、第7節・第8節)
