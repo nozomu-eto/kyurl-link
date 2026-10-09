@@ -1054,106 +1054,6 @@ h1 {
   font-weight: 700;
 }
 
-/* ========== 短縮URLの作成完了画面(docs/mocks/LinkCreated.html) ========== */
-
-.created-summary {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-}
-
-.created-summary__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.created-summary__url {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.created-summary__label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-}
-
-.created-summary__url-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.created-summary__url-row .short-url {
-  font-size: 1.5rem;
-}
-
-.created-summary__destination {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  overflow-wrap: anywhere;
-}
-
-.created-qrcode {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-5);
-  margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
-}
-
-.created-qrcode__image {
-  display: block;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-base);
-  background-color: var(--color-surface);
-}
-
-/* 「次にできること」の選択肢。広い画面は横3列、狭い画面は縦並び */
-.next-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-3);
-}
-
-.next-action {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-base);
-  text-decoration: none;
-}
-
-.next-action:hover {
-  background-color: var(--color-brand-tint);
-}
-
-.next-action__title {
-  font-weight: 700;
-  color: var(--color-link);
-}
-
-.next-action__description {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
 /* アカウント削除の猶予期間中に、ダッシュボード・アカウント設定の上部に表示する常設の案内
    (docs/mocks/AccountSettings.html)。色は停止中の状態バッジと同じ系統のトークンを使う */
 .account-deletion-banner {
@@ -1342,6 +1242,106 @@ h1 {
   .header-drawer__toggle {
     display: flex;
   }
+}
+
+/* ========== 短縮URLの作成完了画面(docs/mocks/LinkCreated.html) ========== */
+
+.created-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.created-summary__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.created-summary__url {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.created-summary__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.created-summary__url-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.created-summary__url-row .short-url {
+  font-size: 1.5rem;
+}
+
+.created-summary__destination {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.created-qrcode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.created-qrcode__image {
+  display: block;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+}
+
+/* 「次にできること」の選択肢。広い画面は横3列、狭い画面は縦並び */
+.next-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.next-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  text-decoration: none;
+}
+
+.next-action:hover {
+  background-color: var(--color-brand-tint);
+}
+
+.next-action__title {
+  font-weight: 700;
+  color: var(--color-link);
+}
+
+.next-action__description {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 /* ========== CopyButton ========== */
