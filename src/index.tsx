@@ -6,7 +6,7 @@ import { links as linksTable } from '@/db/schema'
 import { runAccountDeletionBatch } from '@/lib/account-deletion-batch'
 import { auth } from '@/lib/auth'
 import { computeLinkDisplayStatus } from '@/lib/link-status'
-import { runLinkSecurityFullScan, runLinkSecurityTrackingScan } from '@/lib/link-security-scan-batch'
+import { runLinkSecurityFullScan } from '@/lib/link-security-scan-batch'
 import { goneePageHtml, notFoundPageHtml, securityWarningPageHtml } from '@/lib/redirect-pages'
 import accountRequests from '@/routes/account-requests'
 import links from '@/routes/links'
@@ -204,25 +204,10 @@ app.get('/:shortCode', async (c) => {
 // 実在しうる短縮コード(英数字1セグメント)を横取りする心配は無い
 app.get('*', serveSpaShell)
 
-// 週次(毎週月曜3時)の悪意あるURL全件再スキャン用cron式。wrangler.jsoncのtriggers.cronsと
-// 値を揃える。event.cronでこの値かどうかを見て、日次ジョブと週次ジョブを振り分ける
-const WEEKLY_LINK_SECURITY_FULL_SCAN_CRON = '0 3 * * 1'
-
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
-    // 週次cron: 悪意あるURL検知(docs/architecture.md 第4節「第3段階」)の全件再スキャンのみ行う
-    if (event.cron === WEEKLY_LINK_SECURITY_FULL_SCAN_CRON) {
-      try {
-        const scannedCount = await runLinkSecurityFullScan(env)
-        console.log(`link-security-full-scan: ${scannedCount}件処理しました`)
-      } catch (error) {
-        console.error('link-security-full-scanに失敗しました', error)
-      }
-      return
-    }
-
-    // 日次cron: アカウント削除バッチ(第7.1節)と、悪意あるURL検知の24時間以内追跡スキャン
+    // 日次cron: アカウント削除バッチ(第7.1節)と、悪意あるURL検知の全件スキャン
     // (第4節「第2段階」)を両方実行する。一方が失敗しても他方の処理を止めないよう、
     // それぞれ独立したtry/catchで囲む
     try {
@@ -234,10 +219,10 @@ export default {
     }
 
     try {
-      const trackingScanCount = await runLinkSecurityTrackingScan(env)
-      console.log(`link-security-tracking-scan: ${trackingScanCount}件処理しました`)
+      const scannedCount = await runLinkSecurityFullScan(env)
+      console.log(`link-security-full-scan: ${scannedCount}件処理しました`)
     } catch (error) {
-      console.error('link-security-tracking-scanに失敗しました', error)
+      console.error('link-security-full-scanに失敗しました', error)
     }
   },
 } satisfies ExportedHandler<CloudflareBindings>

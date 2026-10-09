@@ -5,8 +5,8 @@ import { checkUrlAgainstUrlhaus } from '@/lib/urlhaus-client'
 export type LinkSecurityStatus = 'unscanned' | 'clean' | 'flagged'
 
 // ヒューリスティックチェック→(必要なら)URLhaus照合、の順で1件のURLを検査し、
-// links.securityStatusに保存する値を決定する。POST /links(作成時チェック)、
-// 24時間以内の追跡スキャン、週次の全件再スキャンの3段階すべてから共通で呼び出される。
+// links.securityStatusに保存する値を決定する。POST /links(作成時チェック)と
+// 日次の全件スキャンの両方から共通で呼び出される。
 //
 // - ヒューリスティックで不審と判定された場合、URLhaus照会は行わずflaggedを返す
 //   (既に不審と判定済みのため、追加のネットワーク呼び出しでリクエストを遅延させる必要がない)
