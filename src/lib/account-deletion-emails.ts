@@ -1,5 +1,5 @@
-// アカウント削除申請・完了通知メールの件名・本文テンプレート(docs/architecture.md 第7.1節
-// 「④通知メール」、第11節)。docs/data-breach-response.md 第5節の本人通知テンプレートと
+// アカウント削除申請・完了通知メールの件名・本文テンプレート(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」
+// 「④通知メール」、「メール設計・送信ドメイン認証」)。docs/data-breach-response.md 第5節の本人通知テンプレートと
 // 同程度のトーン(丁寧・簡潔な日本語のプレーンテキスト)に揃える
 
 // 日時をローカル(日本時間)の分かりやすい表記に変換する(例: 2026年9月29日 19:00)
@@ -14,7 +14,7 @@ function formatJapaneseDateTime(date: Date): string {
   }).format(date)
 }
 
-// アカウント削除申請を受け付けた際に送る通知メール(docs/architecture.md 第7.1節「④通知メール」の1通目)
+// アカウント削除申請を受け付けた際に送る通知メール(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「④通知メール」の1通目)
 export function buildRequestReceivedEmail(scheduledDeletionAt: Date): { subject: string; text: string } {
   const scheduledDeletionAtText = formatJapaneseDateTime(scheduledDeletionAt)
 
@@ -32,7 +32,7 @@ ${scheduledDeletionAtText}をもって、アカウントおよび関連データ
   }
 }
 
-// アカウントの物理削除が完了した際に送る通知メール(docs/architecture.md 第7.1節「④通知メール」の2通目)
+// アカウントの物理削除が完了した際に送る通知メール(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「④通知メール」の2通目)
 export function buildDeletionCompletedEmail(): { subject: string; text: string } {
   return {
     subject: '【kyurl.link】アカウント削除が完了しました',

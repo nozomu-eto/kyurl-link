@@ -4,7 +4,7 @@
 const DEFAULT_TIMEOUT_MS = 3000
 
 // URLhaus(abuse.ch)が運営する悪意あるURLデータベースに、指定したURLが登録されているかを
-// 照会する。docs/architecture.md 第4節・第11条2項の「外部の脅威データベースとの照合」に対応する。
+// 照会する。docs/architecture.mdの「悪意あるURLの検知」・第11条2項の「外部の脅威データベースとの照合」に対応する。
 //
 // 戻り値:
 // - 'listed': URLhausに登録されている(既知の悪意あるURL)

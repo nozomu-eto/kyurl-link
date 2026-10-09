@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // accountRequest(アカウント削除申請)作成APIの入力用スキーマ。
 // 誤操作防止のため、パスワード再入力による本人確認を必須とする
-// (docs/architecture.md 第7.1節「誤操作防止のためパスワード再入力による確認を必須とする」)
+// (docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「誤操作防止のためパスワード再入力による確認を必須とする」)
 export const accountRequestCreateInputSchema = z.object({
   // 本人確認用のログインパスワード
   password: z.string(),

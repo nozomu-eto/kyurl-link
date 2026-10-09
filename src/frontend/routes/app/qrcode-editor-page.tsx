@@ -51,7 +51,7 @@ function DownloadIcon() {
 // QrCodeEditorPage: QRコード1件の詳細画面(docs/mocks/QrDetail.html)。
 // 画像のプレビューと読み取り先、ダウンロード(PNG: 512 / 1024 / 2048px、SVG)、
 // 管理用の名前の保存、A6/A5での掲示物作成への導線、削除を持つ。
-// QRコードは読み取りやすさを優先し、白地に黒で出力する方針(docs/architecture.md 第6.7節)のため、
+// QRコードは読み取りやすさを優先し、白地に黒で出力する方針(docs/architecture.mdの「画面ごとの確定仕様」)のため、
 // 色の変更機能(前景色・背景色)は提供しない
 export function QrCodeEditorPage() {
   const { qrcode } = useLoaderData<typeof qrcodeEditorLoader>()

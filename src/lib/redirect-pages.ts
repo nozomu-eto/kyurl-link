@@ -1,8 +1,8 @@
 // リダイレクト時のエラーページ(404・410 Gone)のHTMLを生成する。
-// 見出し・本文・補足の文言はdocs/architecture.md 第6.3節「エラーメッセージ・ライティング方針」で
-// 確定済みのため、ここでは変更しない。文言を変更する場合は、必ずドキュメント側(第6.3節)も
+// 見出し・本文・補足の文言はdocs/architecture.mdの「エラーメッセージ・ライティング方針」で
+// 確定済みのため、ここでは変更しない。文言を変更する場合は、必ずドキュメント側も
 // 合わせて更新すること
-// 見た目はdocs/architecture.md 第6.2節(デザイントークン)・第6.6節(フォント方針)・
+// 見た目はdocs/architecture.mdの「デザイントークン」・「フォント方針」・
 // docs/mocks/Visitor404.html・Visitor410.html・VisitorWarning.htmlに合わせる
 
 // HTMLに値を埋め込む前に、利用者の入力値由来の文字列をエスケープする。
@@ -18,8 +18,8 @@ function escapeHtml(value: string): string {
 }
 
 // 3画面共通のヘッダー・フッター・ボタン等のスタイル。
-// 色は第6.2節のトークンの値をそのまま使う(この段階ではCSS変数の3層構造は未導入のため、
-// HEX値を直接指定する)。フォントは第6.6節どおりシステムフォントのみ
+// 色は「デザイントークン」のトークンの値をそのまま使う(このHTMLはSPAのCSSを読み込まないため、
+// CSS変数ではなくHEX値を直接指定する)。フォントは「フォント方針」どおりシステムフォントのみ
 const PAGE_STYLE = `
   * { box-sizing: border-box; }
   body {
@@ -212,7 +212,7 @@ ${FOOTER_HTML}
 // 生成するサーバー制御の値であり、利用者入力ではないためHTMLへの直接埋め込みでも安全だが、
 // 念のためJSON.stringifyで文字列リテラルとしてエスケープしてから埋め込む。
 // 一方originalUrlは利用者がlink作成時に入力した値のため、escapeHtml()で必ずエスケープする
-// (docs/architecture.md 第6.3節「警告インターステシャルの表示項目」)。
+// (docs/architecture.mdの「エラーメッセージ・ライティング方針」「警告インターステシャルの表示項目」)。
 // 「このまま進む」は現在のパスに?proceed=1を付けた相対リンクのみで実現し(サーバー側で
 // index.tsxがこのクエリパラメータを見て通常の302リダイレクトに切り替える)、
 // 「戻る」はトップページに戻す(404/410ページと同じ導線に揃える)。
@@ -225,7 +225,7 @@ ${FOOTER_HTML}
 // nonce: CSP(Content-Security-Policy-Report-Only、src/index.tsx)のscript-srcに設定した
 // NONCEハンドラが生成する値。このページのインラインscript(下記)のnonce属性に設定することで、
 // 将来enforceモード(Content-Security-Policy、docs/deployment.md参照)に切り替えた際も
-// このインラインscriptだけは実行が許可されるようにする(公開前修正v2 T9)。
+// このインラインscriptだけは実行が許可されるようにする。
 // 外部スクリプト(challenges.cloudflare.comのTurnstile本体)はホスト指定で許可されるため
 // nonceは不要
 export function securityWarningPageHtml(shortCode: string, turnstileSiteKey: string, nonce: string | undefined, originalUrl: string): string {

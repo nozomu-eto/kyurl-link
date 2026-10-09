@@ -554,7 +554,7 @@ describe('所有者チェック(他人のlinkにはアクセスできない)', (
   })
 })
 
-describe('POST /api/v1/links の悪意あるURL検知(docs/architecture.md 第4節)', () => {
+describe('POST /api/v1/links の悪意あるURL検知(docs/architecture.mdの「悪意あるURLの検知」)', () => {
   it('ヒューリスティックに該当するURL(IPアドレスリテラル)で作成すると、securityStatus: flaggedで返る', async () => {
     const { sessionCookie } = await signUp()
 
@@ -603,7 +603,7 @@ describe('GET /api/v1/links/:id/clicks', () => {
 
     // globalThis.fetchを一時的に差し替え、実際のSQL API呼び出しをせずに固定のレスポンスを返す。
     // 実際のAnalytics Engine SQL APIはclicksを文字列型("3"等)で返すため、モックもそれに合わせる
-    // (以前clicksを数値型でモックしていたために型変換漏れのバグを検知できなかったため)
+    // (数値型でモックすると、文字列から数値への変換漏れを検知できないため)
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () =>
       new Response(

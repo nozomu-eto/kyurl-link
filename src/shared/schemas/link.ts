@@ -19,7 +19,7 @@ export const linkSchema = z.object({
   // その場で計算した「今どう扱うべきか」を表す(src/lib/link-status.ts参照)。
   // 画面の状態バッジ等、表示にはこちらを使う
   displayStatus: z.enum(['active', 'expired', 'suspended']),
-  // 悪意あるURL検知の結果(docs/architecture.md 第4節)。statusとは意味が異なる別フィールド。
+  // 悪意あるURL検知の結果(docs/architecture.mdの「悪意あるURLの検知」)。statusとは意味が異なる別フィールド。
   // unscanned: 未検査またはURLhaus照会がfail-openした / clean: 問題なし / flagged: 不審と判定された
   securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
   // 最終検査日時(ISO文字列)
@@ -40,7 +40,7 @@ export const linkCreateInputSchema = z.object({
   originalUrl: httpUrlSchema,
   // 有効期限。ISO 8601形式かつタイムゾーン情報(offset、'Z'または'+09:00'等)を必須とする
   // (offsetを必須にしないと、DB上でUTC/ローカルどちらとして解釈すべきかが曖昧になり、
-  // 過去日時判定(第9.6節相当、src/routes/links.ts)がずれる可能性があるため)。
+  // 過去日時判定(src/routes/links.ts)がずれる可能性があるため)。
   // 省略時はnull(無期限)として扱う
   expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 })
@@ -51,7 +51,7 @@ export const linkCreateInputSchema = z.object({
 // どちらのフィールドも省略可能とし、指定されたものだけを更新するPATCHの入力として扱う
 export const linkUpdateInputSchema = z.object({
   // linkの状態。'expired'は指定できない(有効期限切れは自動的に決まるため、手動では選べない。
-  // docs/architecture.md 第6.7節「詳細:...「期限切れ」は有効期限で自動的に決まり、手動では
+  // docs/architecture.mdの「画面ごとの確定仕様」「詳細:...「期限切れ」は有効期限で自動的に決まり、手動では
   // 選べない」)。指定すると400 VALIDATION_ERRORになる
   status: z.enum(['active', 'suspended']).optional(),
   // 有効期限。作成時と同様、ISO 8601形式かつoffset必須で検証する。nullを指定すると無期限に変更する

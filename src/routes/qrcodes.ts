@@ -47,14 +47,14 @@ function toQrcodeResponse(record: typeof qrcodes.$inferSelect & { targetShortCod
 // c.set('user', ...)するため、Variablesにもuserの型を指定する
 const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser } }>()
   .basePath('/qrcodes')
-  // 一覧取得は認証必須(docs/architecture.md 第7節)
+  // 一覧取得は認証必須(docs/architecture.mdの「API設計」)
   .get('/', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const userId = c.get('user').id
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
     // 他人のqrcodeが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
-    // ページングは未実装のため暫定的に固定値を返す
+    // ページングは未実装のため固定値を返す
     const items = await db
       .select(qrcodeSelection)
       .from(qrcodes)
@@ -233,7 +233,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     return c.body(null, 204)
   })
   // QRコード画像(SVG・PNG)。リダイレクト等と同様、認証不要の公開エンドポイントとする
-  // (docs/architecture.md 第7節)。所有者チェックの対象外(誰でもQRコードを読み取れる必要があるため)
+  // (docs/architecture.mdの「API設計」)。所有者チェックの対象外(誰でもQRコードを読み取れる必要があるため)
   .get('/:id/image', async (c) => {
     // クエリformat(svg/png、既定svg。既存の<img src=".../image">の表示を変えないため既定はsvgのまま)。
     // sizeはformat=pngのときだけ使う(3-4のpaperと同じ扱い)
@@ -292,7 +292,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     // PNGはマス目から直接生成でき数ミリ秒で終わるため、R2キャッシュには保存しない
-    // (docs/architecture.md 第15節)。QRコード・リンクが削除された後に古い画像が長く
+    // (docs/architecture.mdの「API設計」)。QRコード・リンクが削除された後に古い画像が長く
     // 出回らないよう、キャッシュは短め(1時間)にする
     const png = await renderQrcodePng(contentResult.content, size)
     return c.body(png, 200, {

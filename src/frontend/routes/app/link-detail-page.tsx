@@ -102,7 +102,7 @@ export function LinkDetailPage() {
 
   const shortUrl = `${window.location.origin}/${link.shortCode}`
   // 運営により停止(moderationStatus === 'suspended')された場合、所有者は自分では公開状態を
-  // 変更できないようにする(強制停止の解除を防ぐ仕様。PR #4参照)
+  // 変更できないようにする(強制停止の解除を防ぐ仕様。docs/architecture.mdの「運営によるlinkの強制停止」)
   const isLockedByModeration = link.moderationStatus === 'suspended'
 
   // 公開状態のスイッチの変更ハンドラ。保存するのはstatus(active/suspended)で、

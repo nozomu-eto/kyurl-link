@@ -118,7 +118,7 @@ async function cancelAccountDeletion(sessionCookie: string) {
   })
 }
 
-describe('ログインだけでは取り消されないこと(更新版11で自動取り消しを廃止)', () => {
+describe('ログインだけでは取り消されないこと', () => {
   it('退会申請後に再サインインしても、申請は取り消されずリソースはソフトデリートされたままになる', async () => {
     const { email, sessionCookie } = await signUp()
     const link = await createLink(sessionCookie, 'https://example.com/not-auto-restored')
@@ -178,7 +178,7 @@ describe('POST /api/v1/account-requests/cancel(明示的な取り消し)', () =>
     // 申請によって削除されたlink・qrcode・posterは、deletedAtがnullに戻り再び200になる。
     // linkはdeletedAtに加えてstatusも'suspended'から'active'に戻っていることを確認する
     // (このstatusの復元が無いと、deletedAtが復元されても公開リダイレクトが410のまま
-    // になってしまう。account-request-cancellation.tsのバグ修正で追加した挙動)
+    // になってしまう。account-request-cancellation.tsが保証する挙動)
     const linkResponse = await SELF.fetch(`https://example.com/api/v1/links/${link.id}`, {
       headers: { Cookie: sessionCookie },
     })
@@ -243,8 +243,8 @@ describe('POST /api/v1/account-requests/cancel(明示的な取り消し)', () =>
   })
 
   it('取り消しを連続で2回呼ぶと、2回目は404(取り消せる申請が無い)になる', async () => {
-    // ほぼ同時に2回押された場合、1回目でcancelPendingAccountRequestIfAnyがnullを返し、
-    // 非nullの前提で応答を組み立てて500エラーになっていた不具合(PR #20)の修正確認。
+    // ほぼ同時に2回押された場合、1回目の後でcancelPendingAccountRequestIfAnyがnullを返しても、
+    // 500エラーにならず404になることの確認。
     // 実際の競合(2つのリクエストが同時に実行される状況)そのものは再現しないが、
     // 「1回目の成功後、対象が無くなった状態でもう一度呼ぶと404になる」という
     // 最終的に保証したい挙動は連続呼び出しでも検証できる

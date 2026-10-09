@@ -13,7 +13,7 @@ export const LINK_STATUS_LABELS: Record<LinkStatus, string> = {
 }
 
 // SelectField用の選択肢(保存用のstatusの編集操作で使う)。'expired'は指定できない
-// (有効期限切れは自動的に決まるため、手動では選べない。docs/architecture.md 第6.7節、
+// (有効期限切れは自動的に決まるため、手動では選べない。docs/architecture.mdの「画面ごとの確定仕様」、
 // linkUpdateInputSchema参照)ため、activeとsuspendedのみを対象にする
 const EDITABLE_LINK_STATUSES: LinkStatus[] = ['active', 'suspended']
 export const LINK_STATUS_OPTIONS: SelectOption[] = EDITABLE_LINK_STATUSES.map((status) => ({

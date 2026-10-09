@@ -31,11 +31,11 @@ export default defineConfig(async () => {
         // 同一の誤ったパスワードによるサインインを連続実行した際に、同じ内部Promiseチェーンの
         // 既知の挙動として確認された(スタックトレースはINVALID_PASSWORDの場合と同一の
         // better-call内部の経路を指す)
-        // FIELD_NOT_ALLOWEDは、src/lib/auth-terms.test.ts(段階3-5)で、additionalFieldsに
+        // FIELD_NOT_ALLOWEDは、src/lib/auth-terms.test.tsで、additionalFieldsに
         // input: falseを指定したtermsVersion等をサインアップのbodyに直接指定した場合に、
         // 同じ内部Promiseチェーンの既知の挙動として確認された(該当テストのアサーション
         // 自体は400・エラーコードで正しく検証できており実害は無い)
-        // INVALID_TOKENは、src/lib/auth-password-reset.test.ts(段階4-2)で、使用済みの
+        // INVALID_TOKENは、src/lib/auth-password-reset.test.tsで、使用済みの
         // パスワード再設定トークンを2回目に使った際に、同じ内部Promiseチェーンの
         // 既知の挙動として確認された(該当テストのアサーション自体は400・エラーコードで
         // 正しく検証できており実害は無い)
@@ -67,7 +67,7 @@ export default defineConfig(async () => {
       // バックエンド(Hono/D1等、実際のWorkersランタイムに近い環境が必要)とフロントエンド
       // (React Router data mode、DOM上でコンポーネントを実際にレンダリングする必要がある)では
       // 実行環境そのものが異なる(cloudflare:testのbinding vs jsdomのwindow/document)ため、
-      // vitestのprojects機能で2プロジェクトに分ける(docs/architecture.md 第10節)。
+      // vitestのprojects機能で2プロジェクトに分ける(docs/architecture.md 「テスト設計」)。
       // どちらもextends: trueでこのファイルのresolve等を引き継ぎ、testとpluginsだけを上書きする
       projects: [
         {
@@ -127,7 +127,7 @@ export default defineConfig(async () => {
           test: {
             name: 'frontend',
             // React Router(data mode)のコンポーネントをjsdom上で実際にレンダリングして検証する
-            // (docs/architecture.md 第10節)
+            // (docs/architecture.md 「テスト設計」)
             environment: 'jsdom',
             include: ['src/frontend/**/*.test.{ts,tsx}'],
             // 各テスト後にDOMをクリーンアップする(@testing-library/react)

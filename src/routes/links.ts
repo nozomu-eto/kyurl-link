@@ -31,7 +31,7 @@ const SHORT_CODE_MAX_ATTEMPTS = 5
 // authMiddlewareがc.set('user', ...)するため、Variablesにもuserの型を指定する
 const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser } }>()
   .basePath('/links')
-  // 一覧取得は認証必須(docs/architecture.md 第7節)のため、authMiddlewareを経由させる
+  // 一覧取得は認証必須(docs/architecture.mdの「API設計」)のため、authMiddlewareを経由させる
   .get('/', authMiddleware, async (c) => {
     // リクエストごとのD1バインディングからDrizzleインスタンスを生成する
     const db = drizzle(c.env.DB)
@@ -39,7 +39,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
     // 他人のlinkが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
-    // ページングは未実装のため暫定的に固定値を返す
+    // ページングは未実装のため固定値を返す
     const items = await db
       .select()
       .from(links)
@@ -102,7 +102,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    // 悪意あるURL検知(docs/architecture.md 第4節「作成時のヒューリスティック+URLhaus照合」)。
+    // 悪意あるURL検知(docs/architecture.mdの「悪意あるURLの検知」「作成時のヒューリスティック+URLhaus照合」)。
     // POST /links全体が長時間ブロックされないよう、checkUrlAgainstUrlhaus側で短いタイムアウトを
     // 設けている(URLhaus照会が失敗・タイムアウトした場合はfail-open、securityStatus: 'unscanned')
     const securityStatus = await determineLinkSecurityStatus(input.originalUrl, c.env.URLHAUS_API_KEY)
@@ -127,7 +127,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(response, 201)
   })
-  // 詳細取得(クリック数サマリ・QR一覧は別リソース実装後に追加するため、現時点ではlinkSchema分のみ返す)
+  // 詳細取得(link本体のみ返す。クリック統計は/:id/clicks、QRコード一覧はGET /qrcodes)
   .get('/:id', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
@@ -223,7 +223,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       updateValues.expiresAt = input.expiresAt
     }
 
-    // 期限切れの自動復帰(docs/architecture.md 第6.7節「期限切れの後でも、延長または無期限に
+    // 期限切れの自動復帰(docs/architecture.mdの「画面ごとの確定仕様」「期限切れの後でも、延長または無期限に
     // すると再開できる」)。既存レコードがstatus: 'expired'で、かつリクエストにstatusが
     // 含まれていない場合に限り、更新後のexpiresAt(リクエストで指定された値、無ければ既存の値)が
     // 未来またはnull(無期限)になるならstatusをactiveに戻す。
@@ -281,7 +281,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // ボディ無しの204を返す
     return c.body(null, 204)
   })
-  // クリック統計(Analytics Engine SQL APIへの問い合わせ、docs/architecture.md 第7節・第12節)
+  // クリック統計(Analytics Engine SQL APIへの問い合わせ、docs/architecture.mdの「API設計」・「アクセスログの保持・削除の実装方式」)
   .get('/:id/clicks', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')

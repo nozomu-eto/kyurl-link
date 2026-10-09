@@ -12,7 +12,7 @@ type ChangeEmailDialogProps = {
   onClose: () => void
 }
 
-// ChangeEmailDialog: メールアドレス変更のダイアログ(確認済みのユーザー向け。入力を伴うためスマホでは全画面。第6.5節)。
+// ChangeEmailDialog: メールアドレス変更のダイアログ(確認済みのユーザー向け。入力を伴うためスマホでは全画面。「フロントデザインの全面見直し」)。
 // Better Authのchange-emailを呼ぶと、次の二段階の確認になる(src/lib/auth.tsのuser.changeEmail参照):
 //   ①今のアドレスへ承認メールが送られる → ②承認リンクを開くと、新しいアドレスへ確認メールが送られる →
 //   ③そのリンクを開いた時点でアドレスが変わる

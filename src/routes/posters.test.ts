@@ -398,8 +398,8 @@ describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
   it.each([{ foregroundColor: '#000000' }, { backgroundColor: '#ffffff' }, { color: '#000000' }])(
     'styleOptionsに色のキー等(%o)を指定すると400(VALIDATION_ERROR)になる',
     async (styleOptions) => {
-      // 色の変更機能を廃止したため、以前は許可していたforegroundColor/backgroundColorを
-      // 含め、色のキーを送ると拒否されることを確認する(公開前修正v2 T6)
+      // 色の変更機能は無いため、foregroundColor/backgroundColorを含め、色のキーを送ると
+      // 拒否されることを確認する
       const sessionCookie = await signUpAndGetSessionCookie()
       const qrcode = await createQrcode(sessionCookie)
       const poster = await createPoster(sessionCookie, qrcode.id)
@@ -490,7 +490,7 @@ describe('GET /api/v1/posters/:id/export', () => {
   })
 
   // 1mm = 72/25.4pt。Chromeは単位変換の丸めで値がわずかにずれるため、±2pt(約0.7mm)の
-  // 誤差を許容する(段階3-4の作業指示に明記)
+  // 誤差を許容する
   const MM_TO_PT = 72 / 25.4
   const MEDIA_BOX_TOLERANCE_PT = 2
 

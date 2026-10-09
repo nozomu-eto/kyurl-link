@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildDeletionCompletedEmail, buildRequestReceivedEmail } from '@/lib/account-deletion-emails'
 
 describe('buildRequestReceivedEmail', () => {
-  it('「アカウント設定画面から取り消せる」旨の案内を含む(段階4-1で修正)', () => {
+  it('「アカウント設定画面から取り消せる」旨の案内を含む', () => {
     const email = buildRequestReceivedEmail(new Date('2026-10-03T00:00:00+09:00'))
     expect(email.text).toContain('アカウント設定画面から削除の申請を取り消してください')
   })

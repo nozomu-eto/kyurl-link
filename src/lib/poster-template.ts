@@ -1,8 +1,7 @@
 // テンプレート・書き出し設定の版。テンプレートのHTML構造やCSS、あるいはposters.tsで
 // puppeteerに渡す書き出し設定(POSTER_PDF_OPTIONS等)を変更した場合は、この値を上げること。
 // R2キャッシュキーの計算にこの値を含めることで、修正前の(サイズや余白が誤った)PDF/PNGが
-// R2から返り続けることを防ぐ(段階3-4で、PDFの用紙サイズ・PNGの撮影範囲が誤っていた不具合を
-// 修正したため、1から2に上げた)
+// R2から返り続けることを防ぐ
 export const POSTER_TEMPLATE_VERSION = 2
 
 // サイズごとのページ寸法(mm)。A6縦・A5縦を想定する
@@ -19,7 +18,7 @@ export const POSTER_SAFE_MARGIN_MM = 8
 // GET /api/v1/posters/:id/exportでPDFを生成する際、page.pdf()に渡すオプション。
 // @cloudflare/puppeteerの既定値のまま呼び出すと、用紙がレター(8.5×11インチ)固定になり、
 // preferCSSPageSize: false(既定)のため@page(このテンプレートの用紙サイズ指定)が無視されて
-// 内容が縮小されてしまう不具合があったため、明示的に指定する
+// 内容が縮小されてしまうため、明示的に指定する
 export const POSTER_PDF_OPTIONS = {
   // @pageのsize指定(getCssPageSize参照)を優先させる。これがfalse(既定)だと、
   // ブラウザの既定用紙(レター)に縮小されてしまう
@@ -30,8 +29,8 @@ export const POSTER_PDF_OPTIONS = {
 } as const
 
 // GET /api/v1/posters/:id/exportでPNGを生成する際に使う設定。
-// 既定のビューポート(800×600)のスクリーンショットでは掲示物の一部しか写らない不具合が
-// あったため、画面全体ではなく掲示物の要素(POSTER_PNG_ELEMENT_SELECTOR)だけを撮影する。
+// 既定のビューポート(800×600)のスクリーンショットでは掲示物の一部しか写らないため、
+// 画面全体ではなく掲示物の要素(POSTER_PNG_ELEMENT_SELECTOR)だけを撮影する。
 // deviceScaleFactorでSNS投稿に使える解像度にする
 export const POSTER_PNG_ELEMENT_SELECTOR = '.poster'
 export const POSTER_PNG_DEVICE_SCALE_FACTOR = 3
@@ -50,7 +49,7 @@ function escapeHtml(value: string): string {
 // ものは名前で指定し、名前が無いA6はmm指定にする(mm指定は単位変換の丸めで、紙の端に
 // 隙間が出たり空白の2ページ目が出たりする報告があるため、名前があるものは名前を優先する)。
 // ChromeがA6の名前(size: A6;)に対応していることを確認できれば、A6も名前指定に変更してよい
-// (今回は未検証のため、安全側のmm指定のままにしている)
+// (未検証のため、安全側のmm指定のままにしている)
 function getCssPageSize(size: 'A6' | 'A5'): string {
   if (size === 'A5') {
     return 'A5'
@@ -118,7 +117,7 @@ export function generatePosterFaceHtml(poster: { title: string; subtitle: string
 // @page(印刷時のページサイズ)とコンテナのwidth/heightの両方にmm単位で寸法を指定する。
 // html・body・.poster(用紙全体を包む要素)を用紙と同じ大きさにしoverflow: hiddenにすることで、
 // 中身が用紙からはみ出して意図しない2ページ目ができないようにする(POSTER_PDF_OPTIONSの
-// preferCSSPageSize: trueとあわせて、書き出し不具合の修正)
+// preferCSSPageSize: trueとあわせて、用紙サイズを正しく書き出すため)
 export function generatePosterHtml(poster: { title: string; subtitle: string | null; size: 'A6' | 'A5' }, qrCodeSvg: string): string {
   const { width, height } = PAGE_SIZES[poster.size]
   const title = escapeHtml(poster.title)
@@ -151,7 +150,7 @@ export function generatePosterHtml(poster: { title: string; subtitle: string | n
 </html>`
 }
 
-// A4シートの面付けレイアウト(docs/architecture.md 第7節・第6.7節)。
+// A4シートの面付けレイアウト(docs/architecture.mdの「API設計」・「画面ごとの確定仕様」)。
 // A6縦(105×148mm)はA4縦向き(210×297mm)に2列×2行の4面、A5縦(148×210mm)はA4横向き
 // (297×210mm)に2列×1行の2面になる。paperCssSizeは名前が使えるためgetCssPageSizeと同様に
 // 名前で指定する
@@ -160,7 +159,7 @@ const A4_SHEET_LAYOUTS: Record<'A6' | 'A5', { paperCssSize: string; paperWidthMm
   A5: { paperCssSize: 'A4 landscape', paperWidthMm: 297, paperHeightMm: 210, cols: 2, rows: 1 },
 }
 
-// A4シートに並べられる最大面数(段階5「まとめて印刷」の上限チェックからも参照できるよう、
+// A4シートに並べられる最大面数(「まとめて印刷」の上限チェックからも参照できるよう、
 // 計算元のレイアウト定義と一緒にここへ置く)
 export function getA4SheetMaxFaces(posterSize: 'A6' | 'A5'): number {
   const layout = A4_SHEET_LAYOUTS[posterSize]
@@ -168,9 +167,9 @@ export function getA4SheetMaxFaces(posterSize: 'A6' | 'A5'): number {
 }
 
 // generatePosterA4SheetHtml: 掲示物1面分のHTMLフラグメントの配列を受け取り、A4用紙にまとめて
-// 並べたHTML文書を組み立てる。段階5の「まとめて印刷」では、面ごとに異なる掲示物のfaceHtmlを
-// 並べる際にもこの関数を再利用できるよう、面の配列を受け取る形にしている(今回は同じ掲示物の
-// faceHtmlを全面に並べる呼び出し方をする)。
+// 並べたHTML文書を組み立てる。「まとめて印刷」では面ごとに異なる掲示物のfaceHtmlを並べ、
+// 単体の書き出し(paper=a4)では同じ掲示物のfaceHtmlを全面に並べる。どちらの場合もこの関数を使えるよう、
+// 面の配列を受け取る形にしている。
 // 各面は元のサイズのまま(拡大縮小しない)、左上から隙間を空けずに敷き詰め、割り切れず余る
 // スペースは右端・下端に残す(面を並べる際、端数のミリ単位まではきっちり割り切れないため)。
 // 面の境界には、面の枠線ではなく上に重ねる別の要素として、灰色の細い破線の切り取り線を入れる

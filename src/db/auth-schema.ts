@@ -16,7 +16,7 @@ export const user = sqliteTable("user", {
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-  // 規約同意の記録(段階3-5、docs/architecture.md 第7節)。いずれもnull可で、既存ユーザーは
+  // 規約同意の記録(docs/architecture.mdの「API設計」)。いずれもnull可で、既存ユーザーは
   // 同意の記録が無いためnullのままにする。サインアップ時にサーバー側(src/lib/auth.tsの
   // databaseHooks.user.create.before)でのみ設定し、利用者が送った値では上書きされないよう
   // Better Authのuser.additionalFieldsで全てinput: falseにする

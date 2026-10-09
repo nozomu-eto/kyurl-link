@@ -23,7 +23,7 @@ export async function accountSettingsLoader() {
 
 // AccountSettingsPage: アカウント設定画面。ログイン中のメールアドレス表示と、
 // アカウント削除申請の状態確認(申請中なら完全削除予定日・申請日と取り消しボタンを表示)、
-// 削除申請画面への導線を持つ(docs/architecture.md 第7.1節、docs/mocks/AccountSettings.html)
+// 削除申請画面への導線を持つ(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」、docs/mocks/AccountSettings.html)
 export function AccountSettingsPage() {
   const { pendingDeletionRequest } = useLoaderData<typeof accountSettingsLoader>()
   // AppLayoutのOutlet contextからログイン中ユーザー情報を受け取る(再度APIを呼ばずに済む)

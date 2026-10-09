@@ -6,7 +6,7 @@ import { user } from '@/db/auth-schema'
 import { markEmailVerified } from '../../test/mark-email-verified'
 
 // src/lib/auth.tsのuser.changeEmailの検証。
-// - 確認前(emailVerified: false)のユーザー: その場でアドレスが変わり、新しいアドレスに確認メールが送られる(段階4-2)
+// - 確認前(emailVerified: false)のユーザー: その場でアドレスが変わり、新しいアドレスに確認メールが送られる
 // - 確認済みのユーザー: 今のアドレスへの承認メール → 承認リンク → 新しいアドレスへの確認メール →
 //   確認リンクを開いた時点でアドレスが変わる、の二段階の確認(sendChangeEmailConfirmation)
 

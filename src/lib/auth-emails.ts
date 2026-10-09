@@ -1,5 +1,5 @@
 // サインアップ時のメールアドレス確認・メールアドレス変更の承認・パスワードリセットの通知メール件名・本文テンプレート
-// (docs/architecture.md 第11節)。account-deletion-emails.tsと同程度のトーン(丁寧・簡潔な
+// (docs/architecture.mdの「メール設計・送信ドメイン認証」)。account-deletion-emails.tsと同程度のトーン(丁寧・簡潔な
 // 日本語のプレーンテキスト)に揃える
 
 // メールアドレス確認メール。Better Authのemail-verificationプラグインの

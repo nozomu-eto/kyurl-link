@@ -12,5 +12,5 @@ import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 // そのためprotocolのみを制限できるz.url({ protocol })を使う。
 // .max()は、極端に長いURLによるDB圧迫・処理コスト増加(URLhaus照会・悪意あるURL検知の
 // ヒューリスティック等)を防ぐための上限で、src/shared/constants/input-limits.tsの
-// 定数値を用いる(公開前修正v2 T5)
+// 定数値を用いる
 export const httpUrlSchema = z.url({ protocol: /^https?$/ }).max(URL_MAX_LENGTH)

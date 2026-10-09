@@ -31,7 +31,7 @@ export function SignupPage() {
 
   const canSubmit = agreeToTerms && !!turnstileToken
 
-  // フォーム送信ハンドラ。サインアップ成功時は、docs/architecture.md 第6.1節の
+  // フォーム送信ハンドラ。サインアップ成功時は、docs/architecture.mdの「必要な画面一覧」の
   // 「メール確認待ち画面」へ遷移する(auth.tsのemailVerification.sendOnSignUp: trueにより、
   // このタイミングで確認メールが自動送信されている)
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -49,7 +49,7 @@ export function SignupPage() {
       // メール確認完了後(または「再送信」を経てのverify-emailリンク経由)にサインイン済みで
       // 着地させたいページ。callbackURLはBetter Auth側でオリジンからの相対パスとして扱われる
       callbackURL: '/app',
-      // 規約同意の記録(docs/architecture.md 第7節)。authClientの型はBetter Authの
+      // 規約同意の記録(docs/architecture.mdの「API設計」)。authClientの型はBetter Authの
       // コアスキーマ由来でこの項目を知らないため型エラーになる。値そのものはサーバー側の
       // hooks.before(src/lib/auth.ts)で検証・除去するだけの一時的な項目のため、
       // 型を広くせずここだけ最小限にキャストする

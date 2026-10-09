@@ -1,11 +1,11 @@
 import { apiClient } from '@/frontend/lib/api-client'
 
-// アカウント削除申請の猶予期間表示に関する共通の計算(docs/architecture.md 第7.1節)。
+// アカウント削除申請の猶予期間表示に関する共通の計算(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。
 // AccountDeletionBanner・アカウント設定画面(account-settings-page.tsx)の両方で使うため共通化する
 
 // loadPendingDeletionRequest: 直近のアカウント削除申請のうち、status: 'pending'のものを
 // 取得する(無ければnull)。GET /api/v1/account-requestsは申請自体が無い場合404を返す仕様
-// (docs/architecture.md 第7節)のため、404は「申請なし」として扱いエラーにはしない。
+// (docs/architecture.mdの「API設計」)のため、404は「申請なし」として扱いエラーにはしない。
 // 200・404以外(サーバーエラー等)の場合はResponseをthrowする。
 // dashboardLoader・accountSettingsLoaderの両方から呼ぶための共通処理。
 //

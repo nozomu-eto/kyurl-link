@@ -18,7 +18,7 @@ import reports from '@/routes/reports'
 // c.get()で型付きで取得できるよう、VariablesにSecureHeadersVariablesを加える
 const app = new Hono<{ Bindings: CloudflareBindings; Variables: SecureHeadersVariables }>()
 
-// セキュリティヘッダ(公開前修正v2 T8)。app.use('*', ...)で全ルート(API・リダイレクト・
+// セキュリティヘッダ。app.use('*', ...)で全ルート(API・リダイレクト・
 // 404/410/警告インターステシャル・SPA/静的アセット)に一律で付与する。
 // hono/secure-headersのミドルウェアはHono側のResponse(ctx.res)に対してヘッダーを
 // 後付けで設定する実装のため、ハンドラの実装がc.html()・c.json()・c.redirect()・
@@ -39,11 +39,11 @@ app.use(
     referrerPolicy: 'strict-origin-when-cross-origin',
     // クリックジャッキング対策。他サイトのiframeに埋め込まれることを一切許可しない
     xFrameOptions: 'DENY',
-    // CSP(公開前修正v2 T9)。既存ページを壊すリスクを避けるため、まずはContent-Security-Policy
+    // CSP。既存ページを壊すリスクを避けるため、まずはContent-Security-Policy
     // ではなくContent-Security-Policy-Report-Only(違反はブロックせずレポートのみ)で導入する。
     // 本番で強制する(Content-Security-Policyへの切り替え)手順はdocs/deployment.md参照
     contentSecurityPolicyReportOnly: {
-      // 既定値はself(同一オリジン)のみ。フォント方針(docs/architecture.md第6.6節)により
+      // 既定値はself(同一オリジン)のみ。フォント方針(docs/architecture.mdの「フォント方針」)により
       // フォントもFontsourceで自前配信(同一オリジン)のため、Google Fonts等の外部ホストは
       // 一切加えない
       defaultSrc: ["'self'"],
@@ -106,14 +106,14 @@ async function serveSpaShell(c: { env: CloudflareBindings; req: { raw: Request }
   const assetsResponse = await c.env.ASSETS.fetch(c.req.raw)
 
   // ASSETS bindingが返すResponseはheadersが読み取り専用(immutable)になっており、
-  // app.use('*', secureHeaders(...))(公開前修正v2 T8)がヘッダーを後付けしようとすると
+  // app.use('*', secureHeaders(...))がヘッダーを後付けしようとすると
   // "Can't modify immutable headers."で例外になる(実際にsrc/index.test.tsxで確認済み)。
   // new Response(body, init)で作り直すと、bodyはそのままにheadersだけ新しい
   // (書き込み可能な)Headersインスタンスとして複製されるため、この問題を回避できる
   return new Response(assetsResponse.body, assetsResponse)
 }
 
-// 公開リダイレクト(docs/architecture.md 第7節: 認証不要)。
+// 公開リダイレクト(docs/architecture.mdの「API設計」: 認証不要)。
 // '/api/v1'等の既存ルートと衝突しないよう、必ずそれらのマウントより後に登録する。
 // Honoのルーティングは登録順が優先されるため(静的パスであっても、動的パラメータより
 // 後に登録すると負ける)、この後ろに登録する`*`(catch-all)より必ず先に登録する必要がある
@@ -141,7 +141,7 @@ app.get('/:shortCode', async (c) => {
   // 案内する。判定はcomputeLinkDisplayStatus(src/lib/link-status.ts)に共通化し、
   // GET /api/v1/links(displayStatus)と基準が食い違わないようにする。
   // アカウント削除申請時のカスケード処理(POST /api/v1/account-requests)は、
-  // deletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.md 第7.1節②
+  // deletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」
   // 「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)ため、この判定を
   // deletedAtのチェックより先に行う必要がある(先にdeletedAtで404にしてしまうと、
   // カスケード停止によるものか個別削除によるものかを区別できず、常に404になってしまうため)
@@ -156,7 +156,7 @@ app.get('/:shortCode', async (c) => {
     return c.html(notFoundPageHtml(), 404)
   }
 
-  // 悪意あるURL検知(docs/architecture.md 第4節)でflagged(不審)と判定されている場合、
+  // 悪意あるURL検知(docs/architecture.mdの「悪意あるURLの検知」)でflagged(不審)と判定されている場合、
   // 通常の302リダイレクトの代わりに警告インターステシャルを表示する。
   // ただし警告画面の「このまま進む」リンク(?proceed=1)経由のアクセスでは、この分岐を
   // スキップし通常通りリダイレクトを実行する(利用者自身の意思での続行は妨げない、
@@ -165,13 +165,13 @@ app.get('/:shortCode', async (c) => {
   if (record.securityStatus === 'flagged' && !hasProceeded) {
     // このリクエストのCSP(Content-Security-Policy-Report-Only、上のsecureHeaders設定)が
     // script-srcに設定したNONCEにより、この時点でc.set('secureHeadersNonce', ...)済みのため、
-    // 同じ値をページ内のインラインscriptタグのnonce属性にも使う(公開前修正v2 T9)
+    // 同じ値をページ内のインラインscriptタグのnonce属性にも使う
     const nonce = c.get('secureHeadersNonce')
     return c.html(securityWarningPageHtml(shortCode, c.env.TURNSTILE_SITE_KEY, nonce, record.originalUrl), 200)
   }
 
   // リダイレクトが成立した場合のみ、クリックをWorkers Analytics Engineに記録する
-  // (docs/architecture.md 第7節・第12節)。404・410では記録しない。
+  // (docs/architecture.mdの「API設計」・「アクセスログの保持・削除の実装方式」)。404・410では記録しない。
   // writeDataPointは同期APIで、戻り値もvoid(Promiseではない)ため、awaitせず
   // fire-and-forgetで呼び出してよい
   c.env.LINK_CLICKS.writeDataPoint({
@@ -207,8 +207,8 @@ app.get('*', serveSpaShell)
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
-    // 日次cron: アカウント削除バッチ(第7.1節)と、悪意あるURL検知の全件スキャン
-    // (第4節「第2段階」)を両方実行する。一方が失敗しても他方の処理を止めないよう、
+    // 日次cron: アカウント削除バッチ(「アカウント削除・データ削除の実装フロー」)と、悪意あるURL検知の全件スキャン
+    // (「悪意あるURLの検知」)を両方実行する。一方が失敗しても他方の処理を止めないよう、
     // それぞれ独立したtry/catchで囲む
     try {
       const processedCount = await runAccountDeletionBatch(env)

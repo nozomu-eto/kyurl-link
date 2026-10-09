@@ -11,7 +11,7 @@ import { Toast } from '@/frontend/components/toast'
 import { getRemainingResendSeconds, recordVerificationEmailSentAt, RESEND_INTERVAL_SECONDS } from '@/frontend/lib/verify-email-resend-timer'
 
 // VerifyEmailPendingPage: サインアップ直後に案内する「メール確認待ち」画面
-// (docs/architecture.md 第6.7節、docs/mocks/AuthVerifyPending.html)。
+// (docs/architecture.mdの「画面ごとの確定仕様」、docs/mocks/AuthVerifyPending.html)。
 // auth.ts(emailVerification.sendOnSignUp: true)により、この画面へ来る時点ですでに
 // 確認メールは送信済みという前提で、送信先・再送・メールアドレスの修正を提供する。
 // なお、auth.tsではrequireEmailVerification(未確認ユーザーのログイン禁止)はあえて

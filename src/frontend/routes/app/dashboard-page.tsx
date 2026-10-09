@@ -79,11 +79,11 @@ function formatExpiresAt(expiresAt: string | null): string {
   return expiresAt ? formatDateJst(expiresAt) : '無期限'
 }
 
-// DashboardPage: ログインユーザーが作成した短縮URLの一覧画面(docs/architecture.md 第6.1節・第6.7節、
+// DashboardPage: ログインユーザーが作成した短縮URLの一覧画面(docs/architecture.mdの「必要な画面一覧」・「画面ごとの確定仕様」、
 // docs/mocks/Dashboard.html・EmptyDashboard.html・MobileDashboard.html)。
 // 全行にコピーボタンと状態バッジ(displayStatus)を表示し、各行から詳細画面へ遷移できる。
 // 幅の広い画面は表、スマホ(768px以下)はカードの縦並びで表示する(切り替えはglobal.cssのメディアクエリ)。
-// アカウント削除の猶予期間中は上部にAccountDeletionBannerを表示する(docs/architecture.md 第7.1節)。
+// アカウント削除の猶予期間中は上部にAccountDeletionBannerを表示する(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。
 //
 // トーストはこの画面(バナーの親)側で持つ。取り消し成功後はloaderの再実行で申請が
 // pendingでなくなりバナーごと取り除かれるため、トーストをバナーの中に持つと

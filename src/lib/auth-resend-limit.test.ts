@@ -1,9 +1,9 @@
 import { env, SELF } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-// src/lib/auth.tsのsendVerificationEmail・sendResetPasswordに追加した、
+// src/lib/auth.tsのsendVerificationEmail・sendResetPasswordに設けた、
 // 同じメールアドレスにつき60秒に1回までの再送制限(EMAIL_RESEND_RATE_LIMITER、
-// docs/architecture.md 第7節)を、実際のBindingとBetter Authのエンドポイント経由で検証する。
+// docs/architecture.mdの「API設計」)を、実際のBindingとBetter Authのエンドポイント経由で検証する。
 // キーの組み立て自体(ハッシュ化・接頭辞)の単体テストはsrc/lib/email-resend-limit.test.ts参照
 
 type SentEmail = { to?: string; subject?: string }

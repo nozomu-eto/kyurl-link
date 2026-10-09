@@ -19,7 +19,7 @@ type AccountDeletionBannerProps = {
 const HEADING_ID = 'account-deletion-banner-heading'
 
 // AccountDeletionBanner: アカウント削除申請の猶予期間中、ダッシュボード・アカウント設定の
-// 上部(見出しの直下)に表示する常設の案内(docs/architecture.md 第7.1節、
+// 上部(見出しの直下)に表示する常設の案内(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」、
 // docs/mocks/AccountSettings.html)。
 // role="alert"は付けない。alertは開いた瞬間に強制的に読み上げられる属性のため、
 // 画面を開くたびに毎回表示される常設の案内には向かない(モックにはroleが付いているが、

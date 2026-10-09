@@ -3,7 +3,7 @@ import { QRCODE_NAME_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { httpUrlSchema } from '@/shared/schemas/url'
 
 // QRコードの管理用の名前。任意、最大40文字、前後の空白を除去し、空文字(トリム後に
-// 空になった場合を含む)はnullとして扱う(docs/architecture.md 第6.7節「管理用の名前:任意、
+// 空になった場合を含む)はnullとして扱う(docs/architecture.mdの「画面ごとの確定仕様」「管理用の名前:任意、
 // 最大40文字。QR画像には表示しない」)。
 // フィールド自体を省略した場合はundefinedのまま返す(qrcodeUpdateInputSchemaで
 // 「省略時は更新しない」と「nullを指定して名前を消す」を区別できるようにするため。

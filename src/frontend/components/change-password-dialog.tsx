@@ -16,7 +16,7 @@ type ChangePasswordDialogProps = {
 }
 
 // ChangePasswordDialog: パスワード変更のダイアログ(docs/mocks/ExpiryDialog.html等の既存ダイアログに合わせる。
-// 入力を伴うためスマホでは全画面。第6.5節)。今のパスワード・新しいパスワード・新しいパスワード(確認)を入力し、
+// 入力を伴うためスマホでは全画面。「フロントデザインの全面見直し」)。今のパスワード・新しいパスワード・新しいパスワード(確認)を入力し、
 // Better Authのchange-passwordを呼ぶ。他の端末のログイン状態は無効にする(revokeOtherSessions: true)。
 //
 // このエンドポイントはログインからの経過時間(freshAge)を条件にしない

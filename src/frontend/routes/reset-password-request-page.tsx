@@ -10,7 +10,7 @@ import { Page } from '@/frontend/components/page'
 // 送信後は、そのメールアドレスが登録済みかどうかに関わらず同じ文言を表示する
 // (登録済みメールアドレスの有無を外部に漏らさないため。Better Auth自体もこの方針で
 // 常に同じレスポンスを返す設計になっている)。申請後の表示は
-// docs/mocks/AuthResetSent.htmlに合わせる(段階4-2)
+// docs/mocks/AuthResetSent.htmlに合わせる
 export function ResetPasswordRequestPage() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -39,7 +39,7 @@ export function ResetPasswordRequestPage() {
         </p>
         <ButtonLink to="/login">ログイン画面へ戻る</ButtonLink>
         <p>
-          {/* 入力画面に戻し、入力欄を空にする(段階4-2) */}
+          {/* 入力画面に戻し、入力欄を空にする */}
           <Button
             variant="text"
             onClick={() => {

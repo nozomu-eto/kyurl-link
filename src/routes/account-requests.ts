@@ -9,7 +9,7 @@ import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { jsonValidator } from '@/middleware/json-validator'
 import { accountRequestCreateInputSchema, accountRequestSchema } from '@/shared/schemas/account-request'
 
-// 猶予期間(docs/architecture.md 第7.1節「猶予期間は7日間」)
+// 猶予期間(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「猶予期間は7日間」)
 const DELETION_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
 
 // DB上のaccountRequestレコード(日時カラムはDateオブジェクト)を、レスポンス用スキーマの形
@@ -61,7 +61,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 検証済みのリクエストボディ(jsonValidatorがスキーマで検証する)
     const input = c.req.valid('json')
 
-    // 誤操作防止のため、パスワード再入力で本人確認を行う(docs/architecture.md 第7.1節)。
+    // 誤操作防止のため、パスワード再入力で本人確認を行う(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。
     // verifyPasswordは検証に失敗すると例外を投げるため、401として扱う
     try {
       await auth(c.env).api.verifyPassword({
@@ -106,13 +106,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     const scheduledDeletionAt = new Date(now.getTime() + DELETION_GRACE_PERIOD_MS)
 
     // 申請が成立した時点で、リダイレクト等の機能を即座に停止させる必要があるため
-    // (docs/architecture.md 第7.1節「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)、
+    // (docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)、
     // 「ユーザー自身が所有する未削除のlinks/qrcodes/postersをソフトデリートする」ことと
     // 「accountRequestsに申請レコードをinsertする」ことを1つのバッチにまとめて実行する。
     // 個別に実行すると、途中で失敗した場合に「リソースは止まったが申請記録が残らない」
     // ような中途半端な状態になりうるため
     const [, , , insertedAccountRequests] = await db.batch([
-      // linksはdeletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.md 第7.1節②
+      // linksはdeletedAtと同時にstatus: 'suspended'もセットする(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」
       // 「リダイレクト機能はこの時点で即座に停止し、410 Goneを返す」)。既存のqrcodes/postersには
       // statusという概念(active/expired/suspended)自体が無いため、deletedAtのみで良い
       db
@@ -155,8 +155,8 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     return c.json(toAccountRequestResponse(created), 201)
   })
-  // 猶予期間中のアカウント削除申請の取り消し(docs/architecture.md 第7.1節③、更新版11で追加)。
-  // ログイン時の自動取り消しは廃止し、この明示的な操作でのみ取り消す
+  // 猶予期間中のアカウント削除申請の取り消し(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。
+  // 取り消しはこの明示的な操作でのみ行い、ログインしただけでは取り消さない
   .post('/cancel', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const userId = c.get('user').id
@@ -198,8 +198,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // 直前のpending確認からここまでの間に、ほぼ同時の別リクエストで既に取り消されている
     // 可能性がある(確認と取り消しの間に競合状態がありうる)。その場合はnullが返るため、
-    // 「取り消せる申請が無い」ものとして404を返す(非nullの前提で応答を組み立てて
-    // 500エラーになっていたPR #20時点の不具合の修正)
+    // 「取り消せる申請が無い」ものとして404を返す(500エラーにはしない)
     if (!cancelled) {
       return c.json(
         {

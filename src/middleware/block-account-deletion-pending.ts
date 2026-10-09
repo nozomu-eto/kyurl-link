@@ -5,7 +5,7 @@ import { accountRequests } from '@/db/schema'
 import type { AuthUser } from '@/middleware/auth'
 
 // アカウント削除申請の猶予期間中(status: 'pending')は、新規作成系エンドポイント
-// (POST /links・POST /qrcodes・POST /posters)を止める(docs/architecture.md 第7.1節)。
+// (POST /links・POST /qrcodes・POST /posters)を止める(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。
 // ログイン時の自動取り消しをやめた(取り消しは明示的なボタンでのみ行う)ことに伴い、
 // 申請中の利用者がそのままログインして作成を続けられてしまうと、作ったものが猶予終了時に
 // まとめてソフトデリートされてしまうため。authMiddlewareの後段に置き、c.get('user')が

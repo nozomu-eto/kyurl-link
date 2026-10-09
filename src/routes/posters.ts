@@ -28,7 +28,7 @@ import {
   posterUpdateInputSchema,
 } from '@/shared/schemas/poster'
 
-// レイアウトテンプレートは今回'default'のみを扱う
+// レイアウトテンプレートは現在'default'のみを扱う
 const DEFAULT_LAYOUT_TEMPLATE = 'default'
 
 // DB上のposterレコード(styleOptionsはJSON文字列)を、レスポンス用スキーマの形
@@ -57,14 +57,14 @@ function selectPostersWithLinkFields(db: ReturnType<typeof drizzle>) {
 // c.set('user', ...)するため、Variablesにもuserの型を指定する
 const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser } }>()
   .basePath('/posters')
-  // 一覧取得は認証必須(docs/architecture.md 第7節)
+  // 一覧取得は認証必須(docs/architecture.mdの「API設計」)
   .get('/', authMiddleware, async (c) => {
     const db = drizzle(c.env.DB)
     const userId = c.get('user').id
 
     // ソフトデリート済み(deletedAtが設定されている)レコードは一覧に含めない。
     // 他人のposterが混ざらないよう、ログインユーザー自身のものだけに絞り込む。
-    // ページングは未実装のため暫定的に固定値を返す
+    // ページングは未実装のため固定値を返す
     const rows = await selectPostersWithLinkFields(db).where(and(isNull(posters.deletedAt), eq(posters.userId, userId)))
 
     const response = posterListResponseSchema.parse({
@@ -107,7 +107,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     }
 
     // id・userId(所有者)・layoutTemplate・styleOptionsはサーバー側で決定して保存する
-    // (layoutTemplateは今回'default'固定、styleOptionsは作成時null固定)。
+    // (layoutTemplateは現在'default'固定、styleOptionsは作成時null固定)。
     // subtitleは省略時undefinedになるためnullへ変換する
     const [created] = await db
       .insert(posters)
@@ -238,14 +238,14 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // ボディ無しの204を返す
     return c.body(null, 204)
   })
-  // PDF/PNG書き出し(Browser Rendering生成 + R2内容ハッシュキャッシュ、docs/architecture.md 第13節)
+  // PDF/PNG書き出し(Browser Rendering生成 + R2内容ハッシュキャッシュ、docs/architecture.mdの「掲示物PDF/PNG生成・キャッシュ設計」)
   .get('/:id/export', authMiddleware, requireVerifiedEmail, userRateLimitMiddleware('POSTER_EXPORT_RATE_LIMITER'), async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
     const userId = c.get('user').id
 
     // 1. まず対象posterに対する認可チェック(存在確認・ソフトデリート確認・所有者確認)を行う。
-    // docs/architecture.md 第9節「掲示物PDFキャッシュ(R2)の認可チェックは、必ずWorkerの
+    // docs/architecture.mdの「セキュリティ設計」「掲示物PDFキャッシュ(R2)の認可チェックは、必ずWorkerの
     // コード内で所有者チェックを行ってからキャッシュを参照する設計」に従い、この確認を
     // R2キャッシュの参照よりも必ず先に行う。もしキャッシュ確認を先にしてしまうと、
     // 本来アクセスできないはずのposterのidさえ知っていれば、認可チェックをすり抜けて
@@ -379,7 +379,6 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 6. キャッシュが無ければHTMLを生成し、Browser Rendering(@cloudflare/puppeteer)で
     // ページを開いてcontentをセットし、formatに応じてPDF/PNGを生成する。
     // format=pdf かつ paper=a4 の場合のみ、同じ掲示物をA4シートの全面に並べたHTMLにする
-    // (段階5の「まとめて印刷」では別々の掲示物を並べる呼び出し方に対応する)。
     // それ以外(format=pdf かつ paper=fit、またはformat=pngの場合。PNGはpaperを無視して
     // 常に掲示物1面分にする)は、掲示物サイズそのままの単体HTMLにする
     const html =
@@ -393,7 +392,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       const page = await browser.newPage()
 
       if (format === 'png') {
-        // 既定のビューポート(800×600)のままだと掲示物の一部しか写らない不具合の修正。
+        // 既定のビューポート(800×600)のままだと掲示物の一部しか写らないため、ビューポートを指定する。
         // deviceScaleFactorでSNSに使える解像度にする(PDFは@pageのサイズがそのまま
         // 用紙サイズになるため、ビューポートの変更は不要)
         await page.setViewport({ width: 800, height: 600, deviceScaleFactor: POSTER_PNG_DEVICE_SCALE_FACTOR })

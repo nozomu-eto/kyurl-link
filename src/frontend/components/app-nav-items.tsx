@@ -11,9 +11,9 @@ export type AppNavItem = {
 }
 
 // /app配下のサイドメニュー(app-layout.tsx)とスマホのドロワー(app-header-drawer.tsx)で
-// 共有するメニュー項目(docs/architecture.md 第6.5節の4項目)。
-// 掲示物は一覧画面がまだ無いため、この段階ではメニューに出さない
-// (段階4で一覧画面と同時に追加する。追加時は下のコメントアウトを外すだけで済むようにしてある)
+// 共有するメニュー項目(docs/architecture.mdの「フロントデザインの全面見直し」の4項目)。
+// 掲示物は一覧画面がまだ無いため、メニューに出していない
+// (一覧画面と同時に追加する。追加時は下のコメントアウトを外すだけで済むようにしてある)
 export const APP_NAV_ITEMS: AppNavItem[] = [
   {
     to: '/app',

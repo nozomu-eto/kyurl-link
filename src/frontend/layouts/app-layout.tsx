@@ -8,7 +8,7 @@ import { cx } from '@/frontend/components/class-names'
 import { authClient, type AuthUser } from '@/frontend/lib/auth-client'
 
 // requireSessionLoader: /app配下の全画面に入る前に必ず実行されるloader。
-// ログインしていなければ/loginへリダイレクトする(docs/architecture.md 第7節
+// ログインしていなければ/loginへリダイレクトする(docs/architecture.mdの「API設計」
 // 「リダイレクト・通報・掲示物公開プレビュー以外は全て要ログイン」の方針をフロント側でも
 // 反映する)。authClient.getSession()はReactフック版(useSession)と異なり、
 // コンポーネント外(loader)からも呼び出せる一度きりのセッション取得API
@@ -25,7 +25,7 @@ export async function requireSessionLoader() {
 }
 
 // AppLayout: ログイン後の画面(ダッシュボード・link/QR/poster編集・アカウント設定)で
-// 共有する外枠(docs/architecture.md 第6.5節・docs/mocks/Dashboard.html)。
+// 共有する外枠(docs/architecture.mdの「フロントデザインの全面見直し」・docs/mocks/Dashboard.html)。
 // 上部の白いヘッダー(左にサービス名、右にメールアドレス+ログアウト)+左のサイドメニュー
 // (幅240px)の構成。768px未満ではサイドメニューを隠し、ヘッダー右端のハンバーガーメニュー
 // (AppHeaderDrawer)からドロワーで同じメニューを開く。

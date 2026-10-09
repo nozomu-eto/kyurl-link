@@ -4,7 +4,7 @@ import { Page } from '@/frontend/components/page'
 
 // TopPage: 未ログインの訪問者が最初に見るトップページ。
 // サービスの概要を説明し、新規登録・ログインへの導線を示すだけの静的な画面。
-// エックスサーバー風のLP構成(docs/architecture.md 第6.5節のモックアップ)への作り替えは保留中のため、
+// エックスサーバー風のLP構成(docs/architecture.mdの「フロントデザインの全面見直し」のモックアップ)への作り替えは保留中のため、
 // 内容は変えていない
 export function TopPage() {
   return (

@@ -10,7 +10,7 @@ export type CancelAccountDeletionResult =
 
 // useCancelAccountDeletion: 「削除を取り消す」ボタン(AccountDeletionBanner・
 // アカウント設定画面の「アカウントの削除」欄の両方)が共有する取り消し処理
-// (docs/architecture.md 第7.1節)。POST /api/v1/account-requests/cancelを呼び出し、
+// (docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)。POST /api/v1/account-requests/cancelを呼び出し、
 // 結果を呼び出し元が文言に変換できるよう、discriminated unionで返す
 export function useCancelAccountDeletion() {
   const revalidator = useRevalidator()
