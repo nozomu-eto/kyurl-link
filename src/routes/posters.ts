@@ -15,6 +15,7 @@ import {
   POSTER_PNG_ELEMENT_SELECTOR,
   POSTER_TEMPLATE_VERSION,
 } from '@/shared/poster-template'
+import { resolveQrcodeContent } from '@/lib/qrcode-content'
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'
@@ -317,32 +318,13 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    let qrContent: string
-    if (qrcode.targetType === 'link') {
-      const targetId = qrcode.targetId
-      if (!targetId) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
-      }
-
-      const [targetLink] = await db
-        .select({ shortCode: links.shortCode })
-        .from(links)
-        .where(and(eq(links.id, targetId), isNull(links.deletedAt)))
-        .limit(1)
-
-      if (!targetLink) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象のlinkが見つかりません' } }, 404)
-      }
-
-      qrContent = `${new URL(c.req.url).origin}/${targetLink.shortCode}`
-    } else {
-      const targetUrl = qrcode.targetUrl
-      if (!targetUrl) {
-        return c.json({ error: { code: 'NOT_FOUND', message: '対象URLが見つかりません' } }, 404)
-      }
-
-      qrContent = targetUrl
+    // QRコードに埋め込む内容は、GET /api/v1/qrcodes/:id/imageと共通の関数で決める
+    // (短縮URL経由は`{origin}/{shortCode}`、直接指定はそのURL)
+    const contentResult = await resolveQrcodeContent(db, qrcode, new URL(c.req.url).origin)
+    if (!contentResult.ok) {
+      return c.json({ error: { code: 'NOT_FOUND', message: contentResult.message } }, 404)
     }
+    const qrContent = contentResult.content
 
     // SVGの生成はqrcodes.tsのGET /:id/imageと共通のrenderQrcodeSvgを使う(向きの修正
     // (swap: true)を含め、QRコードの見た目が食い違わないようにするため)
