@@ -147,7 +147,7 @@ SELECT id, user_id, short_code, original_url FROM links WHERE moderation_status 
 
 ### 8.3 既存データの不正値確認(公開前修正v2で追加)
 
-`expiresAt`の形式検証(`z.iso.datetime({ offset: true })`、docs/architecture.md・公開前修正v2 T1/T2参照)や、
+`expiresAt`の形式検証(`z.iso.datetime({ offset: true })`、docs/architecture.md参照)や、
 `originalUrl`/`targetUrl`のスキーム検証(第8.1節)は、導入より前に作成されたデータには遡って適用されない。
 以下は**そうした既存データに不正な値が残っていないかを確認するための参照SQLであり、本タスクの範囲内で
 本番DBに対して実行するものではない**(あくまで運用手順としての記録)。実行が必要になった場合は、
