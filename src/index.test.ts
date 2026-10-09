@@ -51,7 +51,7 @@ async function createLink(sessionCookie: string, originalUrl = 'https://example.
   return linkSchema.parse(await response.json())
 }
 
-// セキュリティヘッダ(公開前修正v2 T8)が、レスポンスの種類を問わず一律で付与されていることを確認する。
+// セキュリティヘッダが、レスポンスの種類を問わず一律で付与されていることを確認する。
 // hono/secure-headersのミドルウェアはHonoのレスポンスパイプライン(ctx.res)に対して後付けで
 // ヘッダーを設定する実装のため、リダイレクト・エラーページ・API・ASSETS委譲(SPA)の
 // いずれも同じ仕組みで付与される想定だが、ASSETS委譲分は明示的に確認しておく
@@ -120,7 +120,7 @@ describe('セキュリティヘッダ(hono/secure-headers)', () => {
   })
 })
 
-// CSP(Content-Security-Policy-Report-Only、公開前修正v2 T9)。まだenforceしない
+// CSP(Content-Security-Policy-Report-Only)。まだenforceしない
 // (Content-Security-Policyヘッダーではない)ため、既存ページの動作を壊さない前提で導入する
 describe('CSP(Content-Security-Policy-Report-Only)', () => {
   it('レスポンスにContent-Security-Policy-Report-Onlyヘッダーが付与され、Content-Security-Policyは付与されない', async () => {

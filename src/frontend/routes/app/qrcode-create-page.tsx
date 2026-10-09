@@ -30,7 +30,7 @@ export async function qrcodeCreateLoader({ params }: LoaderFunctionArgs) {
   return { fixedLink: null, selectableLinkItems: body.items }
 }
 
-// 読み取り先の選択肢(docs/architecture.md 第6.7節「作成済みの短縮URL(おすすめ)」「URLを直接指定」)
+// 読み取り先の選択肢(docs/architecture.mdの「画面ごとの確定仕様」「作成済みの短縮URL(おすすめ)」「URLを直接指定」)
 const TARGET_KIND_OPTIONS = [
   { value: 'link', label: '作成済みの短縮URL', badge: 'おすすめ', description: '印刷後も転送先を変えられ、読み取り数も確認できます。' },
   { value: 'rawUrl', label: 'URLを直接指定', description: '短縮せず、元のURLをそのままQRコードにします。' },

@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 
-// src/lib/auth.tsのrevokeSessionsOnPasswordReset・resetPasswordTokenExpiresIn(段階4-2)の検証
+// src/lib/auth.tsのrevokeSessionsOnPasswordReset・resetPasswordTokenExpiresInの検証
 
 async function signUp(email: string) {
   const response = await SELF.fetch('https://example.com/api/auth/sign-up/email', {

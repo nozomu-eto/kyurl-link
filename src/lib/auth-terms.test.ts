@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { user } from '@/db/auth-schema'
 import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/shared/constants/legal-versions'
 
-// docs/architecture.md 第7節: サインアップ時に規約同意(agreeToTerms)が無ければ拒否し、
+// docs/architecture.mdの「API設計」: サインアップ時に規約同意(agreeToTerms)が無ければ拒否し、
 // 同意した場合はサーバー側でtermsAcceptedAt・termsVersion・privacyPolicyVersionを記録する。
 // src/lib/auth.tsのhooks.before・databaseHooks.user.create.beforeの検証
 function signUp(body: Record<string, unknown>) {
@@ -93,7 +93,7 @@ describe('サインアップ時の規約同意の記録', () => {
     expect(created.privacyPolicyVersion).toBe(PRIVACY_POLICY_VERSION)
   })
 
-  it('既存ユーザー(更新版11より前)はtermsAcceptedAt等がnullのままである(直接DB挿入で再現)', async () => {
+  it('既存ユーザーはtermsAcceptedAt等がnullのままである(直接DB挿入で再現)', async () => {
     const db = drizzle(env.DB)
     const legacyUserId = crypto.randomUUID()
     await db.insert(user).values({

@@ -412,7 +412,7 @@ describe('GET /api/v1/qrcodes/:id/image', () => {
 
 describe('qrcode PATCH・DELETE', () => {
   it('PATCH /api/v1/qrcodes/:idは、古いクライアントが送るstyleOptionsを無視して200を返す', async () => {
-    // styleOptionsは廃止済み。色のキーを含んでいても400にせず、nameだけが更新されることを確認する
+    // QRコードにstyleOptionsは無い。古いクライアントが色のキーを送っても400にせず、nameだけが更新されることを確認する
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createRawUrlQrcode(sessionCookie)
 

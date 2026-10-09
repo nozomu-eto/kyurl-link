@@ -18,7 +18,7 @@ type DialogProps = {
   description?: string
   // trueの場合は確認・警告用(role="alertdialog")。既定は入力・情報表示用のrole="dialog"
   isAlertDialog?: boolean
-  // trueの場合、画面幅768px未満では全画面表示にする(設計書第6.5節のスマホ対応ルール)
+  // trueの場合、画面幅768px未満では全画面表示にする(設計書の「フロントデザインの全面見直し」のスマホ対応ルール)
   fullScreenOnMobile?: boolean
   children?: ReactNode
   // フッターのボタン等(本文の下に表示)

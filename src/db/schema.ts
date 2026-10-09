@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import { user } from './auth-schema'
 
-// links: 短縮URLリソース(docs/architecture.md 第7節)のテーブル定義
+// links: 短縮URLリソース(docs/architecture.mdの「API設計」)のテーブル定義
 export const links = sqliteTable('links', {
   // linkリソースの一意なID(主キー)
   id: text('id').primaryKey(),
@@ -27,15 +27,15 @@ export const links = sqliteTable('links', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-  // ソフトデリート日時(docs/architecture.md 第7節「削除方針: deletedAtによるソフトデリート」)。
+  // ソフトデリート日時(docs/architecture.mdの「API設計」「削除方針: deletedAtによるソフトデリート」)。
   // 未削除の場合はnull。猶予期間後のバッチ処理で物理削除するまでこの値で判定する。
   // アカウント削除申請の取り消し処理(cancelPendingAccountRequestIfAny)がこの値と
   // accountRequests.requestedAtの完全一致で「申請によって削除されたか」を判定するため、
   // 秒精度(mode: 'timestamp')だと同一秒内の個別削除と申請が衝突しうる。ミリ秒精度にする
   deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
-  // 悪意あるURL検知の結果(docs/architecture.md 第4節)。既存のstatus(active/expired/suspended、
+  // 悪意あるURL検知の結果(docs/architecture.mdの「悪意あるURLの検知」)。既存のstatus(active/expired/suspended、
   // 「意図的な停止」を表す)とは意味が異なる別フィールドとして持つ:
-  // - 'unscanned': 未検査、またはURLhaus照会がタイムアウト・失敗しfail-openした(第4節の方針通り、
+  // - 'unscanned': 未検査、またはURLhaus照会がタイムアウト・失敗しfail-openした(「悪意あるURLの検知」の方針通り、
   //   「不審」とはせず通常のリダイレクトを許可する。翌日の全件スキャンで再検査される)
   // - 'clean': ヒューリスティック・URLhaus照合のいずれでも問題が検出されなかった
   // - 'flagged': ヒューリスティックまたはURLhaus照合で不審と判定された(リダイレクト時に
@@ -55,13 +55,13 @@ export const links = sqliteTable('links', {
   // active/expired/suspendedを自由に変更できる)とは別に持つフィールドで、通報を受けて
   // 運営がリンクを停止しても、所有者がstatusをactiveに戻すことで停止を解除できてしまう問題への
   // 対応。'suspended'の場合、PATCH /links/:idでのstatus変更を拒否し、リダイレクトも410にする。
-  // 管理画面・管理APIは今回作らず、D1へ直接SQLで更新する運用とする(docs/deployment.md参照)
+  // 管理画面・管理APIは作らず、D1へ直接SQLで更新する運用とする(docs/deployment.md参照)
   moderationStatus: text('moderation_status', { enum: ['none', 'suspended'] })
     .notNull()
     .default('none'),
 })
 
-// qrcodes: QRコードリソース(docs/architecture.md 第7節)のテーブル定義
+// qrcodes: QRコードリソース(docs/architecture.mdの「API設計」)のテーブル定義
 export const qrcodes = sqliteTable('qrcodes', {
   // qrcodeリソースの一意なID(主キー)
   id: text('id').primaryKey(),
@@ -78,7 +78,7 @@ export const qrcodes = sqliteTable('qrcodes', {
   // targetType='rawUrl'の場合に直接保持する対象URL
   targetUrl: text('target_url'),
   // 管理用の名前(任意、最大40文字)。QR画像には表示せず、一覧等の管理画面上でのみ使う
-  // (docs/architecture.md 第6.7節「管理用の名前:任意、最大40文字。QR画像には表示しない」)
+  // (docs/architecture.mdの「画面ごとの確定仕様」「管理用の名前:任意、最大40文字。QR画像には表示しない」)
   name: text('name'),
   // レコード作成日時。D1(SQLite)側でunixepoch()により自動設定する
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -89,7 +89,7 @@ export const qrcodes = sqliteTable('qrcodes', {
   deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 })
 
-// accountRequests: アカウント削除申請リソース(docs/architecture.md 第7.1節)のテーブル定義
+// accountRequests: アカウント削除申請リソース(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)のテーブル定義
 export const accountRequests = sqliteTable('account_requests', {
   // accountRequestリソースの一意なID(主キー)
   id: text('id').primaryKey(),
@@ -113,7 +113,7 @@ export const accountRequests = sqliteTable('account_requests', {
   completedAt: integer('completed_at', { mode: 'timestamp' }),
 })
 
-// reports: 通報リソース(docs/architecture.md 第7節・利用規約第9条)のテーブル定義
+// reports: 通報リソース(docs/architecture.mdの「API設計」・利用規約第9条)のテーブル定義
 export const reports = sqliteTable('reports', {
   // reportリソースの一意なID(主キー)
   id: text('id').primaryKey(),
@@ -133,7 +133,7 @@ export const reports = sqliteTable('reports', {
     .default(sql`(unixepoch())`),
 })
 
-// posters: 掲示物リソース(docs/architecture.md 第7節)のテーブル定義
+// posters: 掲示物リソース(docs/architecture.mdの「API設計」)のテーブル定義
 export const posters = sqliteTable('posters', {
   // posterリソースの一意なID(主キー)
   id: text('id').primaryKey(),
@@ -147,7 +147,7 @@ export const posters = sqliteTable('posters', {
   title: text('title').notNull(),
   // 掲示物のサブタイトル。無い場合はnull
   subtitle: text('subtitle'),
-  // レイアウトテンプレートの識別子。今回は固定値'default'のみ扱う
+  // レイアウトテンプレートの識別子。現在は固定値'default'のみ扱う
   layoutTemplate: text('layout_template').notNull(),
   // 掲示物のスタイル設定をJSON文字列として保持する
   styleOptions: text('style_options'),

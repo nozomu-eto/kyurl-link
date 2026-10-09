@@ -11,7 +11,7 @@ import { Page } from '@/frontend/components/page'
 import { type ExpiryChoice, getTodayJstDateString, resolveExpiresAt } from '@/frontend/lib/link-expiry'
 import { QRCODE_NAME_MAX_LENGTH, URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 
-// 有効期限の選択肢(docs/architecture.md 第6.7節「[無期限][1か月後][3か月後][日付を指定]」)
+// 有効期限の選択肢(docs/architecture.mdの「画面ごとの確定仕様」「[無期限][1か月後][3か月後][日付を指定]」)
 const EXPIRY_OPTIONS = [
   { value: 'none', label: '無期限' },
   { value: 'oneMonth', label: '1か月後' },

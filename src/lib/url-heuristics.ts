@@ -35,7 +35,7 @@ const MAX_REASONABLE_SUBDOMAIN_DEPTH = 6
 // 与えられたURLをヒューリスティックにより検査し、不審な特徴が無いかを判定する。
 // DB・ネットワーク呼び出しを含まない純粋関数(文字列解析のみ)にすることで、
 // 実際のネットワーク呼び出し無しに単体テストできるようにしている。
-// docs/architecture.md 第4節「作成時のヒューリスティック」に対応する
+// docs/architecture.mdの「悪意あるURLの検知」「作成時のヒューリスティック」に対応する
 export function checkUrlHeuristics(url: string): { flagged: boolean; reasons: string[] } {
   const reasons: string[] = []
 

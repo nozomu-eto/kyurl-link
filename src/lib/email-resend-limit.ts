@@ -1,7 +1,7 @@
 // 確認メール再送(/send-verification-email、新規登録直後の自動送信・メールアドレス変更の
 // 新しいアドレスへの確認も含む)、パスワード再設定申請(/request-password-reset)、
 // メールアドレス変更の承認メール(/change-email)を、同じメールアドレスにつき60秒に1回までに
-// 制限する(docs/architecture.md 第7節)。src/lib/auth.tsのsendVerificationEmail・
+// 制限する(docs/architecture.mdの「API設計」)。src/lib/auth.tsのsendVerificationEmail・
 // sendResetPassword・sendChangeEmailConfirmationから呼び出す
 
 // verify: 確認メール / reset: パスワード再設定 / change-email: メールアドレス変更の承認メール(今のアドレス宛て)

@@ -3,7 +3,7 @@ import { flattenError, type ZodType } from 'zod'
 
 // リクエストボディ(JSON)をzodスキーマで検証するミドルウェア。各ハンドラーで繰り返していた
 // 「c.req.json() → safeParse → 400」の処理を共通化し、Hono RPCにもボディの型を推論させる。
-// 検証に失敗した場合は、従来の手動検証と同じ形のレスポンス
+// 検証に失敗した場合は、共通のエラー形式のレスポンス
 // (400、{ error: { code: 'VALIDATION_ERROR', message, details } })を返す。
 // ハンドラー側では c.req.valid('json') で検証済みの値を受け取る
 export function jsonValidator<T extends ZodType>(schema: T) {
@@ -23,9 +23,9 @@ export function jsonValidator<T extends ZodType>(schema: T) {
   })
 
   // zValidator(hono標準のvalidator)は、JSONとして読み取れないボディに対して
-  // 独自の400(HTTPException)を投げ、フックを経由しない。従来はボディ不正もnullとして
-  // スキーマ検証にかけて同じVALIDATION_ERRORを返していたため、読み取りに失敗した場合は
-  // nullを検証した結果で応答し、レスポンスの形を変えないようにする。
+  // 独自の400(HTTPException)を投げ、フックを経由しない。ボディ不正も他の検証失敗と同じ
+  // VALIDATION_ERRORで返したいため、読み取りに失敗した場合はnullを検証した結果で応答し、
+  // レスポンスの形を揃える。
   // c.req.json()の結果はHono側でキャッシュされるため、後段のvalidateで二重に読み込まれない
   const middleware: typeof validate = async (c, next) => {
     try {

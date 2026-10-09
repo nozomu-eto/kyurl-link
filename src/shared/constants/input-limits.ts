@@ -1,6 +1,6 @@
 // 各種入力値の文字数上限を定数として定義する。
 // サーバー側のzodスキーマ(src/shared/schemas/配下)とフロントエンドのフォーム入力(maxLength)の
-// 両方から同じ値を参照することで、両者の上限がずれることを防ぐ(公開前修正v2 T4/T5/T7)。
+// 両方から同じ値を参照することで、両者の上限がずれることを防ぐ。
 
 // URL(link.originalUrl・qrcode.targetUrl)の文字数上限。
 // 実務上の一般的なURL長の上限として広く使われる2048文字を採用する(RFCで明確な上限は
@@ -8,15 +8,15 @@
 export const URL_MAX_LENGTH = 2048
 
 // 掲示物(poster)のタイトルの文字数上限。
-// docs/architecture.md 第6.7節「タイトル(必須、最大20文字。「12文字以内だと遠くからでも
-// 読みやすい」と案内)」(更新版11で60→20に変更)
+// docs/architecture.mdの「画面ごとの確定仕様」「タイトル(必須、最大20文字。「12文字以内だと遠くからでも
+// 読みやすい」と案内)」
 export const POSTER_TITLE_MAX_LENGTH = 20
 
 // 掲示物(poster)のサブタイトル(ひとことメッセージ)の文字数上限。
-// docs/architecture.md 第6.7節「ひとことメッセージ(任意、最大40文字)」(更新版11で120→40に変更)
+// docs/architecture.mdの「画面ごとの確定仕様」「ひとことメッセージ(任意、最大40文字)」
 export const POSTER_SUBTITLE_MAX_LENGTH = 40
 
-// QRコードの管理用の名前の文字数上限(docs/architecture.md 第6.7節「管理用の名前:任意、
+// QRコードの管理用の名前の文字数上限(docs/architecture.mdの「画面ごとの確定仕様」「管理用の名前:任意、
 // 最大40文字。QR画像には表示しない」)
 export const QRCODE_NAME_MAX_LENGTH = 40
 

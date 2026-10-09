@@ -198,7 +198,7 @@ describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_L
     // Browser Rendering(@cloudflare/puppeteer)を一度も起動しない。
     // Miniflare上のBrowser Renderingシミュレーションは実ブラウザのWebSocket通信を模擬しており、
     // 「Can't call WebSocket send() after close()」という無関係なuncaught exceptionが
-    // まれに発生してテストを不安定にしていたため(docs/hardening-progress.md v2参照)、
+    // まれに発生してテストを不安定にするため、
     // レート制限の上限到達・429を検証するという本来の目的には無関係なBrowser Renderingの
     // 起動自体をテストから排除する
     const qrContent = `https://example.com/${link.shortCode}`

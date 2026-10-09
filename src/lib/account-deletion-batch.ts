@@ -17,7 +17,7 @@ async function deletePosterCacheObjects(posterCache: R2Bucket, prefix: string) {
 }
 
 // 猶予期間(7日)を経過したアカウント削除申請を処理し、対象ユーザーを物理削除するバッチ。
-// docs/architecture.md 第7.1節「⑤物理削除バッチ」に対応する。Cron Trigger(scheduledハンドラ)
+// docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「⑤物理削除バッチ」に対応する。Cron Trigger(scheduledハンドラ)
 // から1日1回呼び出されることを想定する
 export async function runAccountDeletionBatch(env: CloudflareBindings): Promise<number> {
   const db = drizzle(env.DB)

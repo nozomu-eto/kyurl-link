@@ -35,7 +35,7 @@ function toJstDateString(isoString: string): string {
 
 // LinkExpiryDialog: 有効期限の変更ダイアログ(docs/mocks/ExpiryDialog.html)。
 // [1か月後][3か月後][無期限]+日付指定で選ばせ、指定日の23:59(日本時間)に期限切れにする。
-// 期限切れの短縮URLでも、延長または無期限にすれば再開できる。スマホでは全画面で表示する(第6.5節)
+// 期限切れの短縮URLでも、延長または無期限にすれば再開できる。スマホでは全画面で表示する(「フロントデザインの全面見直し」)
 export function LinkExpiryDialog({ isOpen, onClose, link, onSave }: LinkExpiryDialogProps) {
   const isExpired = link.displayStatus === 'expired'
   // 初期値: 期限切れなら3か月後、無期限なら「無期限」、期限付きならその日付

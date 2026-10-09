@@ -67,7 +67,7 @@ export function auth(env: AuthEnv) {
       // パスワード再設定リンクの有効期限(秒)。Better Authの既定値と同じ値だが、
       // 画面(reset-password-request-page.tsx等)とメール本文に「有効期限は1時間」と
       // 明記するため、既定値の将来的な変更に表示が左右されないよう明示的に設定する
-      // (docs/architecture.md 第6.7節)
+      // (docs/architecture.mdの「画面ごとの確定仕様」)
       resetPasswordTokenExpiresIn: 3600,
       // パスワードを再設定した後、他の端末・ブラウザのログイン状態(セッション)を
       // 無効にする。パスワード再設定は漏えいが疑われる場合にも行われるため、
@@ -75,7 +75,7 @@ export function auth(env: AuthEnv) {
       revokeSessionsOnPasswordReset: true,
       // パスワードリセットメールの送信。既存のEMAIL バインディング(Cloudflare Email
       // Service)を使い、account-deletion-emails.tsと同じ送信元(no-reply@kyurl.link)にする。
-      // 同じメールアドレスにつき60秒に1回まで(docs/architecture.md 第7節)。制限に当たった場合は
+      // 同じメールアドレスにつき60秒に1回まで(docs/architecture.mdの「API設計」)。制限に当たった場合は
       // 送信せずに終える(429にすると登録の有無を外部から調べられてしまうため、
       // src/lib/email-resend-limit.tsのコメント参照)
       sendResetPassword: async ({ user, url }) => {
@@ -96,7 +96,7 @@ export function auth(env: AuthEnv) {
       expiresIn: 3600,
       // サインアップ時に自動でメール確認メールを送信する。この送信も下記と同じ60秒制限を
       // 通るため、登録から60秒以内の(確認メール再送ボタン経由の)再送は送られない
-      // (段階4で再送ボタンに60秒のカウントダウンを付ける前提とする)
+      // (再送ボタンには60秒のカウントダウンを付けている)
       sendOnSignUp: true,
       // 確認メールの送信。同じメールアドレスにつき60秒に1回まで(上記sendResetPasswordと同じ理由)
       sendVerificationEmail: async ({ user, url }) => {
@@ -111,7 +111,7 @@ export function auth(env: AuthEnv) {
       },
     },
     user: {
-      // 規約同意の記録(docs/architecture.md 第7節)。3項目とも利用者が送った値では
+      // 規約同意の記録(docs/architecture.mdの「API設計」)。3項目とも利用者が送った値では
       // 上書きされないようinput: falseにする(Better Auth公式の「サーバーが決める項目」の扱い)。
       // 実際の値はdatabaseHooks.user.create.beforeで設定する
       additionalFields: {
@@ -119,11 +119,11 @@ export function auth(env: AuthEnv) {
         termsVersion: { type: 'string', required: false, input: false },
         privacyPolicyVersion: { type: 'string', required: false, input: false },
       },
-      // メールアドレスの変更(docs/architecture.md 第6.7節。アカウント設定のメールアドレス変更と、
+      // メールアドレスの変更(docs/architecture.mdの「画面ごとの確定仕様」。アカウント設定のメールアドレス変更と、
       // 「メール確認待ち」画面の「メールアドレスを修正する」の両方から使う)。
       //
       // - 確認前(emailVerified: false)のユーザー: updateEmailWithoutVerification: trueにより、
-      //   その場でアドレスが変わり、新しいアドレスに確認メールが送られる(段階4-2)。
+      //   その場でアドレスが変わり、新しいアドレスに確認メールが送られる。
       //   確認メールはsendVerificationEmailを通るため、下記の60秒制限が新しいアドレスにも効く
       // - 確認済み(emailVerified: true)のユーザー: sendChangeEmailConfirmationを設定しているため、
       //   ①今のアドレスへ承認メールが送られる → ②承認リンクを開くと新しいアドレスへ確認メール
@@ -196,7 +196,7 @@ export function auth(env: AuthEnv) {
     // エラーコード・エンドポイントのパスマッチングまで一貫して面倒を見てくれるため、
     // 車輪の再発明を避けてこちらを採用する)。
     // endpointsを明示的に['/sign-up/email']のみに絞り、既定(サインイン・パスワードリセットも
-    // 含む)より狭いスコープにする(今回の対象はサインアップのみのため)
+    // 含む)より狭いスコープにする(対象はサインアップのみのため)
     plugins:
       env.TURNSTILE_DISABLED_FOR_TESTS === 'true'
         ? []
@@ -207,7 +207,7 @@ export function auth(env: AuthEnv) {
               endpoints: ['/sign-up/email'],
             }),
           ],
-    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否する(docs/architecture.md 第7節)。
+    // サインアップ時に規約同意(agreeToTerms)が無ければ拒否する(docs/architecture.mdの「API設計」)。
     // Better Auth公式のcaptchaプラグインと異なりこの用途向けの公式プラグインは無いため、
     // hooks.beforeでパスを見て個別に検証する
     hooks: {

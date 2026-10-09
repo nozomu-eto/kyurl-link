@@ -1,7 +1,7 @@
 // linkIdの形式チェック用正規表現。crypto.randomUUID()が生成するUUID形式(英数字とハイフンのみ)を想定する
 const LINK_ID_PATTERN = /^[a-zA-Z0-9-]+$/
 
-// GET /api/v1/links/:id/clicksのクエリdaysで指定できる値(docs/architecture.md 第6.7節
+// GET /api/v1/links/:id/clicksのクエリdaysで指定できる値(docs/architecture.mdの「画面ごとの確定仕様」
 // 「7日・30日・90日の切り替え(初期値30日)」)
 export const LINK_CLICKS_DAYS_OPTIONS = [7, 30, 90] as const
 export type LinkClicksDays = (typeof LINK_CLICKS_DAYS_OPTIONS)[number]

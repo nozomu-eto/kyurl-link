@@ -92,7 +92,6 @@ describe('AccountDeletionBanner: 取り消しボタンの挙動', () => {
     // AccountDeletionBanner単体ではなく、実際の画面(DashboardPage・AccountSettingsPage)の
     // 構造を再現したDeletionBannerHostで検証する。バナーの中にトーストを持つ実装だと、
     // バナーが消えるのと同時にトーストも消えてしまい、この確認では検出できない
-    // (実際にこの手前の実装で見逃していた不具合)
     cancelMock.mockResolvedValueOnce({ ok: true, status: 200 })
     const user = userEvent.setup()
     render(<DeletionBannerHost />)

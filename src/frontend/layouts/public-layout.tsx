@@ -26,7 +26,7 @@ const FOOTER_LINK_GROUPS: { heading: string; links: { label: string; to?: string
 ]
 
 // PublicLayout: 未ログインでも閲覧できる画面(トップ・利用規約・プライバシーポリシー・
-// 認証系画面)で共有するヘッダー・フッターを持つ外枠(見た目はdocs/architecture.md 第6.5節)。
+// 認証系画面)で共有するヘッダー・フッターを持つ外枠(見た目はdocs/architecture.mdの「フロントデザインの全面見直し」)。
 // ヘッダー右側は、ログイン中かどうかで「ダッシュボードへ」/「ログイン・新規登録」を
 // 出し分ける(useSessionはBetter Authのセッション状態を購読するフック)
 export function PublicLayout() {

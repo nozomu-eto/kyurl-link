@@ -2,21 +2,21 @@ import { z } from 'zod'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 
 // 掲示物(poster)のスタイル設定スキーマ。
-// QRコードが白黒固定になった(docs/architecture.md 第6.7節)ことに伴い、掲示物に埋め込まれる
+// QRコードが白黒固定になった(docs/architecture.mdの「画面ごとの確定仕様」)ことに伴い、掲示物に埋め込まれる
 // QRコード画像(poster-template.ts)にも色の項目は不要になったため、入力側は実質空オブジェクトの
-// みを許可する(以前のforegroundColor/backgroundColorを含むキーを送ると400にする)。
+// みを許可する(foregroundColor/backgroundColorなどのキーを送ると400にする)。
 // 将来的なカスタマイズ再導入の余地を残すため、キー自体はz.strictObject({})のまま(空オブジェクト)にしておく
 const posterStyleOptionsInputSchema = z.strictObject({})
 
-// レスポンス用のstyleOptions。posterStyleOptionsInputSchema導入前に保存された既存レコードには
-// foregroundColor/backgroundColor等のキーが残っている可能性があり、それらをGETで取得した際に
+// レスポンス用のstyleOptions。保存済みの既存レコードにはforegroundColor/backgroundColor等の
+// キーが残っている可能性があり、それらをGETで取得した際に
 // パースエラーにしないため、入力用より緩いスキーマ(任意のキーを許容)を使う。
 // DB上のデータそのものは書き換えない(このスキーマは表示のためだけに使う)
 const posterStyleOptionsResponseSchema = z.looseObject({})
 
 // 掲示物のタイトル。必須項目のため、前後の空白を除去したうえで空になっていないか(min(1))・
 // 上限文字数以内か(max)を検証する。トリム後の値を検証・保存する
-// (docs/architecture.md 第6.7節「タイトル(必須、最大20文字)」)
+// (docs/architecture.mdの「画面ごとの確定仕様」「タイトル(必須、最大20文字)」)
 const posterTitleSchema = z
   .string()
   .trim()
@@ -65,7 +65,7 @@ export const posterSchema = z.object({
   title: z.string(),
   // 掲示物のサブタイトル。無い場合はnull
   subtitle: z.string().nullable(),
-  // レイアウトテンプレートの識別子(今回は'default'のみ)
+  // レイアウトテンプレートの識別子(現在は'default'のみ)
   layoutTemplate: z.string(),
   // 掲示物のスタイル設定。未設定の場合はnull
   styleOptions: posterStyleOptionsResponseSchema.nullable(),
@@ -80,7 +80,7 @@ export const posterSchema = z.object({
 // poster作成APIの入力用スキーマ。
 // posterSchemaはレスポンス(DB保存結果)の形を表すのに対し、こちらはリクエストボディの検証に使う。
 // id/layoutTemplate/styleOptions/linkStatusは入力に含めない
-// (idはサーバー生成、layoutTemplateは今回'default'固定でサーバー側が設定、
+// (idはサーバー生成、layoutTemplateは現在'default'固定でサーバー側が設定、
 // styleOptionsは作成時null固定で更新はposterUpdateInputSchema経由でのみ可能、
 // linkStatusはその場計算の表示専用フィールドで保存も入力も不可)
 export const posterCreateInputSchema = z.object({

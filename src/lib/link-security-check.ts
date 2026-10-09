@@ -1,7 +1,7 @@
 import { checkUrlHeuristics } from '@/lib/url-heuristics'
 import { checkUrlAgainstUrlhaus } from '@/lib/urlhaus-client'
 
-// 悪意あるURL検知(docs/architecture.md 第4節)の結果を表す型。links.securityStatusと対応する
+// 悪意あるURL検知(docs/architecture.mdの「悪意あるURLの検知」)の結果を表す型。links.securityStatusと対応する
 export type LinkSecurityStatus = 'unscanned' | 'clean' | 'flagged'
 
 // ヒューリスティックチェック→(必要なら)URLhaus照合、の順で1件のURLを検査し、

@@ -9,7 +9,7 @@ import { FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
 
 // APIから返るerror.codeを、この画面向けの日本語メッセージに変換する。
-// docs/architecture.md 第7.1節・account-requests.tsの実装に対応するコードのみを扱う
+// docs/architecture.mdの「アカウント削除・データ削除の実装フロー」・account-requests.tsの実装に対応するコードのみを扱う
 function translateAccountRequestErrorCode(code: string): string {
   switch (code) {
     case 'INVALID_PASSWORD':
@@ -24,7 +24,7 @@ function translateAccountRequestErrorCode(code: string): string {
 }
 
 // AccountDeletionPage: アカウント削除申請の画面。誤操作防止のため、パスワードの
-// 再入力を必須とする(docs/architecture.md 第7.1節「誤操作防止のためパスワード再入力による
+// 再入力を必須とする(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」「誤操作防止のためパスワード再入力による
 // 確認を必須とする」)。送信するとPOST /api/v1/account-requestsを呼び出し、
 // 成功すると即座に紐づくlink/qrcode/posterがソフトデリートされ、7日間の猶予期間が始まる
 export function AccountDeletionPage() {

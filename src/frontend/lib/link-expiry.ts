@@ -1,6 +1,6 @@
 // 短縮URLの有効期限を、画面の選択肢(無期限・1か月後・3か月後・日付を指定)から
 // APIに送る値へ変換する処理。
-// 「指定日の23:59(日本時間)に期限切れ」にする(docs/architecture.md 第6.7節・第7節)。
+// 「指定日の23:59(日本時間)に期限切れ」にする(docs/architecture.mdの「画面ごとの確定仕様」・「API設計」)。
 // ブラウザのタイムゾーンに依存しないよう、日付の計算はすべて日本時間(UTC+9)で行う
 
 export type ExpiryChoice = 'none' | 'oneMonth' | 'threeMonths' | 'custom'

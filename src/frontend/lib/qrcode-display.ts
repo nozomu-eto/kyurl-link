@@ -8,7 +8,7 @@ function formatMonthDayJst(isoString: string): string {
 }
 
 // getQrcodeDisplayName: 一覧などに表示する名前。名前が未設定の場合は
-// 「名前なし(M/D作成)」と作成日で見分けられるようにする(docs/architecture.md 第6.7節)
+// 「名前なし(M/D作成)」と作成日で見分けられるようにする(docs/architecture.mdの「画面ごとの確定仕様」)
 export function getQrcodeDisplayName(qrcode: QrcodeLike): string {
   return qrcode.name ?? `名前なし(${formatMonthDayJst(qrcode.createdAt)}作成)`
 }

@@ -1,6 +1,6 @@
 import QRCode from 'qrcode-svg'
 
-// GET /api/v1/qrcodes/:id/imageのクエリsize(docs/architecture.md 第7節「PNG(512 / 1024 /
+// GET /api/v1/qrcodes/:id/imageのクエリsize(docs/architecture.mdの「API設計」「PNG(512 / 1024 /
 // 2048px、初期値1024)」)
 export const QRCODE_IMAGE_SIZE_OPTIONS = [512, 1024, 2048] as const
 export type QrcodeImageSize = (typeof QRCODE_IMAGE_SIZE_OPTIONS)[number]
@@ -30,7 +30,7 @@ export function renderQrcodeSvg(content: string): string {
 // qrcode-svgが、SVGを描画する際に使うのと同じマス目の配列(QRCode#qrcode.modules)を
 // そのまま公開しているため、これを再利用して自前でPNGを組み立てる方が、新規依存を
 // 増やさずに済み、かつSVGとPNGで模様が完全に一致することも保証できる
-// (docs/architecture.md 第15節参照)。
+// (docs/architecture.mdの「API設計」参照)。
 // 誤り訂正レベルはqrcode-svgの既定値(M)のまま、SVGと同じにする
 export async function renderQrcodePng(content: string, size: QrcodeImageSize): Promise<Uint8Array<ArrayBuffer>> {
   const modules = new QRCode({ content }).qrcode.modules

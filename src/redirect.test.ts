@@ -93,7 +93,7 @@ describe('GET /:shortCode', () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const link = await createLink(sessionCookie)
 
-    // PATCH /links/:idは過去日時をexpiresAtに設定することを拒否する(公開前修正v2 T2)ため、
+    // PATCH /links/:idは過去日時をexpiresAtに設定することを拒否するため、
     // 「期限切れ状態のlink」自体はAPI越しには作れない。ここでは410判定のロジックだけを
     // 確認したいので、moderationStatusのテストと同様にD1を直接更新して期限切れ状態を再現する
     const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -130,7 +130,7 @@ describe('GET /:shortCode', () => {
     expect(response.headers.get('location')).toBe('http://192.168.1.1/phishing-target')
   })
 
-  it('アカウント削除申請によりカスケードでソフトデリートされたlinkにアクセスすると、404ではなく410になる(docs/architecture.md 第7.1節②)', async () => {
+  it('アカウント削除申請によりカスケードでソフトデリートされたlinkにアクセスすると、404ではなく410になる(docs/architecture.mdの「アカウント削除・データ削除の実装フロー」)', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const link = await createLink(sessionCookie)
 

@@ -3,7 +3,7 @@
 
 export type DailyClick = { day: string; clicks: number }
 
-// 集計期間の選択肢(APIのdaysクエリと同じ。docs/architecture.md 第6.7節。初期値は30日)
+// 集計期間の選択肢(APIのdaysクエリと同じ。docs/architecture.mdの「画面ごとの確定仕様」。初期値は30日)
 export const CLICK_STATS_DAYS_OPTIONS = [7, 30, 90] as const
 export type ClickStatsDays = (typeof CLICK_STATS_DAYS_OPTIONS)[number]
 export const DEFAULT_CLICK_STATS_DAYS: ClickStatsDays = 30

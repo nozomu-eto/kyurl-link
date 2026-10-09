@@ -6,7 +6,7 @@ type Session = NonNullable<Awaited<ReturnType<ReturnType<typeof auth>['api']['ge
 export type AuthUser = Session['user']
 
 // ログイン必須のルートに適用するミドルウェア。
-// docs/architecture.md 第7節「リダイレクト・通報・掲示物公開プレビュー以外は全て要ログイン」の方針に従う。
+// docs/architecture.mdの「API設計」「リダイレクト・通報・掲示物公開プレビュー以外は全て要ログイン」の方針に従う。
 // リクエストヘッダーからBetter Authのセッションを取得し、
 // - セッションが無ければ共通エラー形式({ error: { code, message } })で401を返す
 // - セッションがあればc.set('user', ...)でコンテキストに詰めて後続のハンドラに渡す
