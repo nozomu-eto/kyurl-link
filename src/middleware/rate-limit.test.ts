@@ -1,6 +1,8 @@
 import { env, SELF } from 'cloudflare:test'
-import QRCode from 'qrcode-svg'
 import { afterEach, describe, expect, it } from 'vitest'
+import { buildPosterExportHashSource, computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { POSTER_TEMPLATE_VERSION } from '@/lib/poster-template'
+import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
@@ -167,34 +169,6 @@ describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ロ�
   })
 })
 
-// src/routes/posters.tsのexportハンドラがR2キャッシュキーを計算するのと全く同じ手順
-// (title/subtitle/size/styleOptions/QRコードSVGの内容からSHA-256ハッシュを取る)を
-// ここでも再現し、テストがR2に事前投入すべきキーを求める。
-// キーの構成要素(オブジェクトのキー順を含む)は必ずposters.tsの実装と一致させる必要がある
-async function computePosterExportCacheKey(params: {
-  posterId: string
-  title: string
-  subtitle: string | null
-  size: 'A6' | 'A5'
-  styleOptions: unknown
-  qrContent: string
-  format: 'pdf' | 'png'
-}) {
-  const qrCodeSvg = new QRCode({ content: params.qrContent }).svg()
-  const hashSource = JSON.stringify({
-    title: params.title,
-    subtitle: params.subtitle,
-    size: params.size,
-    styleOptions: params.styleOptions,
-    qrCodeSvg,
-  })
-  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashSource))
-  const hash = Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-  return `${params.posterId}/${params.format}/${hash}`
-}
-
 describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_LIMITER)', () => {
   it(`同一ユーザーから${POSTER_EXPORT_RATE_LIMIT_MAX + 1}回目のexportは429(RATE_LIMITED)になる`, async () => {
     const sessionCookie = await signUp()
@@ -228,18 +202,38 @@ describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_L
     // レート制限の上限到達・429を検証するという本来の目的には無関係なBrowser Renderingの
     // 起動自体をテストから排除する
     const qrContent = `https://example.com/${link.shortCode}`
-    const cacheKey = await computePosterExportCacheKey({
-      posterId: poster.id,
+    // キーの組み立てはposters.tsと共通の関数(buildPosterExportHashSource・
+    // computePosterExportCacheKey)を使う。下のリクエストはクエリなしのため、ハンドラの
+    // 既定値(format=pdf・paper=a4)に合わせる
+    const hashSource = buildPosterExportHashSource({
       title: poster.title,
       subtitle: poster.subtitle,
       size: poster.size,
       styleOptions: poster.styleOptions,
-      qrContent,
+      qrCodeSvg: renderQrcodeSvg(qrContent),
       format: 'pdf',
+      paper: 'a4',
     })
-    await env.POSTER_CACHE.put(cacheKey, new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+    const cacheKey = await computePosterExportCacheKey({
+      posterId: poster.id,
+      format: 'pdf',
+      paper: 'a4',
+      templateVersion: POSTER_TEMPLATE_VERSION,
+      hashSource,
+    })
+    const dummyPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46])
+    await env.POSTER_CACHE.put(cacheKey, dummyPdf)
 
-    for (let i = 0; i < POSTER_EXPORT_RATE_LIMIT_MAX; i++) {
+    // 1回目はR2のダミー4バイトがそのまま返ることを確認する。これでキャッシュヒット
+    // (=Browser Renderingを起動していない)ことをローカルでも検証できる。キーが食い違うと
+    // Browser Renderingが起動し、実PDFが返る(または環境によってはタイムアウトする)
+    const firstResponse = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
+      headers: { Cookie: sessionCookie },
+    })
+    expect(firstResponse.status).toBe(200)
+    expect(new Uint8Array(await firstResponse.arrayBuffer())).toEqual(dummyPdf)
+
+    for (let i = 1; i < POSTER_EXPORT_RATE_LIMIT_MAX; i++) {
       const response = await SELF.fetch(`https://example.com/api/v1/posters/${poster.id}/export`, {
         headers: { Cookie: sessionCookie },
       })

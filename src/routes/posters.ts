@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, posters, qrcodes } from '@/db/schema'
-import { computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { buildPosterExportHashSource, computePosterExportCacheKey } from '@/lib/poster-export-cache'
 import { computePosterLinkStatus, type PosterLinkStatus } from '@/lib/poster-link-status'
 import {
   generatePosterA4SheetHtml,
@@ -351,13 +351,14 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 4. poster(title/subtitle/size/styleOptions)・QRコードのSVG内容・paper(pdfのみ)・
     // テンプレートの版からハッシュ値を計算し、R2オブジェクトキーを作る
     // (内容や書き出し設定が変われば別のキーになるキャッシュキー)
-    const hashSource = JSON.stringify({
+    const hashSource = buildPosterExportHashSource({
       title: poster.title,
       subtitle: poster.subtitle,
       size: poster.size,
       styleOptions: poster.styleOptions,
       qrCodeSvg,
-      paper: format === 'pdf' ? paper : undefined,
+      format,
+      paper,
     })
     const objectKey = await computePosterExportCacheKey({
       posterId: poster.id,

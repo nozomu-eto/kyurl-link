@@ -29,3 +29,28 @@ export async function computePosterExportCacheKey(input: PosterExportCacheKeyInp
 
   return `${input.posterId}/${input.format}/v${input.templateVersion}${paperSegment}/${hash}`
 }
+
+// buildPosterExportHashSource: computePosterExportCacheKeyのhashSourceを組み立てる。
+// posters.tsのexportハンドラと、そのキャッシュに事前投入するテスト(rate-limit.test.ts)で
+// 同じ手順を共有し、キーの食い違い(キャッシュミス)が起きないようにする。
+// キーの並び順やpaperの扱い(pngでは含めない)を変えるとキャッシュが全て無効になる
+export type PosterExportHashSourceInput = {
+  title: string
+  subtitle: string | null
+  size: string
+  styleOptions: unknown
+  qrCodeSvg: string
+  format: 'pdf' | 'png'
+  paper: 'a4' | 'fit'
+}
+
+export function buildPosterExportHashSource(input: PosterExportHashSourceInput): string {
+  return JSON.stringify({
+    title: input.title,
+    subtitle: input.subtitle,
+    size: input.size,
+    styleOptions: input.styleOptions,
+    qrCodeSvg: input.qrCodeSvg,
+    paper: input.format === 'pdf' ? input.paper : undefined,
+  })
+}
