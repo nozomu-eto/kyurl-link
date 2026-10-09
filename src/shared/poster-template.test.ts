@@ -7,7 +7,7 @@ import {
   POSTER_PDF_OPTIONS,
   POSTER_PNG_DEVICE_SCALE_FACTOR,
   POSTER_PNG_ELEMENT_SELECTOR,
-} from '@/lib/poster-template'
+} from '@/shared/poster-template'
 
 describe('POSTER_PDF_OPTIONS', () => {
   it('preferCSSPageSize: trueが含まれる(@pageのサイズ指定を優先させ、レター用紙への縮小を防ぐ)', () => {

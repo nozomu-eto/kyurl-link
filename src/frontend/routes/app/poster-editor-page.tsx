@@ -24,7 +24,7 @@ export async function posterEditorLoader({ params }: LoaderFunctionArgs) {
   return { poster: await response.json() }
 }
 
-// A6縦・A5縦のプレビュー表示用の縦横比(mm単位、poster-template.tsのPAGE_SIZESと一致させる)
+// A6縦・A5縦のプレビュー表示用の縦横比(mm単位、shared/poster-template.tsのPAGE_SIZESと一致させる)
 const PREVIEW_SIZE_MM: Record<'A6' | 'A5', { width: number; height: number }> = {
   A6: { width: 105, height: 148 },
   A5: { width: 148, height: 210 },

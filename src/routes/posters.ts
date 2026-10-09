@@ -14,7 +14,7 @@ import {
   POSTER_PNG_DEVICE_SCALE_FACTOR,
   POSTER_PNG_ELEMENT_SELECTOR,
   POSTER_TEMPLATE_VERSION,
-} from '@/lib/poster-template'
+} from '@/shared/poster-template'
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { userRateLimitMiddleware } from '@/middleware/rate-limit'

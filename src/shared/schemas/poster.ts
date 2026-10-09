@@ -3,7 +3,7 @@ import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/co
 
 // 掲示物(poster)のスタイル設定スキーマ。
 // QRコードが白黒固定になった(docs/architecture.mdの「画面ごとの確定仕様」)ことに伴い、掲示物に埋め込まれる
-// QRコード画像(poster-template.ts)にも色の項目は不要になったため、入力側は実質空オブジェクトの
+// QRコード画像(shared/poster-template.ts)にも色の項目は不要になったため、入力側は実質空オブジェクトの
 // みを許可する(foregroundColor/backgroundColorなどのキーを送ると400にする)。
 // 将来的なカスタマイズ再導入の余地を残すため、キー自体はz.strictObject({})のまま(空オブジェクト)にしておく
 const posterStyleOptionsInputSchema = z.strictObject({})

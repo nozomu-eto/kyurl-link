@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildPosterExportHashSource, computePosterExportCacheKey } from '@/lib/poster-export-cache'
-import { POSTER_TEMPLATE_VERSION } from '@/lib/poster-template'
+import { POSTER_TEMPLATE_VERSION } from '@/shared/poster-template'
 import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
