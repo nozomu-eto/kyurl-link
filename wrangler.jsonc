@@ -50,11 +50,10 @@
 	},
 	// docs/architecture.md 第7.1節「⑤物理削除バッチ」: 1日1回のCron Triggerで
 	// deletedAt < now() - 7日のレコードを検出し、D1から物理削除するために使う。
-	// 同じ"0 0 * * *"は第4節「24時間以内の追跡スキャン」(悪意あるURL検知)とも共用する
-	// (src/index.tsxのscheduledハンドラでevent.cronにより処理を分岐する)。
-	// "0 3 * * 1"(毎週月曜3時)は第4節「週1回の全件再スキャン」専用
+	// 同じ"0 0 * * *"は第4節「日次の全件スキャン」(悪意あるURL検知)とも共用する
+	// (src/index.tsxのscheduledハンドラでアカウント削除バッチと全件スキャンを続けて実行する)
 	"triggers": {
-		"crons": ["0 0 * * *", "0 3 * * 1"]
+		"crons": ["0 0 * * *"]
 	},
 	// docs/architecture.md 第7.1節「④通知メール」: 申請受付時・完全削除完了時の通知メールを
 	// Cloudflare Email Service(no-reply@kyurl.link)経由で送信するために使う

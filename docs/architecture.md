@@ -74,27 +74,27 @@ D1の1台体制、DB設計、短縮コード生成・衝突処理、リダイレ
 
 ## 4. 悪意あるURLの検知(更新版8で実装完了)
 
-3段階構成(作成時のヒューリスティック+URLhaus照合、24時間以内の追跡スキャン、週1回の全件再スキャン)の大枠は変更ありません。URLhaus照会がタイムアウト・エラーとなった場合はfail-openとする方針も変更なしです。
+2段階構成(作成時のヒューリスティック+URLhaus照合、日次の全件スキャン)です(当初の3段階構成のうち、24時間以内の追跡スキャンと週1回の全件再スキャンを日次の全件スキャン1つにまとめた)。URLhaus照会がタイムアウト・エラーとなった場合はfail-openとする方針は変更ありません。
 
 **実装概要(更新版8)**
 
 - **検知結果の保持**: `links`テーブルに`securityStatus`('unscanned'(未検査・fail-open) / 'clean'(問題なし) / 'flagged'(不審))と`lastScannedAt`(最終検査日時)を追加。既存の`status`(active/expired/suspended、意図的な停止を表す)とは意味の異なる別フィールドとした
 - **ヒューリスティック**(`src/lib/url-heuristics.ts`、ネットワーク呼び出し無しの純粋関数): ホスト名がIPアドレスリテラル・URLに'@'を含む(authority混乱攻撃)・ホスト名がPunycode(IDN、ホモグラフ攻撃の疑い)・既知の短縮URLサービスへの再短縮・URL全体が異常に長い(2000文字超)・サブドメイン階層が異常に多い(6階層超)、のいずれか1つでも該当すればflagged
-- **URLhaus照合**(`src/lib/urlhaus-client.ts`): `POST https://urlhaus-api.abuse.ch/v1/url/`にAuth-Keyヘッダー(`URLHAUS_API_KEY`、wrangler secretで設定)を付与して照会する。短いタイムアウト(デフォルト3秒、AbortController)を設け、タイムアウト・エラー・Auth-Key未設定の場合は必ずfail-open(securityStatus: 'unscanned')とし、失敗はログに残す。`src/lib/link-security-check.ts`の`determineLinkSecurityStatus()`がヒューリスティック→URLhaus照合の順で判定を組み立て、作成時チェック・24時間以内スキャン・週次スキャンの3段階すべてから共通で呼び出される
+- **URLhaus照合**(`src/lib/urlhaus-client.ts`): `POST https://urlhaus-api.abuse.ch/v1/url/`にAuth-Keyヘッダー(`URLHAUS_API_KEY`、wrangler secretで設定)を付与して照会する。短いタイムアウト(デフォルト3秒、AbortController)を設け、タイムアウト・エラー・Auth-Key未設定の場合は必ずfail-open(securityStatus: 'unscanned')とし、失敗はログに残す。`src/lib/link-security-check.ts`の`determineLinkSecurityStatus()`がヒューリスティック→URLhaus照合の順で判定を組み立て、作成時チェック・日次の全件スキャンの両方から共通で呼び出される
 - **作成時チェック(第1段階)**: `POST /links`(`src/routes/links.ts`)内で同期的に実行し、結果を`securityStatus`とともに保存する
-- **定期スキャン(第2・第3段階)**: 既存の日次Cron Trigger(`0 0 * * *`、アカウント削除バッチと共用)内で24時間以内の追跡スキャン(`runLinkSecurityTrackingScan()`)を実行し、新規追加した週次Cron Trigger(`0 3 * * 1`)で全active linkを対象にした全件再スキャン(`runLinkSecurityFullScan()`)を実行する(`src/lib/link-security-scan-batch.ts`)。いずれも`src/index.tsx`の`scheduled`ハンドラが`event.cron`で振り分け、一方が失敗しても他方の処理を止めないようtry/catchで独立させている
+- **日次の全件スキャン(第2段階)**: 既存の日次Cron Trigger(`0 0 * * *`、アカウント削除バッチと共用)内で、全active link(未削除)を対象に`runLinkSecurityFullScan()`を実行する(`src/lib/link-security-scan-batch.ts`)。`lastScannedAt`による絞り込みは行わないため、作成後にURLhausへ登録されたリンクも翌日までには再検査される。`src/index.tsx`の`scheduled`ハンドラはアカウント削除バッチ→全件スキャンの順に実行し、一方が失敗しても他方の処理を止めないようtry/catchで独立させている
 - **リダイレクト時の警告表示**: `GET /:shortCode`(`src/index.tsx`)で`securityStatus === 'flagged'`かつ`?proceed=1`が付いていない場合、302の代わりに警告インターステシャル(第6.3節の確定文言、`src/lib/redirect-pages.ts`の`securityWarningPageHtml()`)をHTTP 200で返す。「このまま進む」は同一パスへ`?proceed=1`を付けた相対リンクで実現し、これが付いている場合は通常通り302リダイレクトする。通報導線は既存の`POST /api/v1/reports`をそのまま流用し、警告ページ内の簡易フォーム+インラインスクリプトから呼び出す
 - **スコープ外(未実装のまま)**: `qrcodes.targetType: 'rawUrl'`(短縮URLを経由しない直接URL)は検知対象に含めていない
 
 **Cloudflare URL Scanner APIの活用は実装しないことで確定しました。** 理由は以下の通りです。
 
 - 利用者が入力するURLは第三者の店舗ページ等であり、スキャン結果を「Public」にすると内容が検索可能な形で外部に公開されてしまうため、実運用上は「Unlisted(非公開・限定公開)」一択となる
-- Free/Radarプランは Unlistedスキャンが0件/月、Self serveプランでも500件/月と少なく、想定する後追いスキャン運用(24時間以内・週次)にはすぐ枯渇する規模感。Enterpriseプラン(5,000件/月)はコスト的にポートフォリオ規模には見合わない
+- Free/Radarプランは Unlistedスキャンが0件/月、Self serveプランでも500件/月と少なく、想定する後追いスキャン運用(日次の全件スキャン)にはすぐ枯渇する規模感。Enterpriseプラン(5,000件/月)はコスト的にポートフォリオ規模には見合わない
 - フルページ読み込みを伴うためレイテンシが数秒〜あり、作成時の即時判定には使えない(あくまで非同期の後追いスキャン用途に限られる)
 
 したがって、URL Scanner API自体はダッシュボード上での手動調査用途(無料のRadar/Security Center UI)に限定し、自動パイプラインには一切組み込まない。既存のURLhaus照合+fail-open方式を引き続き唯一の自動検知手段として維持する。
 
-**(参考・見送り)** Google Safe Browsing Lookup APIの追加導入(URLhausに加えるもう一段の照合)も検討したが、既存のURLhaus+fail-open+3段階スキャンで十分と判断し、当面は見送りとした。
+**(参考・見送り)** Google Safe Browsing Lookup APIの追加導入(URLhausに加えるもう一段の照合)も検討したが、既存のURLhaus+fail-open+2段階スキャン(作成時+日次の全件スキャン)で十分と判断し、当面は見送りとした。
 
 ## 5. 運用上の制約とスケーリング
 
@@ -579,7 +579,7 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 
 ### 解決済み(更新版7の検討で確定)
 
-- ~~悪意あるURL検知へのCloudflare URL Scanner API活用~~ → 実装見送り確定。あわせてGoogle Safe Browsing Lookup APIの追加導入も検討したが、既存のURLhaus+fail-open+3段階スキャンで十分と判断し見送り(第4節)
+- ~~悪意あるURL検知へのCloudflare URL Scanner API活用~~ → 実装見送り確定。あわせてGoogle Safe Browsing Lookup APIの追加導入も検討したが、既存のURLhaus+fail-open+2段階スキャン(作成時+日次の全件スキャン)で十分と判断し見送り(第4節)
 - ~~メール設計・送信ドメイン認証の実際のDNS反映・検証作業~~ → 手順確定(実作業自体は未着手、実装と並行で進める)(第11節)
 - ~~エラーメッセージ・ライティング設計~~ → 404/410/警告インターステシャルの3画面分の文言確定(第6.3節)
 - ~~問い合わせ対応フロー~~ → 分類表・テンプレート確定(第6.4節)
