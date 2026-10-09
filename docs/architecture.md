@@ -525,4 +525,6 @@ wrangler d1 time-travel restore <DB_NAME> --timestamp=<UNIX_TIMESTAMP>
 
 ### 引き続き未決定
 
+- 掲示物の書き出しを、Browser Rendering(PDF/PNGの生成)からブラウザの印刷機能に切り替えるかどうか。切り替えると、Browser Rendering・R2キャッシュ・書き出しのレート制限が不要になり、コードを大きく減らせる。「掲示物の一覧」「掲示物エディタ」「まとめて印刷」の作り方に影響するため、それらの実装より前に決める(YouTrack POR-128「仕様を変えてコードを減らす」で検討中)
+- 退会を、7日間の猶予つきの削除から即時削除に変えるかどうか(同じくPOR-128で検討中)
 - B2B化時のBrowser Renderingスケーリング対応(Cloudflare Queues・テナント別Rate Limiting、第7節・第8節)
