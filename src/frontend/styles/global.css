@@ -2102,38 +2102,14 @@ h1 {
 
 /* ========== 短縮URL一覧(docs/mocks/Dashboard.html・MobileDashboard.html・EmptyDashboard.html) ========== */
 
-/* 一覧上部の「全N件」 */
-.list-summary {
-  margin: 0 0 var(--space-4);
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-}
-
 .link-row__short-url {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.data-table__cell--number {
-  font-family: var(--font-family-display);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .data-table__cell--action {
   text-align: right;
-}
-
-.detail-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: 36px;
-  padding: 0 var(--space-3);
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-decoration: none;
 }
 
 /* スマホ用のカード表示。幅の広い画面では表(.link-table)だけを見せる */
