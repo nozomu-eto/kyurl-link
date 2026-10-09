@@ -12,7 +12,7 @@ export type AppNavItem = {
 
 // /app配下のサイドメニュー(app-layout.tsx)とスマホのドロワー(app-header-drawer.tsx)で
 // 共有するメニュー項目(docs/architecture.md 第6.5節の4項目)。
-// QRコード・掲示物は一覧画面がまだ無いため、この段階ではメニューに出さない
+// 掲示物は一覧画面がまだ無いため、この段階ではメニューに出さない
 // (段階4で一覧画面と同時に追加する。追加時は下のコメントアウトを外すだけで済むようにしてある)
 export const APP_NAV_ITEMS: AppNavItem[] = [
   {
@@ -26,19 +26,19 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
       </svg>
     ),
   },
-  // {
-  //   to: '/app/qrcodes',
-  //   label: 'QRコード',
-  //   renderIcon: () => (
-  //     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-  //       <rect x="4" y="4" width="6" height="6" />
-  //       <rect x="14" y="4" width="6" height="6" />
-  //       <rect x="4" y="14" width="6" height="6" />
-  //       <path d="M14 14h2v2" />
-  //       <path d="M20 14v6h-6" />
-  //     </svg>
-  //   ),
-  // },
+  {
+    to: '/app/qrcodes',
+    label: 'QRコード',
+    renderIcon: () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="6" />
+        <rect x="14" y="4" width="6" height="6" />
+        <rect x="4" y="14" width="6" height="6" />
+        <path d="M14 14h2v2" />
+        <path d="M20 14v6h-6" />
+      </svg>
+    ),
+  },
   // {
   //   to: '/app/posters',
   //   label: '掲示物',

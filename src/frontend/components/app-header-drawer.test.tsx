@@ -81,11 +81,15 @@ describe('AppHeaderDrawer', () => {
     const firstLink = screen.getByRole('link', { name: '短縮URL' })
     expect(document.activeElement).toBe(firstLink)
 
-    const secondLink = screen.getByRole('link', { name: 'アカウント設定' })
+    const secondLink = screen.getByRole('link', { name: 'QRコード' })
+    const thirdLink = screen.getByRole('link', { name: 'アカウント設定' })
     const logoutButton = screen.getByRole('button', { name: 'ログアウト' })
 
     await user.tab()
     expect(document.activeElement).toBe(secondLink)
+
+    await user.tab()
+    expect(document.activeElement).toBe(thirdLink)
 
     await user.tab()
     expect(document.activeElement).toBe(logoutButton)

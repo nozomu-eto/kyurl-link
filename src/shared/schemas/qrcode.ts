@@ -38,6 +38,13 @@ export const qrcodeSchema = z.object({
   targetUrl: z.string().nullable(),
   // 管理用の名前。未設定の場合はnull
   name: z.string().nullable(),
+  // 作成日時(ISO文字列)。一覧・詳細の「作成日」と、名前なしの場合の「名前なし(M/D作成)」表示に使う
+  createdAt: z.string(),
+  // 読み取り先の表示用。targetType='link'の場合は、紐づく短縮URLのshortCode(例: kyurl.link/{shortCode})。
+  // rawUrlの場合、または紐づくlinkが見つからない場合はnull(rawUrlの読み取り先はtargetUrlを使う)
+  targetShortCode: z.string().nullable(),
+  // このQRコードを使っている掲示物(poster)の件数。ソフトデリート済みの掲示物は数えない
+  posterCount: z.number(),
 })
 
 // qrcode作成APIの入力用スキーマ。
