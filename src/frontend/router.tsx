@@ -6,6 +6,7 @@ import { AccountDeletionPage } from '@/frontend/routes/app/account-deletion-page
 import { AccountSettingsPage, accountSettingsLoader } from '@/frontend/routes/app/account-settings-page'
 import { DashboardPage, dashboardLoader } from '@/frontend/routes/app/dashboard-page'
 import { LinkCreatePage } from '@/frontend/routes/app/link-create-page'
+import { LinkCreatedPage, linkCreatedLoader } from '@/frontend/routes/app/link-created-page'
 import { LinkDetailPage, linkDetailLoader } from '@/frontend/routes/app/link-detail-page'
 import { PosterCreatePage, posterCreateLoader } from '@/frontend/routes/app/poster-create-page'
 import { PosterEditorPage, posterEditorLoader } from '@/frontend/routes/app/poster-editor-page'
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage />, loader: dashboardLoader },
       { path: 'links/new', element: <LinkCreatePage /> },
+      { path: 'links/:linkId/created', element: <LinkCreatedPage />, loader: linkCreatedLoader },
       { path: 'links/:linkId', element: <LinkDetailPage />, loader: linkDetailLoader },
       { path: 'links/:linkId/qrcodes/new', element: <QrCodeCreatePage />, loader: qrcodeCreateLoader },
       { path: 'qrcodes/new', element: <QrCodeCreatePage />, loader: qrcodeCreateLoader },
