@@ -8,7 +8,9 @@ import { formatDateJst, loadPendingDeletionRequest } from '@/frontend/lib/accoun
 import { useCancelAccountDeletion } from '@/frontend/lib/use-cancel-account-deletion'
 import { Button, ButtonLink } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
+import { ChangePasswordDialog } from '@/frontend/components/change-password-dialog'
 import { Page } from '@/frontend/components/page'
+import { SettingRow } from '@/frontend/components/setting-row'
 import { Toast } from '@/frontend/components/toast'
 
 // accountSettingsLoader: アカウント設定画面の表示に必要な、直近のアカウント削除申請状況を取得する
@@ -28,6 +30,7 @@ export function AccountSettingsPage() {
   const { cancel, isCancelling } = useCancelAccountDeletion()
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [cancelErrorMessage, setCancelErrorMessage] = useState<string | null>(null)
+  const [isChangePasswordDialogOpen, setIsChangePasswordDialogOpen] = useState(false)
 
   // 「アカウントの削除」欄の取り消しボタンのクリックハンドラ。バナー側のボタンと
   // 同じuseCancelAccountDeletion(フック)を使い、処理内容を共有する
@@ -53,13 +56,21 @@ export function AccountSettingsPage() {
         />
       )}
 
-      <Card>
-        <p>
-          <strong>メールアドレス:</strong> {currentUser.email}
-        </p>
-        <p>
-          <strong>メール確認状況:</strong> {currentUser.emailVerified ? '確認済み' : <Link to="/verify-email">未確認(確認する)</Link>}
-        </p>
+      <Card title="ログイン情報">
+        <SettingRow label="メールアドレス" value={currentUser.email} />
+        <SettingRow
+          label="メール確認状況"
+          value={currentUser.emailVerified ? '確認済み' : <Link to="/verify-email">未確認(確認する)</Link>}
+        />
+        <SettingRow
+          label="パスワード"
+          value="••••••••••"
+          action={
+            <Button variant="secondary" onClick={() => setIsChangePasswordDialogOpen(true)}>
+              変更
+            </Button>
+          }
+        />
       </Card>
 
       <Card title="アカウントの削除">
@@ -96,6 +107,8 @@ export function AccountSettingsPage() {
         )}
       </Card>
 
+      {/* 入力欄を開くたびに空にするため、開いている間だけ描画する */}
+      {isChangePasswordDialogOpen && <ChangePasswordDialog onClose={() => setIsChangePasswordDialogOpen(false)} />}
       {toastMessage && <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />}
     </Page>
   )

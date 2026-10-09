@@ -1,5 +1,6 @@
 /** @jsxImportSource react */
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -63,5 +64,18 @@ describe('AccountSettingsPage', () => {
     // 「アカウントの削除」欄と合わせて2つ表示されることを確認する
     expect(screen.getAllByRole('button', { name: '削除を取り消す' })).toHaveLength(2)
     expect(screen.queryByRole('link', { name: 'アカウントを削除する' })).toBeNull()
+  })
+
+  it('ログイン情報にパスワードの行があり、「変更」を押すとパスワード変更のダイアログが開く', async () => {
+    const user = userEvent.setup()
+    renderAccountSettingsPage(null, { email: 'owner@example.com', emailVerified: true })
+
+    expect(await screen.findByText('owner@example.com')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '変更' }))
+
+    expect(screen.getByRole('dialog', { name: 'パスワードの変更' })).toBeTruthy()
+    expect(screen.getByLabelText('今のパスワード')).toBeTruthy()
   })
 })
