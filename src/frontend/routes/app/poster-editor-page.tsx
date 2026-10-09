@@ -140,7 +140,7 @@ export function PosterEditorPage() {
         </div>
       </Card>
 
-      <Button variant="danger" disabled={isDeleting} onClick={handleDeleteClick}>
+      <Button variant="danger-outline" disabled={isDeleting} onClick={handleDeleteClick}>
         {isDeleting ? '削除中…' : 'この掲示物を削除'}
       </Button>
     </Page>
