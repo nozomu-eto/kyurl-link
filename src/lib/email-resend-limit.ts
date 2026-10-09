@@ -1,9 +1,11 @@
-// 確認メール再送(/send-verification-email、新規登録直後の自動送信も含む)と
-// パスワード再設定申請(/request-password-reset)を、同じメールアドレスにつき60秒に1回までに
+// 確認メール再送(/send-verification-email、新規登録直後の自動送信・メールアドレス変更の
+// 新しいアドレスへの確認も含む)、パスワード再設定申請(/request-password-reset)、
+// メールアドレス変更の承認メール(/change-email)を、同じメールアドレスにつき60秒に1回までに
 // 制限する(docs/architecture.md 第7節)。src/lib/auth.tsのsendVerificationEmail・
-// sendResetPasswordから呼び出す
+// sendResetPassword・sendChangeEmailConfirmationから呼び出す
 
-export type EmailResendPurpose = 'verify' | 'reset'
+// verify: 確認メール / reset: パスワード再設定 / change-email: メールアドレス変更の承認メール(今のアドレス宛て)
+export type EmailResendPurpose = 'verify' | 'reset' | 'change-email'
 
 // 前後の空白を除去して小文字にしたメールアドレスをSHA-256でハッシュ化する。
 // メールアドレスそのものをキー・ログに残さないため(万一のログ流出時の影響を減らす)
@@ -29,7 +31,7 @@ export async function shouldSendResendLimitedEmail(
   email: string,
 ): Promise<boolean> {
   const hash = await hashEmail(email)
-  // 確認メールとパスワード再設定が互いに制限し合わないよう、用途の接頭辞をキーに含める
+  // 確認メール・パスワード再設定・メールアドレス変更の承認が互いに制限し合わないよう、用途の接頭辞をキーに含める
   const key = `${purpose}:${hash}`
   const { success } = await rateLimiter.limit({ key })
 

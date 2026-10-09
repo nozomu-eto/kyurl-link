@@ -48,6 +48,16 @@ describe('shouldSendResendLimitedEmail', () => {
     expect(calls[0]).not.toBe(calls[1])
   })
 
+  it('メールアドレス変更の承認(change-email)も用途の接頭辞を持ち、確認メール・パスワード再設定とはキーが異なる', async () => {
+    const { limiter, calls } = createFakeRateLimiter(new Set())
+    await shouldSendResendLimitedEmail(limiter, 'verify', 'user@example.com')
+    await shouldSendResendLimitedEmail(limiter, 'reset', 'user@example.com')
+    await shouldSendResendLimitedEmail(limiter, 'change-email', 'user@example.com')
+
+    expect(calls[2].startsWith('change-email:')).toBe(true)
+    expect(new Set(calls).size).toBe(3)
+  })
+
   it('制限に当たった場合、メールアドレスを含まない警告ログを出す', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const limiter: RateLimit = { limit: async () => ({ success: false }) }

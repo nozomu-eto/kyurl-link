@@ -1,14 +1,16 @@
 /** @jsxImportSource react */
 import { useState } from 'react'
-import { Link, useLoaderData, useOutletContext } from 'react-router'
+import { Link, useLoaderData, useOutletContext, useSearchParams } from 'react-router'
 import { AccountDeletionBanner } from '@/frontend/components/account-deletion-banner'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import type { AuthUser } from '@/frontend/lib/auth-client'
 import { formatDateJst, loadPendingDeletionRequest } from '@/frontend/lib/account-deletion'
+import { describeEmailChangeResult } from '@/frontend/lib/email-change-result'
 import { useCancelAccountDeletion } from '@/frontend/lib/use-cancel-account-deletion'
 import { Button, ButtonLink } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { ChangePasswordDialog } from '@/frontend/components/change-password-dialog'
+import { ChangeEmailDialog } from '@/frontend/components/change-email-dialog'
 import { Page } from '@/frontend/components/page'
 import { SettingRow } from '@/frontend/components/setting-row'
 import { Toast } from '@/frontend/components/toast'
@@ -31,6 +33,10 @@ export function AccountSettingsPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [cancelErrorMessage, setCancelErrorMessage] = useState<string | null>(null)
   const [isChangePasswordDialogOpen, setIsChangePasswordDialogOpen] = useState(false)
+  const [isChangeEmailDialogOpen, setIsChangeEmailDialogOpen] = useState(false)
+  // メールアドレス変更のメール内リンクを開いた後に戻ってきたときの案内(?emailChange=...、?error=...)
+  const [searchParams] = useSearchParams()
+  const emailChangeResult = describeEmailChangeResult(searchParams, currentUser.email)
 
   // 「アカウントの削除」欄の取り消しボタンのクリックハンドラ。バナー側のボタンと
   // 同じuseCancelAccountDeletion(フック)を使い、処理内容を共有する
@@ -56,17 +62,31 @@ export function AccountSettingsPage() {
         />
       )}
 
+      {emailChangeResult && <AlertMessage tone={emailChangeResult.tone}>{emailChangeResult.message}</AlertMessage>}
+
       <Card title="ログイン情報">
-        <SettingRow label="メールアドレス" value={currentUser.email} />
+        <SettingRow
+          label="メールアドレス"
+          value={currentUser.email}
+          action={
+            // 確認済みのユーザーだけがここから変更できる(今のアドレスでの承認付き)。
+            // 未確認のユーザーのアドレス修正は、メール確認待ち画面(/verify-email)で行う
+            currentUser.emailVerified ? (
+              <Button variant="secondary" aria-label="メールアドレスを変更" onClick={() => setIsChangeEmailDialogOpen(true)}>
+                変更
+              </Button>
+            ) : undefined
+          }
+        />
         <SettingRow
           label="メール確認状況"
-          value={currentUser.emailVerified ? '確認済み' : <Link to="/verify-email">未確認(確認する)</Link>}
+          value={currentUser.emailVerified ? '確認済み' : <Link to="/verify-email">未確認(確認する・アドレスの修正)</Link>}
         />
         <SettingRow
           label="パスワード"
           value="••••••••••"
           action={
-            <Button variant="secondary" onClick={() => setIsChangePasswordDialogOpen(true)}>
+            <Button variant="secondary" aria-label="パスワードを変更" onClick={() => setIsChangePasswordDialogOpen(true)}>
               変更
             </Button>
           }
@@ -109,6 +129,7 @@ export function AccountSettingsPage() {
 
       {/* 入力欄を開くたびに空にするため、開いている間だけ描画する */}
       {isChangePasswordDialogOpen && <ChangePasswordDialog onClose={() => setIsChangePasswordDialogOpen(false)} />}
+      {isChangeEmailDialogOpen && <ChangeEmailDialog currentEmail={currentUser.email} onClose={() => setIsChangeEmailDialogOpen(false)} />}
       {toastMessage && <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />}
     </Page>
   )
