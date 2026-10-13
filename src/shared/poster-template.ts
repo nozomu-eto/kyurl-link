@@ -3,7 +3,9 @@
 // R2キャッシュキーの計算にこの値を含めることで、修正前の(サイズや余白が誤った)PDF/PNGが
 // R2から返り続けることを防ぐ。
 // 3: 読み取りの案内文と短縮URLの表示を追加し、それに合わせてQRコードを60mmから56mmに縮めた
-export const POSTER_TEMPLATE_VERSION = 3
+// 4: QRコードのSVGにviewBoxを追加し、枠に合わせて中身も縮むようにした(右端・下端が切れていた。POR-143)。
+//    版3までに書き出したQRコードが切れたPDF/PNGを、R2キャッシュから返さないようにする
+export const POSTER_TEMPLATE_VERSION = 4
 
 // サイズごとのページ寸法(mm)。A6縦・A5縦を想定する
 const PAGE_SIZES = {

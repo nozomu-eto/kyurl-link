@@ -9,6 +9,9 @@ export type QrcodeImageSize = (typeof QRCODE_IMAGE_SIZE_OPTIONS)[number]
 // (SVG・PNGで見た目の余白比率を揃えるため)
 const PADDING_MODULES = 4
 
+// SVGの座標系の大きさ(qrcode-svgの既定値と同じ256)。viewBoxの大きさにも使う
+export const QR_SVG_SIZE = 256
+
 // renderQrcodeSvg: QRコードのSVGを生成する(既存のqrcode-svgをそのまま使う。掲示物の
 // 書き出し(posters.ts)がこのSVGの内容からR2キャッシュのキーを計算しているため、
 // 中身を変えるとキャッシュが全て無効になる。そのため生成方法・既定値(誤り訂正レベルM等)は
@@ -18,8 +21,22 @@ const PADDING_MODULES = 4
 // 返す向き)とは縦横が入れ替わっており、swap: trueを指定しないと出力されるQRコードが
 // 対角線で反転した状態になる(多くのスマホは鏡像も読み取れるため気づきにくいが、規格どおりの
 // 向きではなく、一部の読み取りアプリでは読み取れない)
+//
+// qrcode-svgの既定の出力は、width="256" height="256"の属性だけでviewBoxを持たない。viewBoxが無いと、
+// CSSで表示サイズを変えても(掲示物のテンプレートの`.qrcode svg { width: 100%; height: 100% }`)
+// 中身は縮まず、枠(例: 56mm)より大きい256px(約67.7mm)のまま右端・下端が切り取られて、
+// QRコードの位置検出パターンが欠ける(POR-143)。そのため、ルートの<svg>にviewBoxを足して、
+// 表示サイズに合わせて中身も拡大縮小されるようにする。
+// width/height属性は残す: 単体のSVGダウンロードや<img>での表示では、これまでと同じ256pxの大きさで
+// 扱われ(固定サイズのままでよい)、viewBoxがあることで拡大縮小しても崩れない
 export function renderQrcodeSvg(content: string): string {
-  return new QRCode({ content, swap: true }).svg()
+  const svg = new QRCode({ content, swap: true, width: QR_SVG_SIZE, height: QR_SVG_SIZE }).svg()
+  const svgWithViewBox = svg.replace('<svg ', `<svg viewBox="0 0 ${QR_SVG_SIZE} ${QR_SVG_SIZE}" `)
+  if (svgWithViewBox === svg) {
+    // qrcode-svgの出力形式が変わってviewBoxを足せなくなった場合に、気づかないまま切れたQRを出さない
+    throw new Error('QRコードのSVGにviewBoxを追加できませんでした')
+  }
+  return svgWithViewBox
 }
 
 // renderQrcodePng: 指定サイズの正方形PNG画像を、QRコードの白黒のマス目から直接組み立てる。
