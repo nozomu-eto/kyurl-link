@@ -72,7 +72,7 @@ describe('確認メール・パスワード再設定メールの再送制限(60�
     // 429は返さず、送信せずに200のまま終える
     expect(response.status).toBe(200)
     expect(sentTo(email)).toHaveLength(1)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('パスワード再設定申請を60秒以内に2回行っても、メールは1通しか送られない', async () => {
     await waitForFreshRateLimitWindow()
@@ -87,7 +87,7 @@ describe('確認メール・パスワード再設定メールの再送制限(60�
     const second = await requestPasswordReset(email)
     expect(second.status).toBe(200)
     expect(sentTo(email)).toHaveLength(1)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('未登録のメールアドレスでも、制限に当たった場合でも、応答(ステータス)は同じになる(登録の有無を明かさない)', async () => {
     const unregisteredEmail = `resend-unregistered-${crypto.randomUUID()}@example.com`
