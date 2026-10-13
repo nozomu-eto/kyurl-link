@@ -14,7 +14,7 @@ import { downloadPosterExport } from '@/frontend/lib/poster-export'
 import { getQrcodeDisplayName } from '@/frontend/lib/qrcode-display'
 import { useQrcodeSvg } from '@/frontend/lib/use-qrcode-svg'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
-import { getA4SheetMaxFaces } from '@/shared/poster-template'
+import { getA4SheetMaxFaces, getPosterShortUrlText } from '@/shared/poster-template'
 
 type PosterSize = 'A6' | 'A5'
 
@@ -91,6 +91,14 @@ export function PosterEditorPage() {
   const [pendingStoppedExportFormat, setPendingStoppedExportFormat] = useState<'pdf' | 'png' | null>(null)
 
   const qrCodeSvg = useQrcodeSvg(qrCodeId)
+
+  // 掲示物に出す短縮URL。書き出し(サーバー)と同じく、QRコードに埋め込む内容(`{origin}/{shortCode}`)から
+  // 共通の関数で作る。短縮URL経由でないQRコードでは出さない
+  const selectedQrcode = qrcodes.find((qrcode) => qrcode.id === qrCodeId)
+  const shortUrlText =
+    selectedQrcode?.targetType === 'link' && selectedQrcode.targetShortCode
+      ? getPosterShortUrlText('link', `${window.location.origin}/${selectedQrcode.targetShortCode}`)
+      : null
 
   // 入力欄の内容と保存済みの内容が違う(=書き出しに反映されていない)かどうか。作成前は常に未保存
   const isDirty = poster === null || poster.qrCodeId !== qrCodeId || poster.title !== title || (poster.subtitle ?? '') !== subtitle || poster.size !== size
@@ -253,7 +261,7 @@ export function PosterEditorPage() {
 
         <div id="poster-editor-panel-preview" role="tabpanel" aria-labelledby="poster-editor-tab-preview" className="poster-editor__panel poster-editor__panel--preview">
           <Card title={`プレビュー(${size}・縦)`}>
-            <PosterPreview title={title} subtitle={subtitle} size={size} qrCodeSvg={qrCodeSvg} />
+            <PosterPreview title={title} subtitle={subtitle} size={size} qrCodeSvg={qrCodeSvg} shortUrlText={shortUrlText} />
             <p className="field__hint">書き出しと同じ配置で表示しています。文字の書体は、書き出したPDF・PNGと少し異なることがあります。</p>
           </Card>
 
