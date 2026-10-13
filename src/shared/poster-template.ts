@@ -234,22 +234,13 @@ export function getA4SheetMaxFaces(posterSize: 'A6' | 'A5'): number {
   return layout.cols * layout.rows
 }
 
-// generatePosterA4SheetHtml: 掲示物1面分のHTMLフラグメントの配列を受け取り、A4用紙にまとめて
-// 並べたHTML文書を組み立てる。「まとめて印刷」では面ごとに異なる掲示物のfaceHtmlを並べ、
-// 単体の書き出し(paper=a4)では同じ掲示物のfaceHtmlを全面に並べる。どちらの場合もこの関数を使えるよう、
-// 面の配列を受け取る形にしている。
-// 各面は元のサイズのまま(拡大縮小しない)、左上から隙間を空けずに敷き詰め、割り切れず余る
-// スペースは右端・下端に残す(面を並べる際、端数のミリ単位まではきっちり割り切れないため)。
-// 面の境界には、面の枠線ではなく上に重ねる別の要素として、灰色の細い破線の切り取り線を入れる
-export function generatePosterA4SheetHtml(posterSize: 'A6' | 'A5', faceHtmlList: string[]): string {
+// A4シート1枚分の中身(各面と切り取り線)のHTMLを組み立てる。単体の面付け(generatePosterA4SheetHtml)と
+// 複数枚のまとめ(generatePosterA4SheetsHtml)で、同じ配置・同じ切り取り線にするため共通化している。
+// 面の配列は1〜最大面数の範囲であることを呼び出し側で検証済みの前提。面が最大面数に満たない場合、
+// 残りの面は空白のままにする(切り取り線は面の有無にかかわらず、格子全体に引く)
+function buildA4SheetInnerHtml(posterSize: 'A6' | 'A5', faceHtmlList: string[]): string {
   const layout = A4_SHEET_LAYOUTS[posterSize]
   const { width: faceWidthMm, height: faceHeightMm } = PAGE_SIZES[posterSize]
-  const maxFaces = layout.cols * layout.rows
-
-  if (faceHtmlList.length === 0 || faceHtmlList.length > maxFaces) {
-    throw new Error(`posterSize=${posterSize}のA4シートに並べられるのは1〜${maxFaces}面です(${faceHtmlList.length}面指定されました)`)
-  }
-
   const facesHtml = faceHtmlList
     .map((faceHtml, index) => {
       const row = Math.floor(index / layout.cols)
@@ -272,6 +263,45 @@ export function generatePosterA4SheetHtml(posterSize: 'A6' | 'A5', faceHtmlList:
   for (let row = 1; row < layout.rows; row++) {
     const y = row * faceHeightMm
     cutLines.push(`<div class="a4-cut-line a4-cut-line--horizontal" style="top: ${y}mm; width: ${contentWidthMm}mm;"></div>`)
+  }
+
+  return `${facesHtml}
+    ${cutLines.join('')}`
+}
+
+// A4シートのCSSのうち、面と切り取り線の部分(単体・複数枚で共通)
+function a4FaceAndCutLineStyle(): string {
+  return `.a4-face {
+    position: absolute;
+  }
+  .a4-cut-line {
+    position: absolute;
+  }
+  .a4-cut-line--vertical {
+    top: 0;
+    width: 0;
+    border-left: 1px dashed #999999;
+  }
+  .a4-cut-line--horizontal {
+    left: 0;
+    height: 0;
+    border-top: 1px dashed #999999;
+  }`
+}
+
+// generatePosterA4SheetHtml: 掲示物1面分のHTMLフラグメントの配列を受け取り、A4用紙にまとめて
+// 並べたHTML文書を組み立てる。「まとめて印刷」では面ごとに異なる掲示物のfaceHtmlを並べ、
+// 単体の書き出し(paper=a4)では同じ掲示物のfaceHtmlを全面に並べる。どちらの場合もこの関数を使えるよう、
+// 面の配列を受け取る形にしている。
+// 各面は元のサイズのまま(拡大縮小しない)、左上から隙間を空けずに敷き詰め、割り切れず余る
+// スペースは右端・下端に残す(面を並べる際、端数のミリ単位まではきっちり割り切れないため)。
+// 面の境界には、面の枠線ではなく上に重ねる別の要素として、灰色の細い破線の切り取り線を入れる
+export function generatePosterA4SheetHtml(posterSize: 'A6' | 'A5', faceHtmlList: string[]): string {
+  const layout = A4_SHEET_LAYOUTS[posterSize]
+  const maxFaces = layout.cols * layout.rows
+
+  if (faceHtmlList.length === 0 || faceHtmlList.length > maxFaces) {
+    throw new Error(`posterSize=${posterSize}のA4シートに並べられるのは1〜${maxFaces}面です(${faceHtmlList.length}面指定されました)`)
   }
 
   return `<!DOCTYPE html>
@@ -298,30 +328,86 @@ export function generatePosterA4SheetHtml(posterSize: 'A6' | 'A5', faceHtmlList:
     height: ${layout.paperHeightMm}mm;
     overflow: hidden;
   }
-  .a4-face {
-    position: absolute;
-  }
-  .a4-cut-line {
-    position: absolute;
-  }
-  .a4-cut-line--vertical {
-    top: 0;
-    width: 0;
-    border-left: 1px dashed #999999;
-  }
-  .a4-cut-line--horizontal {
-    left: 0;
-    height: 0;
-    border-top: 1px dashed #999999;
-  }
+  ${a4FaceAndCutLineStyle()}
   ${posterFaceStyle()}
 </style>
 </head>
 <body>
   <div class="a4-sheet">
-    ${facesHtml}
-    ${cutLines.join('')}
+    ${buildA4SheetInnerHtml(posterSize, faceHtmlList)}
   </div>
+</body>
+</html>`
+}
+
+// まとめて印刷の上限: 1回にA4用紙10枚まで(A6は40面、A5は20面。docs/architecture.mdの「まとめて印刷」)
+export const POSTER_BATCH_MAX_SHEETS = 10
+
+// 面の数から、必要なA4用紙の枚数を求める(0面なら0枚)
+export function getA4SheetCount(posterSize: 'A6' | 'A5', faceCount: number): number {
+  return Math.ceil(faceCount / getA4SheetMaxFaces(posterSize))
+}
+
+// まとめて印刷で並べられる面の最大数(A4用紙の上限枚数×1枚あたりの面数)
+export function getPosterBatchMaxFaces(posterSize: 'A6' | 'A5'): number {
+  return POSTER_BATCH_MAX_SHEETS * getA4SheetMaxFaces(posterSize)
+}
+
+// generatePosterA4SheetsHtml: まとめて印刷用に、複数枚のA4シートを改ページでつなげた1つのHTML文書を組み立てる。
+// 面の配列を、1枚あたりの最大面数ごとに区切ってシートに並べる(最後のシートに空きが出ることがある。
+// 空きは空白のまま)。各シートの配置・切り取り線は、単体の面付け(generatePosterA4SheetHtml)と同じ
+// buildA4SheetInnerHtmlを使う。面の数の上限はgetPosterBatchMaxFaces(POSTER_BATCH_MAX_SHEETS枚分)。
+// 単体の面付けと違い、文書全体が複数ページになるため、html・bodyの高さは固定せず(overflow: hiddenも付けない)、
+// 各シートに「次のページから始める」指定(break-after: page)を付ける。最後のシートには付けない
+// (付けると末尾に空白のページができるため)。用紙の大きさは@pageで指定する(シートはすべて同じ向き)
+export function generatePosterA4SheetsHtml(posterSize: 'A6' | 'A5', faceHtmlList: string[]): string {
+  const layout = A4_SHEET_LAYOUTS[posterSize]
+  const maxFaces = getPosterBatchMaxFaces(posterSize)
+
+  if (faceHtmlList.length === 0 || faceHtmlList.length > maxFaces) {
+    throw new Error(`posterSize=${posterSize}のまとめて印刷に並べられるのは1〜${maxFaces}面です(${faceHtmlList.length}面指定されました)`)
+  }
+
+  const facesPerSheet = getA4SheetMaxFaces(posterSize)
+  const sheets: string[] = []
+  for (let start = 0; start < faceHtmlList.length; start += facesPerSheet) {
+    sheets.push(`<div class="a4-sheet">
+    ${buildA4SheetInnerHtml(posterSize, faceHtmlList.slice(start, start + facesPerSheet))}
+  </div>`)
+  }
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @page {
+    size: ${layout.paperCssSize};
+    margin: 0;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html, body {
+    margin: 0;
+    width: ${layout.paperWidthMm}mm;
+  }
+  .a4-sheet {
+    position: relative;
+    width: ${layout.paperWidthMm}mm;
+    height: ${layout.paperHeightMm}mm;
+    overflow: hidden;
+    break-after: page;
+  }
+  .a4-sheet:last-child {
+    break-after: auto;
+  }
+  ${a4FaceAndCutLineStyle()}
+  ${posterFaceStyle()}
+</style>
+</head>
+<body>
+  ${sheets.join('\n  ')}
 </body>
 </html>`
 }

@@ -3,6 +3,10 @@ import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import {
   generatePosterA4SheetHtml,
+  generatePosterA4SheetsHtml,
+  getA4SheetCount,
+  getPosterBatchMaxFaces,
+  POSTER_BATCH_MAX_SHEETS,
   generatePosterFaceHtml,
   generatePosterHtml,
   getA4SheetMaxFaces,
@@ -302,5 +306,127 @@ describe('掲示物に入れるQRコードのSVG', () => {
     const html = generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A6' }, qrCodeSvg)
     expect(html).toMatch(new RegExp(`\\.qrcode\\s*{\\s*width:\\s*${POSTER_LAYOUT.qrcodeMm}mm;\\s*height:\\s*${POSTER_LAYOUT.qrcodeMm}mm;`))
     expect(html).toMatch(/\.qrcode svg\s*{\s*width:\s*100%;\s*height:\s*100%;/)
+  })
+})
+
+describe('まとめて印刷の上限と枚数', () => {
+  it('上限はA4用紙10枚。A6は40面、A5は20面', () => {
+    expect(POSTER_BATCH_MAX_SHEETS).toBe(10)
+    expect(getPosterBatchMaxFaces('A6')).toBe(40)
+    expect(getPosterBatchMaxFaces('A5')).toBe(20)
+  })
+
+  it.each([
+    ['A6', 0, 0],
+    ['A6', 1, 1],
+    ['A6', 4, 1],
+    ['A6', 5, 2],
+    ['A6', 40, 10],
+    ['A5', 2, 1],
+    ['A5', 3, 2],
+    ['A5', 20, 10],
+  ] as const)('%s: %i面ならA4用紙%i枚', (size, faces, sheets) => {
+    expect(getA4SheetCount(size, faces)).toBe(sheets)
+  })
+})
+
+describe('generatePosterA4SheetsHtml(複数枚のA4シートをつなげる)', () => {
+  const face = (size: 'A6' | 'A5') => generatePosterFaceHtml({ title: 'テスト', subtitle: null, size }, '<svg></svg>')
+  const sheetCount = (html: string) => html.match(/<div class="a4-sheet">/g)?.length ?? 0
+  const faceCount = (html: string) => html.match(/class="a4-face"/g)?.length ?? 0
+
+  it.each([
+    ['A6', 1, 1],
+    ['A6', 4, 1],
+    ['A6', 5, 2],
+    ['A6', 9, 3],
+    ['A6', 40, 10],
+    ['A5', 2, 1],
+    ['A5', 3, 2],
+    ['A5', 20, 10],
+  ] as const)('%s: %i面を並べるとA4が%i枚になり、面の数はそのまま', (size, faces, sheets) => {
+    const html = generatePosterA4SheetsHtml(size, Array(faces).fill(face(size)))
+    expect(sheetCount(html)).toBe(sheets)
+    expect(faceCount(html)).toBe(faces)
+  })
+
+  it('面は順番どおりに最大面数ごとのシートへ振り分けられる(5面目は2枚目の1面目)', () => {
+    const faces = ['<i>1</i>', '<i>2</i>', '<i>3</i>', '<i>4</i>', '<i>5</i>']
+    const html = generatePosterA4SheetsHtml('A6', faces)
+    const [firstSheet, secondSheet] = html.split('<div class="a4-sheet">').slice(1)
+    expect(firstSheet).toContain('<i>4</i>')
+    expect(firstSheet).not.toContain('<i>5</i>')
+    // 2枚目の1面目は左上(left: 0mm; top: 0mm)に置かれる
+    expect(secondSheet).toMatch(/left: 0mm; top: 0mm;[^>]*><i>5<\/i>/)
+  })
+
+  it('空き面は空白のまま(面の要素を作らない)で、切り取り線は格子全体に引く', () => {
+    const html = generatePosterA4SheetsHtml('A6', [face('A6')])
+    expect(faceCount(html)).toBe(1)
+    // A6(2列×2行)の切り取り線は縦1本・横1本
+    expect(html.match(/class="a4-cut-line/g)).toHaveLength(2)
+  })
+
+  it('各シートは次のページから始める指定(break-after: page)で、最後のシートだけ指定しない(末尾に空白ページを作らない)', () => {
+    const html = generatePosterA4SheetsHtml('A6', Array(5).fill(face('A6')))
+    expect(html).toMatch(/\.a4-sheet\s*{[^}]*break-after:\s*page/)
+    expect(html).toMatch(/\.a4-sheet:last-child\s*{[^}]*break-after:\s*auto/)
+  })
+
+  it('用紙はサイズごとに単体の面付けと同じ(A6はA4縦、A5はA4横向き)で、html・bodyの高さは固定しない(複数ページになるため)', () => {
+    expect(generatePosterA4SheetsHtml('A6', [face('A6')])).toMatch(/@page\s*{\s*size:\s*A4;/)
+    const a5 = generatePosterA4SheetsHtml('A5', [face('A5')])
+    expect(a5).toMatch(/@page\s*{\s*size:\s*A4 landscape;/)
+    expect(a5).not.toMatch(/html,\s*body\s*{[^}]*(height|overflow)/)
+  })
+
+  it('各面・各シートがoverflow: hiddenで、はみ出しが隣に出ない', () => {
+    const html = generatePosterA4SheetsHtml('A6', Array(5).fill(face('A6')))
+    expect(html).toMatch(/\.a4-sheet\s*{[^}]*overflow:\s*hidden/)
+    expect(html).toMatch(/overflow: hidden;">.*<div class="poster"/)
+  })
+
+  it('面が0件、または上限(10枚分)を超えると例外になる', () => {
+    expect(() => generatePosterA4SheetsHtml('A6', [])).toThrow()
+    expect(() => generatePosterA4SheetsHtml('A6', Array(41).fill(face('A6')))).toThrow()
+    expect(() => generatePosterA4SheetsHtml('A5', Array(21).fill(face('A5')))).toThrow()
+  })
+
+  it('1枚だけのシートの配置・切り取り線は、単体の面付け(generatePosterA4SheetHtml)と同じ', () => {
+    const faces = Array(4).fill(face('A6'))
+    const single = generatePosterA4SheetHtml('A6', faces)
+    const multi = generatePosterA4SheetsHtml('A6', faces)
+    const inner = (html: string) => html.slice(html.indexOf('<div class="a4-face"'), html.lastIndexOf('</div>', html.indexOf('</body>')))
+    expect(inner(multi)).toBe(inner(single))
+  })
+})
+
+// 単体の書き出し(GET /posters/:id/export)の出力が変わっていないことの確認。
+// まとめて印刷(POR-86)でシートの組み立てを共通化した際に、既存の出力が1バイトも変わらないことを、
+// 変更前の出力のSHA-256で固定した。意図してテンプレートを変える場合は、POSTER_TEMPLATE_VERSIONを上げ、この値も更新すること
+describe('単体の書き出しのHTML(変更前と同一)', () => {
+  async function sha256(value: string) {
+    const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+    return Array.from(new Uint8Array(buffer))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('')
+  }
+  const face = (size: 'A6' | 'A5') =>
+    generatePosterFaceHtml({ title: 'テスト<&>', subtitle: 'サブ', size, shortUrlText: 'kyurl.link/Ab3xK9a' }, '<svg viewBox="0 0 256 256"></svg>')
+
+  it('A6のA4面付け(4面)', async () => {
+    expect(await sha256(generatePosterA4SheetHtml('A6', Array(4).fill(face('A6'))))).toBe('2fdbd98fc433c7a7ead442d2994cc846cade74af818213022554e11340adb4d8')
+  })
+
+  it('A6のA4面付け(1面だけ)', async () => {
+    expect(await sha256(generatePosterA4SheetHtml('A6', [face('A6')]))).toBe('de7aabe5b9911fe5fc4dbdec2af3fc0882a3587d66611274084ba9d7c1da640e')
+  })
+
+  it('A5のA4面付け(2面)', async () => {
+    expect(await sha256(generatePosterA4SheetHtml('A5', Array(2).fill(face('A5'))))).toBe('d127ba1f959567b7c36030b2454ea2e558ce7519d34797e78322e09f451197e5')
+  })
+
+  it('A5の掲示物1面', async () => {
+    expect(await sha256(generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A5' }, '<svg></svg>'))).toBe('04b90574152464bc2342b42c43c7d323e819129065a96ee31951e4c502fe6768')
   })
 })

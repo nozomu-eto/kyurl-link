@@ -6,6 +6,7 @@ import { Button } from '@/frontend/components/button'
 import { Card, FormCard } from '@/frontend/components/card'
 import { Field, FormField, SelectField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
+import { PosterPrintGuide } from '@/frontend/components/poster-print-guide'
 import { PosterExportStoppedDialog } from '@/frontend/components/poster-export-stopped-dialog'
 import { PosterPreview } from '@/frontend/components/poster-preview'
 import { RadioCardGroup } from '@/frontend/components/radio-card-group'
@@ -280,13 +281,7 @@ export function PosterEditorPage() {
               </Button>
             </div>
             <p className="field__hint">書き出しには数秒かかることがあります。PNGは用紙の指定に関係なく、掲示物1枚分の画像になります。</p>
-            <div className="poster-editor__print-guide">
-              <strong>印刷するときは</strong>
-              <ul>
-                <li>倍率は「100%(実際のサイズ)」で印刷し、切り取り線に沿って切ってください</li>
-                <li>貼る前に、スマートフォンのカメラで読み取れるか確認してください</li>
-              </ul>
-            </div>
+            <PosterPrintGuide />
           </Card>
 
           {poster && (

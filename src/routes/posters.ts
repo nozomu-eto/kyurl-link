@@ -1,18 +1,21 @@
 import puppeteer from '@cloudflare/puppeteer'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links, posters, qrcodes } from '@/db/schema'
-import { buildPosterExportHashSource, computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { buildPosterExportHashSource, computePosterBatchExportCacheKey, computePosterExportCacheKey } from '@/lib/poster-export-cache'
 import { computePosterLinkStatus, type PosterLinkStatus } from '@/lib/poster-link-status'
 import {
   generatePosterA4SheetHtml,
+  generatePosterA4SheetsHtml,
   generatePosterFaceHtml,
   generatePosterHtml,
   getA4SheetMaxFaces,
+  getPosterBatchMaxFaces,
   getPosterShortUrlText,
   POSTER_PDF_OPTIONS,
   POSTER_PNG_DEVICE_SCALE_FACTOR,
+  POSTER_BATCH_MAX_SHEETS,
   POSTER_PNG_ELEMENT_SELECTOR,
   POSTER_TEMPLATE_VERSION,
 } from '@/shared/poster-template'
@@ -24,6 +27,7 @@ import { blockAccountDeletionPending } from '@/middleware/block-account-deletion
 import { requireVerifiedEmail } from '@/middleware/require-verified-email'
 import { jsonValidator } from '@/middleware/json-validator'
 import {
+  posterBatchExportInputSchema,
   posterCreateInputSchema,
   posterListResponseSchema,
   posterSchema,
@@ -453,6 +457,132 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     await c.env.POSTER_CACHE.put(objectKey, binary)
 
     return c.body(binary, 200, { 'Content-Type': contentType })
+  })
+
+  // まとめて印刷: 同じサイズの複数の掲示物を、枚数を指定してA4用紙にまとめ、1つのPDFで返す
+  // (docs/architecture.mdの「まとめて印刷」・第13節「まとめて印刷のキャッシュ」)。
+  // 単体の書き出しと同じレート制限(POSTER_EXPORT_RATE_LIMITER)をかける。
+  // 認可・存在・サイズ・上限のチェックは、すべてBrowser Rendering(puppeteer)を起動する前に行う
+  .post('/batch-export', authMiddleware, requireVerifiedEmail, userRateLimitMiddleware('POSTER_EXPORT_RATE_LIMITER'), jsonValidator(posterBatchExportInputSchema), async (c) => {
+    const { size, items } = c.req.valid('json')
+    const db = drizzle(c.env.DB)
+    const userId = c.get('user').id
+
+    // 1. 上限(A4用紙10枚分の面数)を超えていないか。掲示物の件数だけで超える場合は、DBを引く前に弾く
+    const maxFaces = getPosterBatchMaxFaces(size)
+    const totalFaces = items.reduce((sum, item) => sum + item.count, 0)
+    if (items.length > maxFaces || totalFaces > maxFaces) {
+      return c.json(
+        {
+          error: {
+            code: 'LIMIT_EXCEEDED',
+            message: `1回にまとめて印刷できるのはA4用紙${POSTER_BATCH_MAX_SHEETS}枚(${size}は${maxFaces}面)までです`,
+          },
+        },
+        400,
+      )
+    }
+
+    // 2. 掲示物を、ログインユーザー自身の・削除されていないものに限って取得する。
+    // 1件でも見つからない(存在しない・他人の・削除済み)場合は、どれが原因かを明かさず404にする
+    const posterRows = await db
+      .select()
+      .from(posters)
+      .where(
+        and(
+          inArray(
+            posters.id,
+            items.map((item) => item.posterId),
+          ),
+          eq(posters.userId, userId),
+          isNull(posters.deletedAt),
+        ),
+      )
+    const postersById = new Map(posterRows.map((row) => [row.id, row]))
+    const targetPosters = items.map((item) => postersById.get(item.posterId))
+    if (targetPosters.some((poster) => poster === undefined)) {
+      return c.json({ error: { code: 'NOT_FOUND', message: '指定されたposterが見つかりません' } }, 404)
+    }
+
+    // 3. 指定されたサイズと違う掲示物が含まれていないか(A5とA6は同じ用紙に混ぜられない)
+    if (targetPosters.some((poster) => poster?.size !== size)) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: `${size}以外のサイズの掲示物が含まれています。サイズごとに分けて印刷してください` } }, 400)
+    }
+
+    // 4. 掲示物ごとに、単体の書き出しと同じ手順でQRコードの内容(resolveQrcodeContent)・SVG・短縮URLの表示を決める。
+    // 同じQRコードを使う掲示物が複数あっても、QRコードの解決は1回で済ませる
+    const origin = new URL(c.req.url).origin
+    const qrcodeCache = new Map<string, { qrCodeSvg: string; shortUrlText: string | null } | null>()
+    const faceInputs: { poster: typeof posters.$inferSelect; qrCodeSvg: string; shortUrlText: string | null; count: number }[] = []
+
+    for (const [index, poster] of targetPosters.entries()) {
+      if (!poster) {
+        continue
+      }
+      if (!qrcodeCache.has(poster.qrCodeId)) {
+        const [qrcode] = await db.select().from(qrcodes).where(eq(qrcodes.id, poster.qrCodeId)).limit(1)
+        if (!qrcode || qrcode.deletedAt !== null) {
+          qrcodeCache.set(poster.qrCodeId, null)
+        } else {
+          const contentResult = await resolveQrcodeContent(db, qrcode, origin)
+          qrcodeCache.set(
+            poster.qrCodeId,
+            contentResult.ok ? { qrCodeSvg: renderQrcodeSvg(contentResult.content), shortUrlText: getPosterShortUrlText(qrcode.targetType, contentResult.content) } : null,
+          )
+        }
+      }
+
+      const resolved = qrcodeCache.get(poster.qrCodeId)
+      if (!resolved) {
+        return c.json({ error: { code: 'NOT_FOUND', message: '対象のqrcodeが見つかりません' } }, 404)
+      }
+      faceInputs.push({ poster, ...resolved, count: items[index].count })
+    }
+
+    // 5. キャッシュキー: 単体の書き出し(PDF・A4)と同じ内容ハッシュを、順番どおりに枚数つきで並べる。
+    // 認可チェック(手順2〜3)が済んでからR2を参照する(単体の書き出しと同じ順序)
+    const objectKey = await computePosterBatchExportCacheKey({
+      userId,
+      size,
+      templateVersion: POSTER_TEMPLATE_VERSION,
+      items: faceInputs.map(({ poster, qrCodeSvg, count }) => ({
+        hashSource: buildPosterExportHashSource({
+          title: poster.title,
+          subtitle: poster.subtitle,
+          size: poster.size,
+          styleOptions: poster.styleOptions,
+          qrCodeSvg,
+          format: 'pdf',
+          paper: 'a4',
+        }),
+        count,
+      })),
+    })
+
+    const cachedObject = await c.env.POSTER_CACHE.get(objectKey)
+    if (cachedObject) {
+      return c.body(cachedObject.body, 200, { 'Content-Type': 'application/pdf' })
+    }
+
+    // 6. キャッシュが無ければ、組み合わせ全体のHTML(複数のA4シートを改ページでつないだもの)を1回描画してPDFにする
+    const faceHtmlList = faceInputs.flatMap(({ poster, qrCodeSvg, shortUrlText, count }) =>
+      Array<string>(count).fill(generatePosterFaceHtml({ title: poster.title, subtitle: poster.subtitle, size, shortUrlText }, qrCodeSvg)),
+    )
+    const html = generatePosterA4SheetsHtml(size, faceHtmlList)
+
+    const browser = await puppeteer.launch(c.env.BROWSER)
+    let binary: Uint8Array<ArrayBuffer>
+    try {
+      const page = await browser.newPage()
+      await page.setContent(html)
+      binary = new Uint8Array(await page.pdf(POSTER_PDF_OPTIONS))
+    } finally {
+      await browser.close()
+    }
+
+    await c.env.POSTER_CACHE.put(objectKey, binary)
+
+    return c.body(binary, 200, { 'Content-Type': 'application/pdf' })
   })
 
 export default app

@@ -289,7 +289,9 @@ QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes
 | PATCH | `/posters/:id` | ✓ | 編集 |
 | DELETE | `/posters/:id` | ✓ | 削除 |
 | GET | `/posters/:id/export` | ✓ | PDF/PNG書き出し(Browser Rendering + R2内容ハッシュキャッシュ、第13節)。クエリ`paper`(`a4` / `fit`、初期値`a4`)を追加 |
-| POST | `/posters/batch-export` | ✓ | まとめて印刷 |
+| POST | `/posters/batch-export` | ✓ | まとめて印刷。本文`{ size, items: [{ posterId, count }] }`、PDFを返す。レート制限は`/posters/:id/export`と同じ(`POSTER_EXPORT_RATE_LIMITER`) |
+
+`POST /posters/batch-export`の入力は、`size`(`A6` / `A5`)と`items`(1件以上、`posterId`は重複不可、`count`は1以上の整数)。形式の誤りと、`posterId`の重複は400 `VALIDATION_ERROR`。面数の合計(または掲示物の件数)がA4用紙10枚分(A6は40面、A5は20面)を超えると400 `LIMIT_EXCEEDED`。ログインユーザーの、削除されていない掲示物でないものが1件でも含まれると404 `NOT_FOUND`(どれが原因かは明かさない)、指定サイズと違う掲示物が含まれると400 `VALIDATION_ERROR`。これらのチェックはすべてBrowser Renderingを起動する前に行う。各面のQRコードと短縮URLの表示は、単体の書き出しと同じ`resolveQrcodeContent`・`getPosterShortUrlText`で決める。
 
 `PATCH /posters/:id`では、`title`・`subtitle`に加えて、`size`(A6/A5)と`qrCodeId`(使うQRコード。自分の、削除されていないQRコードに限る。違えば400 `INVALID_TARGET`)も変更できる(掲示物の編集画面で、用紙サイズと使うQRコードをあとから変えられるようにするため)。
 
@@ -483,8 +485,9 @@ Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動
 - コンビニのプリントサービスで選べる普通紙はB5 / A4 / B4 / A3のみで、A5・A6は選べないため、A4への面付けを初期値とする
 
 **まとめて印刷のキャッシュ**
-- 掲示物1枚分の描画結果は、既存の内容ハッシュキーでR2に保存したものをそのまま再利用する
-- A4への配置は組み合わせごとに行い、キー=ハッシュ(サイズ+各掲示物の内容ハッシュと枚数を順番どおりに並べたもの)で保存する。30日のObject Lifecycle Ruleは既存と同じ
+- 掲示物1枚分の描画結果をPDFとして保存して再利用する方式は採らない。PDFを結合するライブラリが必要になり、依存を増やすわりに、組み合わせが変わるたびに結合し直す必要があるため。代わりに、組み合わせ全体のHTML(複数のA4シートを改ページでつないだもの。`generatePosterA4SheetsHtml`)を1回だけ描画してPDFにする
+- 組み合わせごとにR2へ保存する。キー=`batch/{userId}/v{テンプレートの版}/{サイズ}/{ハッシュ}`、ハッシュ=サイズ+各掲示物の内容ハッシュと枚数を順番どおりに並べたもの(各掲示物の内容ハッシュは、単体の書き出し(PDF・A4)と同じ`buildPosterExportHashSource`の出力。順番・枚数が違えば別のキーになる)。30日のObject Lifecycle Ruleは既存と同じ。アカウント削除時は、接頭辞`batch/{userId}/`で第7.1節の物理削除バッチが削除する
+- 認可(所有者・削除済み・サイズのチェック)は、キャッシュ参照・Browser Renderingより先に行う
 - 1回の処理はA4用紙10枚までとし、Browser Renderingの処理時間と従量課金を読める範囲に収める。将来の有料化時は、この上限をプランで変えられるようにする
 
 ## 14. 運用設計・バックアップ

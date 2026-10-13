@@ -92,12 +92,19 @@ describe('PosterListPage', () => {
     expect(await screen.findByText('QR:名前なし(9/21作成)')).toBeTruthy()
   })
 
+  it('掲示物があるときは、まとめて印刷への入口を出す(0件のときは出さない)', async () => {
+    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster()], total: 1, limit: 20, offset: 0 }))
+    renderList()
+    expect((await screen.findByRole('link', { name: 'まとめて印刷' })).getAttribute('href')).toBe('/app/posters/batch')
+  })
+
   it('掲示物が無いときは案内と作成ボタンを出す', async () => {
     mocks.getPostersMock.mockResolvedValue(ok({ items: [], total: 0, limit: 20, offset: 0 }))
     renderList()
 
     expect(await screen.findByText('まだ掲示物がありません')).toBeTruthy()
     expect(screen.getByRole('link', { name: /新しい掲示物を作成/ })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'まとめて印刷' })).toBeNull()
   })
 
   it('キーワードでタイトルとQRコード名を絞り込める', async () => {
