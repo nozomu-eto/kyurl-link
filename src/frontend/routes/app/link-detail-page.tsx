@@ -193,6 +193,10 @@ export function LinkDetailPage() {
             </dd>
           </div>
           <div className="detail-list__row">
+            <dt>作成日</dt>
+            <dd>{formatDateJst(link.createdAt)}</dd>
+          </div>
+          <div className="detail-list__row">
             <dt>有効期限</dt>
             <dd>
               {link.expiresAt ? formatDateJst(link.expiresAt) : '無期限'}

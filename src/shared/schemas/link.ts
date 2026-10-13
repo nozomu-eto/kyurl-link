@@ -22,6 +22,8 @@ export const linkSchema = z.object({
   // 悪意あるURL検知の結果(docs/architecture.mdの「悪意あるURLの検知」)。statusとは意味が異なる別フィールド。
   // unscanned: 未検査またはURLhaus照会がfail-openした / clean: 問題なし / flagged: 不審と判定された
   securityStatus: z.enum(['unscanned', 'clean', 'flagged']),
+  // 作成日時(ISO文字列)。詳細画面の「作成日」に使う
+  createdAt: z.string(),
   // 最終検査日時(ISO文字列)
   lastScannedAt: z.string(),
   // 運営による強制停止の状態。'suspended'の場合、所有者はstatusを変更できず(PATCHが

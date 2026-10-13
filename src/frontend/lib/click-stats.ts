@@ -1,6 +1,8 @@
 // クリック統計(GET /api/v1/links/:id/clicks)の表示用の整形処理。
 // 画面のグラフ・平均値の計算を、描画から切り離してテストできるようにここに置く
 
+import { getJstDay } from '@/shared/jst'
+
 export type DailyClick = { day: string; clicks: number }
 
 // 集計期間の選択肢(APIのdaysクエリと同じ。docs/architecture.mdの「画面ごとの確定仕様」。初期値は30日)
@@ -16,7 +18,7 @@ export function parseClickStatsDays(value: string | null): ClickStatsDays {
 
 // buildDailyClickSeries: APIが返す「クリックがあった日だけ」の配列を、直近days日分の
 // 連続した日付の配列に広げる(クリックが無い日は0)。グラフで日付の抜けが出ないようにするため。
-// APIはAnalytics EngineのtoDate(UTC基準)で日別に集計しているため、日付もUTCで数える。
+// APIは日本時間(Asia/Tokyo)の日付で日別に集計しているため、「今日」も日本時間の日付で数える(shared/jst.ts)。
 // dayは'2026-09-25'または'2026-09-25 00:00:00'のどちらの形式でも先頭10文字(日付)で照合する
 export function buildDailyClickSeries(dailyClicks: DailyClick[], days: number, now: Date = new Date()): DailyClick[] {
   const clicksByDay = new Map<string, number>()
@@ -25,10 +27,9 @@ export function buildDailyClickSeries(dailyClicks: DailyClick[], days: number, n
     clicksByDay.set(key, (clicksByDay.get(key) ?? 0) + clicks)
   }
 
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   const series: DailyClick[] = []
   for (let offset = days - 1; offset >= 0; offset--) {
-    const day = new Date(todayUtc - offset * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const day = getJstDay(now, -offset)
     series.push({ day, clicks: clicksByDay.get(day) ?? 0 })
   }
   return series

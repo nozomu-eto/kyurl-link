@@ -33,6 +33,16 @@ describe('click-stats', () => {
     expect(series.map((item) => item.clicks)).toEqual([0, 0, 0, 0, 2, 0, 3])
   })
 
+  it('buildDailyClickSeries: 「今日」は日本時間の日付で数える(UTCではまだ前日の15時以降でも、日本時間の翌日になる)', () => {
+    // UTC 2026-09-24 15:30 = 日本時間 2026-09-25 00:30
+    const series = buildDailyClickSeries([{ day: '2026-09-25', clicks: 4 }], 3, new Date('2026-09-24T15:30:00Z'))
+    expect(series).toEqual([
+      { day: '2026-09-23', clicks: 0 },
+      { day: '2026-09-24', clicks: 0 },
+      { day: '2026-09-25', clicks: 4 },
+    ])
+  })
+
   it('pickChartMax: 最大値以上の切りのよい値(最小5)を返す', () => {
     expect(pickChartMax(0)).toBe(5)
     expect(pickChartMax(5)).toBe(5)

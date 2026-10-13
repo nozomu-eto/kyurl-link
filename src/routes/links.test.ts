@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 import { links } from '@/db/schema'
+import { getJstDay } from '@/shared/jst'
 import { URL_MAX_LENGTH } from '@/shared/constants/input-limits'
 import { linkListResponseSchema, linkSchema } from '@/shared/schemas/link'
 import { markEmailVerified } from '../../test/mark-email-verified'
@@ -85,6 +86,7 @@ describe('GET /api/v1/links', () => {
           status: 'active',
           expiresAt: null,
           securityStatus: 'unscanned',
+          createdAt: expect.any(String),
           lastScannedAt: expect.any(String),
           moderationStatus: 'none',
           displayStatus: 'active',
@@ -295,6 +297,28 @@ describe('links CRUD', () => {
     })
     expect(getResponse.status).toBe(200)
     expect(await getResponse.json()).toEqual(created)
+  })
+
+  it('作成・取得・更新・一覧の応答にcreatedAt(ISO文字列)が含まれ、作成日時が変わらない', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+
+    expect(created.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    expect(Math.abs(Date.now() - new Date(created.createdAt).getTime())).toBeLessThan(60_000)
+
+    const getResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, { headers: { Cookie: sessionCookie } })
+    expect(await getResponse.json()).toMatchObject({ createdAt: created.createdAt })
+
+    const patchResponse = await SELF.fetch(`https://example.com/api/v1/links/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ status: 'suspended' }),
+    })
+    expect(await patchResponse.json()).toMatchObject({ createdAt: created.createdAt })
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/links', { headers: { Cookie: sessionCookie } })
+    const list = await listResponse.json<{ items: { id: string; createdAt: string }[] }>()
+    expect(list.items.find((item) => item.id === created.id)?.createdAt).toBe(created.createdAt)
   })
 
   it('PATCH /api/v1/links/:idでstatusを変更すると反映される', async () => {
@@ -604,13 +628,16 @@ describe('GET /api/v1/links/:id/clicks', () => {
     // globalThis.fetchを一時的に差し替え、実際のSQL API呼び出しをせずに固定のレスポンスを返す。
     // 実際のAnalytics Engine SQL APIはclicksを文字列型("3"等)で返すため、モックもそれに合わせる
     // (数値型でモックすると、文字列から数値への変換漏れを検知できないため)
+    // 日付は「日本時間の今日」から相対的に決める(集計期間の外の日はAPIが捨てるため、固定の日付だと期間外になる)
+    const dayA = getJstDay(new Date(), -2)
+    const dayB = getJstDay(new Date(), -1)
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () =>
       new Response(
         JSON.stringify({
           data: [
-            { day: '2026-09-20', clicks: '3' },
-            { day: '2026-09-21', clicks: '5' },
+            { day: dayA, clicks: '3' },
+            { day: dayB, clicks: '5' },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -626,8 +653,8 @@ describe('GET /api/v1/links/:id/clicks', () => {
       expect(body).toEqual({
         totalClicks: 8,
         dailyClicks: [
-          { day: '2026-09-20', clicks: 3 },
-          { day: '2026-09-21', clicks: 5 },
+          { day: dayA, clicks: 3 },
+          { day: dayB, clicks: 5 },
         ],
       })
 
@@ -642,7 +669,35 @@ describe('GET /api/v1/links/:id/clicks', () => {
     }
   })
 
-  it.each([7, 30, 90])('daysに%iを指定すると200になり、Analytics Engine SQL APIへのクエリにINTERVAL句が反映される', async (days) => {
+  it('日本時間の開始日より前の日(SQLが1日広めに取った分)は、日別にも合計にも含めない', async () => {
+    const { sessionCookie } = await signUp()
+    const created = await createLink(sessionCookie)
+    const now = new Date()
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { day: getJstDay(now, -7), clicks: '9' },
+            { day: getJstDay(now, -6), clicks: '2' },
+            { day: getJstDay(now), clicks: '1' },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )) as typeof fetch
+
+    try {
+      const response = await SELF.fetch(`https://example.com/api/v1/links/${created.id}/clicks?days=7`, { headers: { Cookie: sessionCookie } })
+      const body = await response.json<{ totalClicks: number; dailyClicks: { day: string; clicks: number }[] }>()
+      // 7日 = 日本時間の今日を含む直近7日(6日前〜今日)。7日前の9件は対象外
+      expect(body.totalClicks).toBe(3)
+      expect(body.dailyClicks.map((item) => item.day)).toEqual([getJstDay(now, -6), getJstDay(now)])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it.each([7, 30, 90])('daysに%iを指定すると200になり、Analytics Engine SQL APIへのクエリに日本時間の集計とINTERVAL句(1日広げた期間)が反映される', async (days) => {
     const { sessionCookie } = await signUp()
     const created = await createLink(sessionCookie)
 
@@ -659,7 +714,8 @@ describe('GET /api/v1/links/:id/clicks', () => {
         headers: { Cookie: sessionCookie },
       })
       expect(response.status).toBe(200)
-      expect(requestedSql).toContain(`INTERVAL '${days}' DAY`)
+      expect(requestedSql).toContain(`INTERVAL '${days + 1}' DAY`)
+      expect(requestedSql).toContain("formatDateTime(timestamp, '%Y-%m-%d', 'Asia/Tokyo')")
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -681,7 +737,7 @@ describe('GET /api/v1/links/:id/clicks', () => {
         headers: { Cookie: sessionCookie },
       })
       expect(response.status).toBe(200)
-      expect(requestedSql).toContain(`INTERVAL '30' DAY`)
+      expect(requestedSql).toContain(`INTERVAL '31' DAY`)
     } finally {
       globalThis.fetch = originalFetch
     }
