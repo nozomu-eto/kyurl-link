@@ -79,6 +79,15 @@ export default defineConfig(async () => {
             exclude: [...configDefaults.exclude, '.claude/**', 'src/frontend/**'],
             // テストごとに使い捨てD1インスタンスへマイグレーションを適用するセットアップファイル
             setupFiles: ['./test/apply-migrations.ts'],
+            // 既定のタイムアウト(5秒)を15秒に延ばす。全体実行は多数のWorkerが並列に動いて負荷が高くなり、
+            // 処理自体は数百ミリ秒のテストでも5秒を超えて時間切れになることがある
+            // (account-request-cancellation.test.tsで実際に起きた。単体で実行すると通る)。
+            // Workers Buildsのビルドコマンドは`pnpm test && pnpm run build`のため、CIで時間切れが
+            // 起きると本番にデプロイされない。beforeEach等のフック(サインアップなど)も同じ理由で延ばす。
+            // 個別に指定したタイムアウト(it(…, 75000)など。レート制限のテストの
+            // RATE_LIMIT_TEST_TIMEOUT_MS)は、この既定値より優先される
+            testTimeout: 15_000,
+            hookTimeout: 15_000,
           },
           plugins: [
             cloudflareTest({
