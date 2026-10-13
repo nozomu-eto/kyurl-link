@@ -14,6 +14,22 @@ describe('renderQrcodeSvg', () => {
     expect(svg).toContain('<svg')
   })
 
+  it('ルートの<svg>にviewBox="0 0 256 256"があり、width/height属性(256)も残る(表示サイズに合わせて中身も縮み、単体では固定サイズ)', () => {
+    const svg = renderQrcodeSvg('https://example.com')
+    expect(svg.match(/viewBox="/g)).toHaveLength(1)
+    expect(svg).toMatch(/<svg viewBox="0 0 256 256" [^>]*width="256" height="256">/)
+  })
+
+  it('すべての<rect>がviewBoxの内側に収まる(はみ出して切れる部分が無い)', () => {
+    const svg = renderQrcodeSvg('https://example.com/viewbox-check')
+    const rects = [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)]
+    expect(rects.length).toBeGreaterThan(0)
+    for (const [, x, y, width, height] of rects) {
+      expect(Number(x) + Number(width)).toBeLessThanOrEqual(256 + 1e-6)
+      expect(Number(y) + Number(height)).toBeLessThanOrEqual(256 + 1e-6)
+    }
+  })
+
   it('出力される<rect>の位置が、QRコードの規格どおりの向き(isDark(row, col))と一致する', () => {
     const content = 'https://example.com/svg-orientation-check'
     const modules = new QRCode({ content }).qrcode.modules

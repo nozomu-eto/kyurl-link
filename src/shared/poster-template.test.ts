@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { renderQrcodeSvg } from '@/lib/qrcode-image'
 import { POSTER_SUBTITLE_MAX_LENGTH, POSTER_TITLE_MAX_LENGTH } from '@/shared/constants/input-limits'
 import {
   generatePosterA4SheetHtml,
@@ -136,8 +137,8 @@ describe('generatePosterA4SheetHtml', () => {
 })
 
 describe('POSTER_TEMPLATE_VERSION', () => {
-  it('案内文と短縮URLを追加した版(3)になっている', () => {
-    expect(POSTER_TEMPLATE_VERSION).toBe(3)
+  it('QRコードのSVGにviewBoxを足して切れを直した版(4)になっている', () => {
+    expect(POSTER_TEMPLATE_VERSION).toBe(4)
   })
 })
 
@@ -272,5 +273,34 @@ describe('安全域(各面の端から5mm以内に文字やQRコードを置か�
     }
     // 面の中身を面の中に閉じ込める指定(はみ出した文字が隣の面や用紙の端に出ない)
     expect(html).toMatch(/\.poster\s*{[^}]*overflow:\s*hidden/)
+  })
+})
+
+// POR-143: QRコードのSVGにviewBoxが無いと、掲示物の枠(qrcodeMm)に縮まらず、右端・下端が切れる
+describe('掲示物に入れるQRコードのSVG', () => {
+  const qrCodeSvg = renderQrcodeSvg('https://kyurl.link/Ab3xK9a')
+
+  it.each(['A6', 'A5'] as const)('%s: 掲示物のHTMLに入るQRコードのSVGにviewBoxがある', (size) => {
+    const html = generatePosterHtml({ title: 'テスト', subtitle: null, size }, qrCodeSvg)
+    // SVGの先頭にはXML宣言(<?xml ...?>)が付くため、間を許す
+    expect(html).toMatch(/<div class="qrcode">[\s\S]*?<svg viewBox="0 0 256 256" /)
+  })
+
+  it('SVGの中身(すべての<rect>)の大きさが、viewBoxを超えない。viewBoxは正方形で、枠(qrcodeMm)いっぱいに縮む指定になっている', () => {
+    const viewBox = qrCodeSvg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)
+    expect(viewBox).not.toBeNull()
+    const viewBoxWidth = Number(viewBox?.[1])
+    const viewBoxHeight = Number(viewBox?.[2])
+    expect(viewBoxWidth).toBe(viewBoxHeight)
+
+    for (const [, x, y, width, height] of qrCodeSvg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)) {
+      expect(Number(x) + Number(width)).toBeLessThanOrEqual(viewBoxWidth + 1e-6)
+      expect(Number(y) + Number(height)).toBeLessThanOrEqual(viewBoxHeight + 1e-6)
+    }
+
+    // viewBoxの大きさ全体が、CSSで枠(qrcodeMm)いっぱいに表示される
+    const html = generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A6' }, qrCodeSvg)
+    expect(html).toMatch(new RegExp(`\\.qrcode\\s*{\\s*width:\\s*${POSTER_LAYOUT.qrcodeMm}mm;\\s*height:\\s*${POSTER_LAYOUT.qrcodeMm}mm;`))
+    expect(html).toMatch(/\.qrcode svg\s*{\s*width:\s*100%;\s*height:\s*100%;/)
   })
 })
