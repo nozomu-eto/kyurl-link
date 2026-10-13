@@ -10,6 +10,7 @@ import {
   generatePosterFaceHtml,
   generatePosterHtml,
   getA4SheetMaxFaces,
+  getPosterShortUrlText,
   POSTER_PDF_OPTIONS,
   POSTER_PNG_DEVICE_SCALE_FACTOR,
   POSTER_PNG_ELEMENT_SELECTOR,
@@ -352,6 +353,9 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       return c.json({ error: { code: 'NOT_FOUND', message: contentResult.message } }, 404)
     }
     const qrContent = contentResult.content
+    // 掲示物に出す短縮URLも同じ内容(qrContent)から作り、QRコードと食い違わないようにする
+    // (短縮URL経由のときだけ文字列になり、直接指定のURLのときはnullで表示しない)
+    const shortUrlText = getPosterShortUrlText(qrcode.targetType, qrContent)
 
     // SVGの生成はqrcodes.tsのGET /:id/imageと共通のrenderQrcodeSvgを使う(向きの修正
     // (swap: true)を含め、QRコードの見た目が食い違わないようにするため)
@@ -392,8 +396,8 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 常に掲示物1面分にする)は、掲示物サイズそのままの単体HTMLにする
     const html =
       format === 'pdf' && paper === 'a4'
-        ? generatePosterA4SheetHtml(poster.size, Array(getA4SheetMaxFaces(poster.size)).fill(generatePosterFaceHtml(poster, qrCodeSvg)))
-        : generatePosterHtml({ title: poster.title, subtitle: poster.subtitle, size: poster.size }, qrCodeSvg)
+        ? generatePosterA4SheetHtml(poster.size, Array(getA4SheetMaxFaces(poster.size)).fill(generatePosterFaceHtml({ ...poster, shortUrlText }, qrCodeSvg)))
+        : generatePosterHtml({ title: poster.title, subtitle: poster.subtitle, size: poster.size, shortUrlText }, qrCodeSvg)
 
     const browser = await puppeteer.launch(c.env.BROWSER)
     let binary: Uint8Array<ArrayBuffer>

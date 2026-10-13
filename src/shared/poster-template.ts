@@ -1,8 +1,9 @@
 // テンプレート・書き出し設定の版。テンプレートのHTML構造やCSS、あるいはposters.tsで
 // puppeteerに渡す書き出し設定(POSTER_PDF_OPTIONS等)を変更した場合は、この値を上げること。
 // R2キャッシュキーの計算にこの値を含めることで、修正前の(サイズや余白が誤った)PDF/PNGが
-// R2から返り続けることを防ぐ
-export const POSTER_TEMPLATE_VERSION = 2
+// R2から返り続けることを防ぐ。
+// 3: 読み取りの案内文と短縮URLの表示を追加し、それに合わせてQRコードを60mmから56mmに縮めた
+export const POSTER_TEMPLATE_VERSION = 3
 
 // サイズごとのページ寸法(mm)。A6縦・A5縦を想定する
 const PAGE_SIZES = {
@@ -19,6 +20,41 @@ export function getPosterPageSizeMm(size: 'A6' | 'A5'): { width: number; height:
 // 約5mmを印刷できないため、文字・QRコードをこの余白より内側に収める。
 // 現在の内側余白(8mm)はこの値を下回らないようにすること
 export const POSTER_SAFE_MARGIN_MM = 8
+
+// 掲示物1面の中身の寸法(mm・倍率)。CSS(posterFaceStyle)の値の元であり、最長の入力でも
+// 安全域の内側に収まることをテストで確かめるためにも使う
+export const POSTER_LAYOUT = {
+  titleFontMm: 8,
+  titleLineHeight: 1.4,
+  titleMarginBottomMm: 4,
+  subtitleFontMm: 5,
+  subtitleLineHeight: 1.5,
+  subtitleMarginBottomMm: 6,
+  qrcodeMm: 56,
+  guideFontMm: 3.6,
+  guideLineHeight: 1.4,
+  guideMarginTopMm: 4,
+  shortUrlFontMm: 4.2,
+  shortUrlLineHeight: 1.3,
+  shortUrlMarginTopMm: 1.5,
+} as const
+
+// QRコードのそばに出す読み取りの案内文
+export const POSTER_SCAN_GUIDE_TEXT = 'スマートフォンのカメラで読み取ってください'
+
+// 掲示物に表示する短縮URLの文字列を決める。短縮URL経由(targetType: 'link')のQRコードだけが対象で、
+// 直接指定のURL(rawUrl)は長く入力の手がかりにならないためnull(表示しない)。
+// contentはQRコードに埋め込む内容(resolveQrcodeContentの結果)をそのまま渡す。
+// 書き出し(サーバー)と画面のプレビューが同じ文字列になるよう、この関数で整形する(https://は省く)
+export function getPosterShortUrlText(targetType: 'link' | 'rawUrl', content: string): string | null {
+  if (targetType !== 'link') {
+    return null
+  }
+  return content.replace(/^https?:\/\//, '')
+}
+
+// 掲示物1面に表示する内容。shortUrlTextは省略またはnullなら短縮URLを出さない
+type PosterFaceContent = { title: string; subtitle: string | null; size: 'A6' | 'A5'; shortUrlText?: string | null }
 
 // GET /api/v1/posters/:id/exportでPDFを生成する際、page.pdf()に渡すオプション。
 // @cloudflare/puppeteerの既定値のまま呼び出すと、用紙がレター(8.5×11インチ)固定になり、
@@ -68,6 +104,7 @@ function getCssPageSize(size: 'A6' | 'A5'): string {
 // (generatePosterHtml)・A4シートHTML(generatePosterA4SheetHtml)の両方で同じ見た目に
 // するため、共通の関数として切り出す
 function posterFaceStyle(): string {
+  const L = POSTER_LAYOUT
   return `
   .poster {
     display: flex;
@@ -80,38 +117,62 @@ function posterFaceStyle(): string {
     font-family: 'Noto Sans CJK JP', 'IPAGothic', sans-serif;
   }
   .title {
-    font-size: 8mm;
+    font-size: ${L.titleFontMm}mm;
+    line-height: ${L.titleLineHeight};
     font-weight: bold;
-    margin: 0 0 4mm;
+    margin: 0 0 ${L.titleMarginBottomMm}mm;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
   .subtitle {
-    font-size: 5mm;
+    font-size: ${L.subtitleFontMm}mm;
+    line-height: ${L.subtitleLineHeight};
     color: #333;
-    margin: 0 0 8mm;
+    margin: 0 0 ${L.subtitleMarginBottomMm}mm;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
   .qrcode {
-    width: 60mm;
-    height: 60mm;
+    width: ${L.qrcodeMm}mm;
+    height: ${L.qrcodeMm}mm;
   }
   .qrcode svg {
     width: 100%;
     height: 100%;
   }
+  .scan-guide {
+    font-size: ${L.guideFontMm}mm;
+    line-height: ${L.guideLineHeight};
+    color: #4a4a4a;
+    margin: ${L.guideMarginTopMm}mm 0 0;
+  }
+  .short-url {
+    font-size: ${L.shortUrlFontMm}mm;
+    line-height: ${L.shortUrlLineHeight};
+    font-weight: 600;
+    color: #4a4a4a;
+    margin: ${L.shortUrlMarginTopMm}mm 0 0;
+    overflow-wrap: anywhere;
+  }
 `
 }
 
-// 掲示物1面分のHTMLフラグメント(タイトル・サブタイトル・QRコードを配置した.poster要素)を
+// 掲示物1面分のHTMLフラグメント(タイトル・サブタイトル・QRコード・読み取りの案内・短縮URLを配置した.poster要素)を
 // 生成する。generatePosterHtml(単体の掲示物)・generatePosterA4SheetHtml(A4に面付け)の
 // 両方から呼び出し、同じ見た目の面を再利用する
-export function generatePosterFaceHtml(poster: { title: string; subtitle: string | null; size: 'A6' | 'A5' }, qrCodeSvg: string): string {
+export function generatePosterFaceHtml(poster: PosterFaceContent, qrCodeSvg: string): string {
   const { width, height } = PAGE_SIZES[poster.size]
   const title = escapeHtml(poster.title)
   const subtitleHtml = poster.subtitle ? `<p class="subtitle">${escapeHtml(poster.subtitle)}</p>` : ''
+  // 案内文は常に出す。短縮URLは、短縮URL経由のQRコードのときだけ出す
+  const shortUrlHtml = poster.shortUrlText ? `<p class="short-url">${escapeHtml(poster.shortUrlText)}</p>` : ''
 
   return `<div class="poster" style="width: ${width}mm; height: ${height}mm;">
     <h1 class="title">${title}</h1>
     ${subtitleHtml}
     <div class="qrcode">${qrCodeSvg}</div>
+    <p class="scan-guide">${POSTER_SCAN_GUIDE_TEXT}</p>
+    ${shortUrlHtml}
   </div>`
 }
 
@@ -123,7 +184,7 @@ export function generatePosterFaceHtml(poster: { title: string; subtitle: string
 // html・body・.poster(用紙全体を包む要素)を用紙と同じ大きさにしoverflow: hiddenにすることで、
 // 中身が用紙からはみ出して意図しない2ページ目ができないようにする(POSTER_PDF_OPTIONSの
 // preferCSSPageSize: trueとあわせて、用紙サイズを正しく書き出すため)
-export function generatePosterHtml(poster: { title: string; subtitle: string | null; size: 'A6' | 'A5' }, qrCodeSvg: string): string {
+export function generatePosterHtml(poster: PosterFaceContent, qrCodeSvg: string): string {
   const { width, height } = PAGE_SIZES[poster.size]
   const title = escapeHtml(poster.title)
 

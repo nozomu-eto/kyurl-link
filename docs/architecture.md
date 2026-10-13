@@ -340,6 +340,7 @@ QRコードの一覧・詳細画面(第6.7節)のため、`POST` / `GET /qrcodes
 - Browser Rendering APIのレート制限(1秒30回)はCloudflareアカウント単位。B2B化でテナント数が増えた場合、①内容ハッシュベースのR2キャッシュ(実装済み想定、第13節)に加え、②Cloudflare Queuesによる平準化、③テナント単位Rate Limitingによるフェアネス制御の追加を検討する
 - アカウント削除バッチ(第7.1節)の物理削除対象テーブルは、今後テーブルが増えた場合に追随して更新する必要がある
 - **日時の精度の混在**: アプリ側のテーブル(`links`・`qrcodes`・`posters`・`reports`の`created_at`、`account_requests`の`scheduled_deletion_at`・`completed_at`)は秒精度(`mode: 'timestamp'`)、Better Authのテーブルと各テーブルの`deleted_at`などはミリ秒精度(`timestamp_ms`)で混在している。Drizzleが`Date`型へ変換するため実害はない(同じ1秒内に作ったものの並び順が決まらない程度)。統一するには本番の5テーブルの作り直し(SQLiteは既定値の変更に列の付け替えが使えない)が必要になるため見送った(POR-125)
+- **CSP強制時のstyle-src**: 掲示物のプレビューは`srcdoc`のiframe(`sandbox=""`)でテンプレートを描画しており、テンプレートはインラインstyleを使う。`srcdoc`のiframeは親ページのCSPを引き継ぐため、将来CSPをReport-Onlyから強制(enforce)に切り替える際は、`style-src`の扱いを確認する必要がある
 - **Hono RPCの型推論問題への備え**: Hono公式が明記する通り、ルート数の増加に伴い型インスタンス化が増え、IDE(tsserver)のパフォーマンスが低下する可能性がある。本プロジェクトはエンドポイントが約20本あり顕在化しうる規模のため、発生した場合は公式推奨の「クライアントの事前コンパイル」方式(サーバーアプリの型を事前に生成し、tsserverの再計算を回避する。モノレポ構成推奨)で対処する。現状のルート分割・`shared/schemas`構成はモノレポ的な構成に近いため、対策への移行は比較的スムーズに行える見込み
 
 ## 8. Rate Limiting設計
@@ -469,13 +470,15 @@ Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動
 
 **プレビューと書き出しの共通化**: 掲示物のHTMLを組み立てるテンプレート(`src/shared/poster-template.ts`)は、サーバーの書き出しと画面のプレビューで同じものを使う。画面のプレビューは、このテンプレートのHTMLをiframeに描画するだけで、Browser Renderingは使わない(配置・大きさの比率は書き出しと一致する。フォントは書き出し環境のものと異なる場合がある)。
 
+**掲示物に載せる内容**: タイトル・ひとことメッセージ・QRコードに加え、QRコードのそばに読み取りの案内文(「スマートフォンのカメラで読み取ってください」)を常に出す。短縮URL(`kyurl.link/…`、`https://`は省く)は、QRコードが短縮URL経由(`targetType: link`)のときだけ出す。URLを直接指定したQRコードでは、長いURLが入力の手がかりにならないため出さない。短縮URLの文字列はQRコードに埋め込む内容(`resolveQrcodeContent`の結果)から作り、両者が食い違わないようにする。タイトルの途中での改行は扱わず(入力欄は1行で改行を入れられない)、面の幅に合わせて折り返す。
+
 **書き出し設定**
 - PDFは`preferCSSPageSize: true`(`@page`のサイズ指定に従う)・`printBackground: true`で出力する。PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影する(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
 - テンプレートの版`POSTER_TEMPLATE_VERSION`をR2キャッシュキーの計算に含める。テンプレートや書き出し設定を変更した場合はこの値を上げ、変更前のPDF/PNGがR2から返り続けることを防ぐ
 
 **A4への面付け**
 - A5はA4に2面、A6はA4に4面、余白なしでちょうど収まる。面の境界に切り取り線(灰色の破線)を入れる
-- 家庭用プリンターやコンビニのマルチコピー機は用紙の端から約5mmを印刷できないため、テンプレートでは各面の端から5mm以内に文字やQRを置かない
+- 家庭用プリンターやコンビニのマルチコピー機は用紙の端から約5mmを印刷できないため、テンプレートでは各面の端から5mm以内に文字やQRを置かない(読み取りの案内文・短縮URLも同様)
 - コンビニのプリントサービスで選べる普通紙はB5 / A4 / B4 / A3のみで、A5・A6は選べないため、A4への面付けを初期値とする
 
 **まとめて印刷のキャッシュ**
