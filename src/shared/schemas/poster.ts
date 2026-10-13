@@ -135,3 +135,24 @@ export const posterListResponseSchema = z.object({
   // 取得開始位置のオフセット
   offset: z.number(),
 })
+
+// まとめて印刷(POST /posters/batch-export)の入力用スキーマ。
+// - size: A5とA6は混在できないため、1回の指定は1サイズだけ
+// - items: 1件以上。countは1以上の整数(0枚の掲示物は含めない)
+// - 同じposterIdを複数回指定することは認めない(400になる)。画面は1つの掲示物を1行で扱い、枚数はcountで
+//   指定するため、重複は呼び出し側の誤りとして扱う(合算して受け入れると、並び順・キャッシュキーの意味があいまいになる)
+// 上限(A4用紙10枚)はサイズごとに面数が違うため、スキーマではなくハンドラーで400 LIMIT_EXCEEDEDにする
+export const posterBatchExportInputSchema = z.object({
+  size: z.enum(['A6', 'A5']),
+  items: z
+    .array(
+      z.object({
+        posterId: z.string().min(1),
+        count: z.int().min(1),
+      }),
+    )
+    .min(1)
+    .refine((items) => new Set(items.map((item) => item.posterId)).size === items.length, {
+      message: '同じ掲示物を複数回指定することはできません。枚数(count)で指定してください',
+    }),
+})

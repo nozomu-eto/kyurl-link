@@ -171,6 +171,29 @@ describe('runAccountDeletionBatch', () => {
     30000,
   )
 
+  it('まとめて印刷のR2キャッシュ(batch/{userId}/…)も物理削除され、他のユーザーのものは残る', async () => {
+    const { sessionCookie, userId } = await signUp()
+    env.EMAIL.send = async () => ({ messageId: 'test-message-id' })
+
+    // Browser Renderingを起動せず、キャッシュのオブジェクトを直接置く
+    await env.POSTER_CACHE.put(`batch/${userId}/v4/A6/hash-a`, new Uint8Array([1]))
+    await env.POSTER_CACHE.put(`batch/${userId}/v4/A5/hash-b`, new Uint8Array([2]))
+    const otherKey = `batch/other-user-${crypto.randomUUID()}/v4/A6/hash-c`
+    await env.POSTER_CACHE.put(otherKey, new Uint8Array([3]))
+
+    const accountRequestId = await requestAccountDeletion(sessionCookie)
+    const db = drizzle(env.DB)
+    await db
+      .update(accountRequests)
+      .set({ scheduledDeletionAt: new Date(Date.now() - 1000) })
+      .where(eq(accountRequests.id, accountRequestId))
+
+    await runAccountDeletionBatch(env)
+
+    expect((await env.POSTER_CACHE.list({ prefix: `batch/${userId}/` })).objects).toHaveLength(0)
+    expect(await env.POSTER_CACHE.get(otherKey)).not.toBeNull()
+  })
+
   it('scheduledDeletionAtがまだ未来のaccountRequestは処理対象にならない', async () => {
     const { sessionCookie, userId } = await signUp()
     await requestAccountDeletion(sessionCookie)

@@ -43,6 +43,10 @@ export async function runAccountDeletionBatch(env: CloudflareBindings): Promise<
       await deletePosterCacheObjects(env.POSTER_CACHE, `${poster.id}/`)
     }
 
+    // 2b'. まとめて印刷のキャッシュ(`batch/${userId}/...`)も、ユーザー単位の接頭辞でまとめて削除する
+    // (単体の書き出しのように掲示物のidでは特定できないため)
+    await deletePosterCacheObjects(env.POSTER_CACHE, `batch/${target.userId}/`)
+
     // 2c. userを物理削除する。links/qrcodes/posters/accountRequests/session/accountは
     // すべてonDelete: 'cascade'で連動削除されるため、個別に削除する必要はない
     const [deletedUser] = await db.delete(user).where(eq(user.id, target.userId)).returning({ email: user.email })

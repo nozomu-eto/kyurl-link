@@ -54,3 +54,28 @@ export function buildPosterExportHashSource(input: PosterExportHashSourceInput):
     paper: input.format === 'pdf' ? input.paper : undefined,
   })
 }
+
+// まとめて印刷(POST /posters/batch-export)のキャッシュキー。
+// 設計書(第13節「まとめて印刷のキャッシュ」)どおり、キー=ハッシュ(サイズ+各掲示物の内容ハッシュと枚数を
+// 順番どおりに並べたもの)で、組み合わせごとにR2へ保存する。
+// 各掲示物の内容ハッシュは、単体の書き出しと同じbuildPosterExportHashSource(PDF・A4)の出力を使う
+// (QRコードのSVGの中身=短縮URLの表示も含む)。順番や枚数が違えば別のキーになる。
+// キーの先頭にユーザーIDを付ける: アカウント削除バッチが`batch/${userId}/`の接頭辞でまとめて削除できるようにするため
+// (単体の書き出しは`${posterId}/`の接頭辞で削除される)
+export type PosterBatchExportCacheKeyInput = {
+  userId: string
+  size: 'A6' | 'A5'
+  templateVersion: number
+  // 並べる順の掲示物。hashSourceはbuildPosterExportHashSourceの出力、countは枚数
+  items: { hashSource: string; count: number }[]
+}
+
+export async function computePosterBatchExportCacheKey(input: PosterBatchExportCacheKeyInput): Promise<string> {
+  const hashSource = JSON.stringify({ size: input.size, items: input.items.map((item) => ({ content: item.hashSource, count: item.count })) })
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashSource))
+  const hash = Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+
+  return `batch/${input.userId}/v${input.templateVersion}/${input.size}/${hash}`
+}
