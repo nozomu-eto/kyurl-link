@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { RATE_LIMIT_TEST_TIMEOUT_MS, waitForFreshRateLimitWindow } from '../../test/wait-for-rate-limit-window'
 
 // src/lib/auth.tsのsendVerificationEmail・sendResetPasswordに設けた、
 // 同じメールアドレスにつき60秒に1回までの再送制限(EMAIL_RESEND_RATE_LIMITER、
@@ -56,8 +57,12 @@ function requestPasswordReset(email: string) {
   })
 }
 
+// 60秒に1回までの制限はRate Limiting bindingの窓(時計に揃えた60秒)で数えられ、窓が切り替わると
+// 数え直される。1回目と2回目のあいだで窓が切り替わると制限に当たらず失敗するため、
+// 2回続けて呼ぶテストは最初にwaitForFreshRateLimitWindow()を呼ぶ(test/wait-for-rate-limit-window.ts参照)
 describe('確認メール・パスワード再設定メールの再送制限(60秒に1回まで)', () => {
   it('新規登録直後(sendOnSignUpによる自動送信)の60秒以内に確認メールの再送を呼んでも、メールは1通しか送られない', async () => {
+    await waitForFreshRateLimitWindow()
     const email = `resend-verify-${crypto.randomUUID()}@example.com`
     await signUp(email)
     // signUp自体でsendOnSignUp: trueにより既に1通送信されている
@@ -67,9 +72,10 @@ describe('確認メール・パスワード再設定メールの再送制限(60�
     // 429は返さず、送信せずに200のまま終える
     expect(response.status).toBe(200)
     expect(sentTo(email)).toHaveLength(1)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('パスワード再設定申請を60秒以内に2回行っても、メールは1通しか送られない', async () => {
+    await waitForFreshRateLimitWindow()
     const email = `resend-reset-${crypto.randomUUID()}@example.com`
     await signUp(email)
     sentEmails = [] // サインアップ時の確認メール送信をリセットし、以降はパスワード再設定のみを見る
@@ -81,7 +87,7 @@ describe('確認メール・パスワード再設定メールの再送制限(60�
     const second = await requestPasswordReset(email)
     expect(second.status).toBe(200)
     expect(sentTo(email)).toHaveLength(1)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('未登録のメールアドレスでも、制限に当たった場合でも、応答(ステータス)は同じになる(登録の有無を明かさない)', async () => {
     const unregisteredEmail = `resend-unregistered-${crypto.randomUUID()}@example.com`

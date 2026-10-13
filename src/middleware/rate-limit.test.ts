@@ -7,6 +7,7 @@ import { linkSchema } from '@/shared/schemas/link'
 import { posterSchema } from '@/shared/schemas/poster'
 import { qrcodeSchema } from '@/shared/schemas/qrcode'
 import { markEmailVerified } from '../../test/mark-email-verified'
+import { RATE_LIMIT_TEST_TIMEOUT_MS, waitForFreshRateLimitWindow } from '../../test/wait-for-rate-limit-window'
 
 const originalFetch = globalThis.fetch
 
@@ -67,6 +68,10 @@ const REPORT_RATE_LIMIT_MAX = 5
 // POSTER_EXPORT_RATE_LIMITERは1分あたり10回まで
 const POSTER_EXPORT_RATE_LIMIT_MAX = 10
 
+// 上限まで連続でリクエストしてから制限を期待するテストは、最初にwaitForFreshRateLimitWindow()を呼ぶ。
+// Rate Limiting bindingは時計に揃えた窓ごとに数え直すため、途中で窓が切り替わると上限に達しなくなる。
+// 待つ時間の分、これらのテストにはRATE_LIMIT_TEST_TIMEOUT_MSのタイムアウトを付ける(test/wait-for-rate-limit-window.ts参照)
+
 // POST /links・POST /qrcodes・POST /postersはWRITE_RATE_LIMITERバインディングをユーザーID単位で
 // 共有するため、上限までの消費にはURLhaus照会(外部ネットワーク呼び出し)を伴わないPOST /qrcodes
 // (targetType: 'rawUrl')を使う。POST /linksはURLhaus照会があり、上限回数分連続で呼ぶとテストが
@@ -75,6 +80,7 @@ const POSTER_EXPORT_RATE_LIMIT_MAX = 10
 // POST /links・POST /postersで行っても外部呼び出しは発生しない
 describe('POST /links・POST /qrcodes・POST /posters のレート制限(WRITE_RATE_LIMITER)', () => {
   it(`同一ユーザーが上限(${WRITE_RATE_LIMIT_MAX}回/分)に達すると、POST /qrcodes・POST /links・POST /postersいずれも429(RATE_LIMITED)になる`, async () => {
+    await waitForFreshRateLimitWindow()
     const sessionCookie = await signUp()
 
     for (let i = 0; i < WRITE_RATE_LIMIT_MAX; i++) {
@@ -99,9 +105,10 @@ describe('POST /links・POST /qrcodes・POST /posters のレート制限(WRITE_R
       body: JSON.stringify({ title: 'レート制限テスト', size: 'A6', qrCodeId: 'dummy-id' }),
     })
     expect(blockedPosterResponse.status).toBe(429)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('別のユーザーのリクエストは、他のユーザーの試行回数の影響を受けない', async () => {
+    await waitForFreshRateLimitWindow()
     const sessionCookieA = await signUp()
     const sessionCookieB = await signUp()
 
@@ -116,7 +123,7 @@ describe('POST /links・POST /qrcodes・POST /posters のレート制限(WRITE_R
     // ユーザーBはユーザーAのカウントに影響されず、通常どおり作成できる
     const otherUserResponse = await postQrcode(sessionCookieB)
     expect(otherUserResponse.status).toBe(201)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 })
 
 describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ログイン)', () => {
@@ -139,6 +146,7 @@ describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ロ�
   }
 
   it(`同一IPから${REPORT_RATE_LIMIT_MAX + 1}回目のリクエストは429(RATE_LIMITED)になる`, async () => {
+    await waitForFreshRateLimitWindow()
     const ip = '198.51.100.1'
 
     for (let i = 0; i < REPORT_RATE_LIMIT_MAX; i++) {
@@ -151,9 +159,10 @@ describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ロ�
     expect(blockedResponse.status).toBe(429)
     const body = await blockedResponse.json<{ error: { code: string } }>()
     expect(body.error.code).toBe('RATE_LIMITED')
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 
   it('別のIPからのリクエストは、他のIPの試行回数の影響を受けない', async () => {
+    await waitForFreshRateLimitWindow()
     const ipA = '198.51.100.10'
     const ipB = '198.51.100.20'
 
@@ -166,11 +175,12 @@ describe('POST /api/v1/reports のレート制限(REPORT_RATE_LIMITER、未ロ�
 
     const otherIpResponse = await postReport(ipB)
     expect(otherIpResponse.status).toBe(404)
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 })
 
 describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_LIMITER)', () => {
   it(`同一ユーザーから${POSTER_EXPORT_RATE_LIMIT_MAX + 1}回目のexportは429(RATE_LIMITED)になる`, async () => {
+    await waitForFreshRateLimitWindow()
     const sessionCookie = await signUp()
 
     const linkResponse = await postLink(sessionCookie)
@@ -246,5 +256,5 @@ describe('GET /api/v1/posters/:id/export のレート制限(POSTER_EXPORT_RATE_L
     expect(blockedResponse.status).toBe(429)
     const body = await blockedResponse.json<{ error: { code: string } }>()
     expect(body.error.code).toBe('RATE_LIMITED')
-  })
+  }, RATE_LIMIT_TEST_TIMEOUT_MS)
 })
