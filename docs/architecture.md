@@ -253,7 +253,7 @@ Browser Rendering自体はテナント数の実質的な上限にはならない
 | GET | `/links/:id` | ✓ | 詳細(クリック数サマリ・紐づくQR一覧) |
 | PATCH | `/links/:id` | ✓ | 有効期限・ステータス変更 |
 | DELETE | `/links/:id` | ✓ | ソフトデリート |
-| GET | `/links/:id/clicks` | ✓ | クリック統計(Analytics Engine SQL APIへの問い合わせ)。クエリ`days`(`7` / `30` / `90`、初期値30)を追加。それ以外の値は400 `VALIDATION_ERROR` |
+| GET | `/links/:id/clicks` | ✓ | クリック統計(Analytics Engine SQL APIへの問い合わせ)。クエリ`days`(`7` / `30` / `90`、初期値30)を追加。それ以外の値は400 `VALIDATION_ERROR`。日別の集計は日本時間(Asia/Tokyo)の日付で区切り、今日を含む直近`days`日分を返す |
 | GET | `/:shortCode` | 不要 | 公開リダイレクト |
 
 `PATCH /links/:id`の`expiresAt`は、ISO 8601・オフセット必須・過去日時は不可。画面は日付だけを選ばせ、その日の`23:59:59.999+09:00`に変換して送る。更新後の期限が現在より未来で`status`が`expired`の場合は`active`に戻す。`status`に指定できるのは`active` / `suspended`のみ(`expired`は手動指定不可)。`moderationStatus`が`suspended`の場合、`status`の変更は403 `MODERATION_LOCKED`になる(第9.5節)。

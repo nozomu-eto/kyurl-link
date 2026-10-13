@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import { links } from '@/db/schema'
-import { LINK_CLICKS_DAYS_OPTIONS, buildLinkClicksSql, type LinkClicksDays } from '@/lib/link-clicks-query'
+import { LINK_CLICKS_DAYS_OPTIONS, buildLinkClicksSql, getLinkClicksStartDay, type LinkClicksDays } from '@/lib/link-clicks-query'
 import { determineLinkSecurityStatus } from '@/lib/link-security-check'
 import { computeLinkDisplayStatus } from '@/lib/link-status'
 import { generateShortCode } from '@/lib/short-code'
@@ -18,6 +18,7 @@ import { linkCreateInputSchema, linkListResponseSchema, linkSchema, linkUpdateIn
 function toLinkResponse(record: typeof links.$inferSelect) {
   return linkSchema.parse({
     ...record,
+    createdAt: record.createdAt.toISOString(),
     lastScannedAt: record.lastScannedAt.toISOString(),
     displayStatus: computeLinkDisplayStatus(record),
   })
@@ -348,7 +349,11 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     // Analytics Engine SQL APIはclicksを文字列型("6"等)で返すため、Number()で数値に変換してから扱う
     const result = await analyticsResponse.json<{ data: { day: string; clicks: string }[] }>()
-    const dailyClicks = result.data.map((item) => ({ day: item.day, clicks: Number(item.clicks) }))
+    // SQLは日本時間の開始日より1日前まで広く取っているため、開始日より前の日(日本時間)はここで捨てる
+    const startDay = getLinkClicksStartDay(days as LinkClicksDays)
+    const dailyClicks = result.data
+      .map((item) => ({ day: item.day, clicks: Number(item.clicks) }))
+      .filter((item) => item.day.slice(0, 10) >= startDay)
     const totalClicks = dailyClicks.reduce((sum, item) => sum + item.clicks, 0)
 
     return c.json({ totalClicks, dailyClicks })

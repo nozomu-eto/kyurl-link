@@ -40,6 +40,7 @@ function buildLink(overrides: LinkOverrides = {}) {
     displayStatus: 'active',
     moderationStatus: 'none',
     expiresAt: null,
+    createdAt: '2026-09-21T16:00:00.000Z',
     ...overrides,
   }
 }
@@ -72,6 +73,14 @@ beforeEach(() => {
 })
 
 describe('LinkDetailPage', () => {
+  it('作成日を日本時間の日付で表示する(UTCでは9/21 16時でも、日本時間では9/22)', async () => {
+    setupApi()
+    renderLinkDetailPage()
+
+    expect(await screen.findByText('作成日')).toBeTruthy()
+    expect(screen.getByText('2026/09/22')).toBeTruthy()
+  })
+
   it('公開スイッチはstatus(保存値)で決まり、状態バッジはdisplayStatusを表示する', async () => {
     // 期限切れ: statusはactiveのままだがdisplayStatusはexpired
     setupApi({ link: buildLink({ displayStatus: 'expired', expiresAt: '2026-08-31T14:59:59.999Z' }) })
