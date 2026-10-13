@@ -8,6 +8,7 @@ import { DashboardPage, dashboardLoader } from '@/frontend/routes/app/dashboard-
 import { LinkCreatePage } from '@/frontend/routes/app/link-create-page'
 import { LinkCreatedPage, linkCreatedLoader } from '@/frontend/routes/app/link-created-page'
 import { LinkDetailPage, linkDetailLoader } from '@/frontend/routes/app/link-detail-page'
+import { PosterBatchPage, posterBatchLoader } from '@/frontend/routes/app/poster-batch-page'
 import { PosterEditorPage, posterEditorLoader } from '@/frontend/routes/app/poster-editor-page'
 import { PosterListPage, posterListLoader } from '@/frontend/routes/app/poster-list-page'
 import { QrCodeCreatePage, qrcodeCreateLoader } from '@/frontend/routes/app/qrcode-create-page'
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
       { path: 'qrcodes/new', element: <QrCodeCreatePage />, loader: qrcodeCreateLoader },
       { path: 'qrcodes/:qrCodeId', element: <QrCodeEditorPage />, loader: qrcodeEditorLoader },
       { path: 'posters', element: <PosterListPage />, loader: posterListLoader },
+      { path: 'posters/batch', element: <PosterBatchPage />, loader: posterBatchLoader },
       { path: 'posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: 'qrcodes/:qrCodeId/posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: 'posters/:posterId', element: <PosterEditorPage />, loader: posterEditorLoader },

@@ -38,3 +38,40 @@ export async function downloadPosterExport({ posterId, format, paper, fileName }
   URL.revokeObjectURL(url)
   return { ok: true }
 }
+
+export type PosterBatchExportOptions = {
+  size: 'A6' | 'A5'
+  items: { posterId: string; count: number }[]
+  // 保存するファイル名(拡張子なし)
+  fileName: string
+}
+
+// downloadPosterBatchExport: まとめて印刷(POST /api/v1/posters/batch-export)を呼び、PDFとして保存する。
+// 単体の書き出しと同じく、失敗(400の上限超過・429など)するとJSONのエラーが返るため、fetchで受け取り、
+// 成功したときだけ保存する
+export async function downloadPosterBatchExport({ size, items, fileName }: PosterBatchExportOptions): Promise<PosterExportResult> {
+  let response: Response
+  try {
+    response = await fetch('/api/v1/posters/batch-export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ size, items }),
+    })
+  } catch {
+    return { ok: false, message: '書き出しに失敗しました。通信状況を確認して、もう一度お試しください' }
+  }
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: unknown } } | null
+    const message = body?.error?.message
+    return { ok: false, message: typeof message === 'string' ? message : '書き出しに失敗しました。時間をおいて、もう一度お試しください' }
+  }
+
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `${fileName}.pdf`
+  anchor.click()
+  URL.revokeObjectURL(url)
+  return { ok: true }
+}

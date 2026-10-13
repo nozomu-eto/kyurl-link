@@ -1390,7 +1390,7 @@ h1 {
   color: var(--color-heading);
 }
 
-.poster-editor__print-guide {
+.print-guide {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-base);
@@ -1398,7 +1398,7 @@ h1 {
   font-size: 0.875rem;
 }
 
-.poster-editor__print-guide ul {
+.print-guide ul {
   margin: var(--space-1) 0 0;
   padding-left: 1.25rem;
 }
@@ -2462,4 +2462,83 @@ h1 {
 
 .poster-thumbnail .poster-preview-frame {
   margin-bottom: 0;
+}
+
+/* 掲示物のまとめて印刷(docs/mocks/PosterBatchPrint.html・MobileBatchPrint.html) */
+.poster-batch__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poster-batch__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.poster-batch__row:last-child {
+  border-bottom: 0;
+}
+
+.poster-batch__thumbnail {
+  flex-shrink: 0;
+}
+
+/* 一覧より小さいサムネイル(掲示物の紙の幅) */
+.poster-batch__thumbnail .poster-thumbnail {
+  width: 64px;
+}
+
+.poster-batch__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.poster-batch__text > p {
+  margin: 0;
+}
+
+.poster-batch__stepper {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.poster-batch__count {
+  min-width: 2ch;
+  text-align: center;
+  font-family: var(--font-family-display);
+  font-weight: 600;
+}
+
+.poster-batch__total {
+  margin: 0 0 var(--space-4);
+}
+
+.stopped-dialog__posters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .poster-batch__row {
+    flex-wrap: wrap;
+  }
+
+  .poster-batch__stepper {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }

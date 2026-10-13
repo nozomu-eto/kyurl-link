@@ -14,8 +14,8 @@ import { apiClient } from '@/frontend/lib/api-client'
 import { formatDateJst } from '@/frontend/lib/account-deletion'
 import { downloadPosterExport } from '@/frontend/lib/poster-export'
 import { getCopiedPosterTitle } from '@/frontend/lib/poster-copy'
+import { getPosterLinkWarning, getPosterShortUrlDisplay } from '@/frontend/lib/poster-display'
 import { getQrcodeDisplayName } from '@/frontend/lib/qrcode-display'
-import { getPosterShortUrlText } from '@/shared/poster-template'
 import type { posterSchema } from '@/shared/schemas/poster'
 
 type PosterListItem = z.infer<typeof posterSchema>
@@ -35,25 +35,12 @@ export async function posterListLoader() {
   return { posterListItems: body.items }
 }
 
-// リンクが使えない掲示物に添える注意書き(掲示してもQRコードが開けないため、一覧でも気づけるようにする)
-const LINK_WARNING_TEXT: Partial<Record<PosterListItem['linkStatus'], string>> = {
-  expired: 'リンクが期限切れです',
-  suspended: 'リンクが停止中です',
-  deleted: 'リンクが削除されています',
-}
-
 // getStoppedLink: 確認ダイアログに出す短縮URL(一覧の応答の項目から作る)。削除済みの場合は出さない
 function getStoppedLink(item: PosterListItem) {
   if (item.linkStatus === 'deleted' || !item.targetLinkId || !item.targetShortCode) {
     return null
   }
   return { id: item.targetLinkId, shortCode: item.targetShortCode, expiresAt: item.linkExpiresAt }
-}
-
-// getThumbnailShortUrlText: サムネイルに出す短縮URLの文字列。編集画面のプレビューと同じく、
-// QRコードに埋め込まれる内容(`{origin}/{shortCode}`)から共通の関数で作る。短縮URL経由でなければnull
-function getThumbnailShortUrlText(item: PosterListItem): string | null {
-  return item.targetShortCode ? getPosterShortUrlText('link', `${window.location.origin}/${item.targetShortCode}`) : null
 }
 
 function PlusIcon() {
@@ -152,6 +139,16 @@ export function PosterListPage() {
     </ButtonLink>
   )
 
+  // 掲示物があるときは、まとめて印刷への入口を作成ボタンの横に並べる
+  const pageActions = (
+    <div className="button-group">
+      <ButtonLink to="/app/posters/batch" variant="secondary">
+        まとめて印刷
+      </ButtonLink>
+      {createButton}
+    </div>
+  )
+
   if (posterListItems.length === 0) {
     return (
       <Page title="掲示物一覧" description="作成した掲示物をもう一度ダウンロードしたり、複製して新しく作ったりできます。">
@@ -165,7 +162,7 @@ export function PosterListPage() {
   }
 
   return (
-    <Page title="掲示物一覧" description="作成した掲示物をもう一度ダウンロードしたり、複製して新しく作ったりできます。" actions={createButton}>
+    <Page title="掲示物一覧" description="作成した掲示物をもう一度ダウンロードしたり、複製して新しく作ったりできます。" actions={pageActions}>
       {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
       <Card>
         <div className="poster-list__search">
@@ -185,7 +182,7 @@ export function PosterListPage() {
             {visibleItems.map((item: PosterListItem) => (
               <li key={item.id} className="poster-card">
                 <div className="poster-card__thumbnail">
-                  <PosterThumbnail title={item.title} subtitle={item.subtitle} size={item.size} qrCodeId={item.qrCodeId} shortUrlText={getThumbnailShortUrlText(item)} />
+                  <PosterThumbnail title={item.title} subtitle={item.subtitle} size={item.size} qrCodeId={item.qrCodeId} shortUrlText={getPosterShortUrlDisplay(item.targetShortCode)} />
                 </div>
                 <div className="poster-card__body">
                   <p className="poster-card__title">{item.title}</p>
@@ -195,7 +192,7 @@ export function PosterListPage() {
                     <span>QR:{getQrcodeDisplayName({ name: item.qrCodeName, createdAt: item.qrCodeCreatedAt })}</span>
                     <span>作成 {formatDateJst(item.createdAt)}</span>
                   </p>
-                  {LINK_WARNING_TEXT[item.linkStatus] && <p className="poster-card__warning">{LINK_WARNING_TEXT[item.linkStatus]}</p>}
+                  {getPosterLinkWarning(item.linkStatus) && <p className="poster-card__warning">{getPosterLinkWarning(item.linkStatus)}</p>}
                   <div className="button-group">
                     <Button variant="outline" disabled={busyKey !== null} onClick={() => handleExport(item, 'pdf')} aria-label={`${item.title}をPDFでダウンロード`}>
                       PDF
