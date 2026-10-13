@@ -10,6 +10,8 @@ type PosterPreviewProps = {
   qrCodeSvg: string | null
   // 掲示物に出す短縮URLの文字列。短縮URL経由でない場合はnull(出さない)
   shortUrlText: string | null
+  // trueの場合、一覧のサムネイルのような装飾として使う(スクリーンリーダーに読み上げず、Tabでも止まらない)
+  decorative?: boolean
 }
 
 // 1mmの画面上の大きさ(CSSの1inch=96px、1inch=25.4mm)
@@ -20,7 +22,7 @@ const MM_TO_PX = 96 / 25.4
 // 掲示物は実寸(mm)で組まれているため、置かれた場所の幅に合わせて縮小して表示する。
 // 文字の書体は、サーバーの書き出し環境のフォントと異なる場合がある。
 // iframeにはscript等を許可しない(sandbox)。タイトル等のエスケープはテンプレート側で行っている
-export function PosterPreview({ title, subtitle, size, qrCodeSvg, shortUrlText }: PosterPreviewProps) {
+export function PosterPreview({ title, subtitle, size, qrCodeSvg, shortUrlText, decorative = false }: PosterPreviewProps) {
   const [containerRef, containerWidth] = useElementWidth<HTMLDivElement>()
   const { width: widthMm, height: heightMm } = getPosterPageSizeMm(size)
   const nativeWidth = widthMm * MM_TO_PX
@@ -37,6 +39,7 @@ export function PosterPreview({ title, subtitle, size, qrCodeSvg, shortUrlText }
         <iframe
           className="poster-preview-frame__iframe"
           title={`掲示物のプレビュー(${size}縦)`}
+          tabIndex={decorative ? -1 : undefined}
           srcDoc={html}
           sandbox=""
           width={nativeWidth}

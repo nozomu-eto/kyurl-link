@@ -2370,3 +2370,96 @@ h1 {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
+
+/* 掲示物一覧(docs/mocks/PosterList.html)。サムネイル付きのカードを並べる */
+.poster-list__search {
+  max-width: 420px;
+  margin-bottom: var(--space-4);
+}
+
+.poster-list__more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-6);
+}
+
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poster-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: var(--color-surface);
+}
+
+/* サムネイルの置き場。掲示物の紙を載せる台(プレビューと同じ背景) */
+.poster-card__thumbnail {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-5) 0;
+  background-color: var(--color-bg);
+}
+
+.poster-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.poster-card__title {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.poster-card__subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.poster-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.poster-card__warning {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-status-expired-text);
+}
+
+/* 一覧のサムネイル。幅は固定し、掲示物のサイズごとの縦横比の枠を先に確保する(描画前もレイアウトが動かない) */
+.poster-thumbnail {
+  width: 150px;
+  pointer-events: none;
+}
+
+.poster-thumbnail--A6 {
+  aspect-ratio: 105 / 148;
+}
+
+.poster-thumbnail--A5 {
+  aspect-ratio: 148 / 210;
+}
+
+.poster-thumbnail .poster-preview-frame {
+  margin-bottom: 0;
+}

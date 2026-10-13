@@ -50,7 +50,8 @@ describe('QrCodeEditorPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: '店頭A5ポスター用のQRコード' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /Ab3xK9/ }).getAttribute('href')).toBe('/app/links/link-1')
-    expect(screen.getByText('このQRコードを使った掲示物: 1件')).toBeTruthy()
+    expect(screen.getByText(/このQRコードを使った掲示物:/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: '1件' }).getAttribute('href')).toBe('/app/posters')
   })
 
   it('名前なしの場合は、作成日付きの「名前なし」を見出しに使う', async () => {

@@ -12,8 +12,6 @@ export type AppNavItem = {
 
 // /app配下のサイドメニュー(app-layout.tsx)とスマホのドロワー(app-header-drawer.tsx)で
 // 共有するメニュー項目(docs/architecture.mdの「フロントデザインの全面見直し」の4項目)。
-// 掲示物は一覧画面がまだ無いため、メニューに出していない
-// (一覧画面と同時に追加する。追加時は下のコメントアウトを外すだけで済むようにしてある)
 export const APP_NAV_ITEMS: AppNavItem[] = [
   {
     to: '/app',
@@ -39,17 +37,17 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
       </svg>
     ),
   },
-  // {
-  //   to: '/app/posters',
-  //   label: '掲示物',
-  //   renderIcon: () => (
-  //     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-  //       <rect x="6" y="3" width="12" height="18" rx="1" />
-  //       <path d="M9 7h6" />
-  //       <rect x="9.5" y="11" width="5" height="5" />
-  //     </svg>
-  //   ),
-  // },
+  {
+    to: '/app/posters',
+    label: '掲示物',
+    renderIcon: () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="6" y="3" width="12" height="18" rx="1" />
+        <path d="M9 7h6" />
+        <rect x="9.5" y="11" width="5" height="5" />
+      </svg>
+    ),
+  },
   {
     to: '/app/account',
     label: 'アカウント設定',

@@ -73,13 +73,19 @@ export const posterSchema = z.object({
   size: z.enum(['A6', 'A5']),
   // 対象のQRコード(qrcodes.id)
   qrCodeId: z.string(),
+  // 作成日時(ISO文字列)。一覧の「作成」の日付と並び順に使う
+  createdAt: z.string(),
+  // 使っているQRコードの名前。未設定の場合はnull(表示は「名前なし(M/D作成)」にするため、作成日時も返す)
+  qrCodeName: z.string().nullable(),
+  // 使っているQRコードの作成日時(ISO文字列)。名前が未設定のQRコードを見分ける表示に使う
+  qrCodeCreatedAt: z.string(),
   // 紐づく短縮URLの表示用ステータス(その場計算。DBには保存しない)
   linkStatus: posterLinkStatusSchema,
 })
 
 // poster作成APIの入力用スキーマ。
 // posterSchemaはレスポンス(DB保存結果)の形を表すのに対し、こちらはリクエストボディの検証に使う。
-// id/layoutTemplate/styleOptions/linkStatusは入力に含めない
+// id/layoutTemplate/styleOptions/linkStatus/qrCodeName/qrCodeCreatedAt/createdAtは入力に含めない
 // (idはサーバー生成、layoutTemplateは現在'default'固定でサーバー側が設定、
 // styleOptionsは作成時null固定で更新はposterUpdateInputSchema経由でのみ可能、
 // linkStatusはその場計算の表示専用フィールドで保存も入力も不可)
