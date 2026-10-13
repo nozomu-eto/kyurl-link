@@ -193,7 +193,11 @@ export function QrCodeEditorPage() {
                 A5サイズで作成
               </ButtonLink>
             </div>
-            {qrcode.posterCount > 0 && <p className="field__hint">このQRコードを使った掲示物: {qrcode.posterCount}件</p>}
+            {qrcode.posterCount > 0 && (
+              <p className="field__hint">
+                このQRコードを使った掲示物: <Link to="/app/posters">{qrcode.posterCount}件</Link>
+              </p>
+            )}
           </Card>
 
           <div>

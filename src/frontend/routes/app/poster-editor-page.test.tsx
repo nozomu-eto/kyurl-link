@@ -32,7 +32,7 @@ const qrcodes = [
 ]
 
 function buildPoster(overrides: Record<string, unknown> = {}) {
-  return { id: 'poster-1', title: '秋の新メニュー', subtitle: 'ご覧ください', layoutTemplate: 'default', styleOptions: null, size: 'A5', qrCodeId: 'qr-1', linkStatus: 'active', ...overrides }
+  return { id: 'poster-1', title: '秋の新メニュー', subtitle: 'ご覧ください', layoutTemplate: 'default', styleOptions: null, size: 'A5', qrCodeId: 'qr-1', linkStatus: 'active', createdAt: '2026-09-26T00:00:00.000Z', qrCodeName: '店頭A5ポスター用', qrCodeCreatedAt: '2026-09-21T00:00:00.000Z', ...overrides }
 }
 
 function ok(body: unknown) {
@@ -42,7 +42,7 @@ function ok(body: unknown) {
 function renderEditor(initialEntry: string) {
   const router = createMemoryRouter(
     [
-      { path: '/app', element: <p>ダッシュボード</p> },
+      { path: '/app/posters', element: <p>掲示物一覧</p> },
       { path: '/app/posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: '/app/qrcodes/:qrCodeId/posters/new', element: <PosterEditorPage />, loader: posterEditorLoader },
       { path: '/app/posters/:posterId', element: <PosterEditorPage />, loader: posterEditorLoader },
@@ -234,7 +234,7 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     expect(within(screen.getByRole('alertdialog')).getByRole('link', { name: '公開設定を確認する' })).toBeTruthy()
   })
 
-  it('削除は確認のあと行い、ダッシュボードへ戻る', async () => {
+  it('削除は確認のあと行い、掲示物一覧へ戻る', async () => {
     const user = userEvent.setup()
     mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
     mocks.deletePosterMock.mockResolvedValue({ ok: true })
@@ -246,7 +246,7 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     await user.click(deleteButton)
 
     await waitFor(() => expect(mocks.deletePosterMock).toHaveBeenCalledWith({ param: { id: 'poster-1' } }))
-    expect(await screen.findByText('ダッシュボード')).toBeTruthy()
+    expect(await screen.findByText('掲示物一覧')).toBeTruthy()
   })
 })
 

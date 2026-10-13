@@ -150,7 +150,7 @@ export function PosterEditorPage() {
       return
     }
 
-    await navigate('/app')
+    await navigate('/app/posters')
   }
 
   async function runExport(format: 'pdf' | 'png') {

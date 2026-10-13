@@ -447,6 +447,62 @@ describe('linkStatus', () => {
   })
 })
 
+describe('一覧(GET /api/v1/posters)の表示用の項目', () => {
+  it('使っているQRコードの名前・作成日時と、掲示物の作成日時を返す。名前が未設定のQRコードはnull', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const namedQrcodeResponse = await SELF.fetch('https://example.com/api/v1/qrcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+      body: JSON.stringify({ targetType: 'rawUrl', targetUrl: 'https://example.com/named', name: '店頭A5ポスター用' }),
+    })
+    const namedQrcode = qrcodeSchema.parse(await namedQrcodeResponse.json())
+    const unnamedQrcode = await createQrcode(sessionCookie)
+    const namedPoster = await createPoster(sessionCookie, namedQrcode.id)
+    const unnamedPoster = await createPoster(sessionCookie, unnamedQrcode.id)
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/posters', { headers: { Cookie: sessionCookie } })
+    const body = await listResponse.json<{ items: Record<string, unknown>[] }>()
+    const named = body.items.find((item) => item.id === namedPoster.id)
+    const unnamed = body.items.find((item) => item.id === unnamedPoster.id)
+    expect(named).toMatchObject({ qrCodeName: '店頭A5ポスター用', qrCodeCreatedAt: namedQrcode.createdAt })
+    expect(unnamed).toMatchObject({ qrCodeName: null, qrCodeCreatedAt: unnamedQrcode.createdAt })
+    expect(typeof named?.createdAt).toBe('string')
+  })
+
+  it('短縮URL経由のQRコードの掲示物には短縮URLの情報(targetShortCode・targetLinkId・linkExpiresAt)を返し、直接指定ではnullにする', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const linkQrcode = await createLinkQrcode(sessionCookie, link.id)
+    const rawQrcode = await createQrcode(sessionCookie)
+    const linkPoster = await createPoster(sessionCookie, linkQrcode.id)
+    const rawPoster = await createPoster(sessionCookie, rawQrcode.id)
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/posters', { headers: { Cookie: sessionCookie } })
+    const body = await listResponse.json<{ items: Record<string, unknown>[] }>()
+    const shortCode = linkQrcode.targetShortCode
+    expect(body.items.find((item) => item.id === linkPoster.id)).toMatchObject({ targetShortCode: shortCode, targetLinkId: link.id, linkExpiresAt: null })
+    expect(shortCode).toEqual(expect.any(String))
+    expect(body.items.find((item) => item.id === rawPoster.id)).toMatchObject({ targetShortCode: null, targetLinkId: null, linkExpiresAt: null })
+  })
+
+  it('作成日が新しい順に並ぶ', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const qrcode = await createQrcode(sessionCookie)
+    const oldest = await createPoster(sessionCookie, qrcode.id)
+    const newest = await createPoster(sessionCookie, qrcode.id)
+    const middle = await createPoster(sessionCookie, qrcode.id)
+    // 作成日時は秒精度で同じ秒になりうるため、日時を直接指定して順序を決める
+    const db = drizzle(env.DB)
+    await db.update(posters).set({ createdAt: new Date('2026-01-01T00:00:00Z') }).where(eq(posters.id, oldest.id))
+    await db.update(posters).set({ createdAt: new Date('2026-03-01T00:00:00Z') }).where(eq(posters.id, newest.id))
+    await db.update(posters).set({ createdAt: new Date('2026-02-01T00:00:00Z') }).where(eq(posters.id, middle.id))
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/posters', { headers: { Cookie: sessionCookie } })
+    const body = await listResponse.json<{ items: { id: string }[] }>()
+    expect(body.items.map((item) => item.id)).toEqual([newest.id, middle.id, oldest.id])
+  })
+})
+
 describe('PATCH /api/v1/posters/:id のstyleOptions', () => {
   it('styleOptions(空オブジェクト)を指定すると200になる', async () => {
     // QRコードが白黒固定になったことに伴い掲示物側もstyleOptionsは実質空オブジェクトのみ許可される
