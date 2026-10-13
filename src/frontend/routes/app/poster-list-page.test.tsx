@@ -7,9 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getPostersMock: vi.fn(),
   postPosterMock: vi.fn(),
+  getQrcodeMock: vi.fn(),
+  getLinkMock: vi.fn(),
 }))
 vi.mock('@/frontend/lib/api-client', () => ({
-  apiClient: { api: { v1: { posters: { $get: mocks.getPostersMock, $post: mocks.postPosterMock } } } },
+  apiClient: {
+    api: {
+      v1: {
+        posters: { $get: mocks.getPostersMock, $post: mocks.postPosterMock },
+        qrcodes: { ':id': { $get: mocks.getQrcodeMock } },
+        links: { ':id': { $get: mocks.getLinkMock } },
+      },
+    },
+  },
 }))
 
 import { PosterListPage, posterListLoader } from '@/frontend/routes/app/poster-list-page'
@@ -149,16 +159,65 @@ describe('PosterListPage', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('リクエストが多すぎます')
   })
 
-  it('リンクが期限切れの掲示物には注意書きを出し、書き出す前に確認する', async () => {
+  it('リンクが期限切れの掲示物は注意書きを出し、書き出す前に編集画面と同じ確認ダイアログを出す。「このまま書き出す」で書き出す', async () => {
     const user = userEvent.setup()
     mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'expired' })], total: 1, limit: 20, offset: 0 }))
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    mocks.getQrcodeMock.mockResolvedValue(ok({ id: 'qr-1', targetId: 'link-1' }))
+    mocks.getLinkMock.mockResolvedValue(ok({ id: 'link-1', shortCode: 'Hn2cV5', expiresAt: '2026-08-31T14:59:59.999Z' }))
     renderList()
 
     expect(await screen.findByText('リンクが期限切れです')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '秋の新メニューはじめましたをPDFでダウンロード' }))
-    expect(confirmSpy).toHaveBeenCalled()
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'この掲示物のQRコードは、今は開けません' })
+    expect(within(dialog).getByText('Hn2cV5')).toBeTruthy()
+    expect(within(dialog).getByRole('link', { name: '有効期限を変更して再開' }).getAttribute('href')).toBe('/app/links/link-1')
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/export'))
+
+    await user.click(within(dialog).getByRole('button', { name: 'このまま書き出す' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/posters/poster-1/export?format=pdf&paper=a4'))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
+  it('リンクが停止中の掲示物は、公開設定を確認する導線つきの確認ダイアログを出す。閉じると書き出さない', async () => {
+    const user = userEvent.setup()
+    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'suspended' })], total: 1, limit: 20, offset: 0 }))
+    mocks.getQrcodeMock.mockResolvedValue(ok({ id: 'qr-1', targetId: 'link-1' }))
+    mocks.getLinkMock.mockResolvedValue(ok({ id: 'link-1', shortCode: 'Hn2cV5', expiresAt: null }))
+    renderList()
+
+    await user.click(await screen.findByRole('button', { name: '秋の新メニューはじめましたをPNGでダウンロード' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByRole('link', { name: '公開設定を確認する' })).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/export'))
+  })
+
+  it('リンクまたはQRコードが削除された掲示物は、再開の導線なしの確認ダイアログを出す', async () => {
+    const user = userEvent.setup()
+    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'deleted' })], total: 1, limit: 20, offset: 0 }))
+    renderList()
+
+    expect(await screen.findByText('リンクが削除されています')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '秋の新メニューはじめましたをPDFでダウンロード' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).queryByRole('link')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'このまま書き出す' })).toBeTruthy()
+  })
+
+  it('短縮URLを取得できなくても、確認ダイアログは出て、このまま書き出せる', async () => {
+    const user = userEvent.setup()
+    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'expired' })], total: 1, limit: 20, offset: 0 }))
+    mocks.getQrcodeMock.mockResolvedValue({ ok: false })
+    renderList()
+
+    await user.click(await screen.findByRole('button', { name: '秋の新メニューはじめましたをPDFでダウンロード' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).queryByRole('link')).toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'このまま書き出す' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/posters/poster-1/export?format=pdf&paper=a4'))
   })
 
   it('複製すると、同じ内容でタイトルに「のコピー」を付けて作成し、その編集画面へ移る', async () => {

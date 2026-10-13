@@ -8,6 +8,7 @@ import { Card } from '@/frontend/components/card'
 import { EmptyState } from '@/frontend/components/empty-state'
 import { FormField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
+import { PosterExportStoppedDialog } from '@/frontend/components/poster-export-stopped-dialog'
 import { PosterThumbnail } from '@/frontend/components/poster-thumbnail'
 import { apiClient } from '@/frontend/lib/api-client'
 import { formatDateJst } from '@/frontend/lib/account-deletion'
@@ -70,11 +71,42 @@ export function PosterListPage() {
   )
   const visibleItems = filteredItems.slice(0, visibleCount)
 
+  // 確認ダイアログを開いている書き出し(リンクが使えない掲示物)。linkはダイアログに出す短縮URL(取得できなければnull)
+  const [pendingStoppedExport, setPendingStoppedExport] = useState<{
+    item: PosterListItem
+    format: 'pdf' | 'png'
+    link: { id: string; shortCode: string; expiresAt: string | null } | null
+  } | null>(null)
+
+  // 確認ダイアログに出す短縮URLを取得する。一覧の応答には短縮URLの情報が無いため、確認が必要になったときだけ、
+  // QRコード→短縮URLの順に取得する(失敗した場合はnullにして、短縮URLの表示と再開ボタンだけを省く)
+  async function fetchStoppedLink(qrCodeId: string) {
+    const qrcodeResponse = await apiClient.api.v1.qrcodes[':id'].$get({ param: { id: qrCodeId } })
+    if (!qrcodeResponse.ok) {
+      return null
+    }
+    const { targetId } = await qrcodeResponse.json()
+    const linkResponse = targetId ? await apiClient.api.v1.links[':id'].$get({ param: { id: targetId } }) : null
+    if (!linkResponse?.ok) {
+      return null
+    }
+    const link = await linkResponse.json()
+    return { id: link.id, shortCode: link.shortCode, expiresAt: link.expiresAt }
+  }
+
   async function handleExport(item: PosterListItem, format: 'pdf' | 'png') {
-    // リンクが使えない掲示物は、編集画面と同じく書き出す前に確認する
-    if (LINK_WARNING_TEXT[item.linkStatus] && !window.confirm(`${LINK_WARNING_TEXT[item.linkStatus]}。このまま書き出しますか?`)) {
+    // リンクが使えない掲示物は、編集画面と同じダイアログで、書き出す前に確認する
+    if (item.linkStatus === 'expired' || item.linkStatus === 'suspended' || item.linkStatus === 'deleted') {
+      setBusyKey(`${item.id}:${format}`)
+      const link = item.linkStatus === 'deleted' ? null : await fetchStoppedLink(item.qrCodeId)
+      setBusyKey(null)
+      setPendingStoppedExport({ item, format, link })
       return
     }
+    await runExport(item, format)
+  }
+
+  async function runExport(item: PosterListItem, format: 'pdf' | 'png') {
     setErrorMessage(null)
     setBusyKey(`${item.id}:${format}`)
     // PDFは編集画面の既定と同じA4用紙に並べる形式で書き出す
@@ -104,6 +136,22 @@ export function PosterListPage() {
     const created = await response.json()
     await navigate(`/app/posters/${created.id}`)
   }
+
+  const stoppedStatus = pendingStoppedExport?.item.linkStatus
+  const stoppedDialog =
+    pendingStoppedExport && (stoppedStatus === 'expired' || stoppedStatus === 'suspended' || stoppedStatus === 'deleted') ? (
+      <PosterExportStoppedDialog
+        isOpen
+        onClose={() => setPendingStoppedExport(null)}
+        link={pendingStoppedExport.link}
+        linkStatus={stoppedStatus}
+        onExportAnyway={() => {
+          const { item, format } = pendingStoppedExport
+          setPendingStoppedExport(null)
+          void runExport(item, format)
+        }}
+      />
+    ) : null
 
   const createButton = (
     <ButtonLink to="/app/posters/new" variant="cta">
@@ -183,6 +231,7 @@ export function PosterListPage() {
           </div>
         )}
       </Card>
+      {stoppedDialog}
     </Page>
   )
 }
