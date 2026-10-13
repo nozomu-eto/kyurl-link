@@ -15,6 +15,7 @@ import { formatDateJst } from '@/frontend/lib/account-deletion'
 import { downloadPosterExport } from '@/frontend/lib/poster-export'
 import { getCopiedPosterTitle } from '@/frontend/lib/poster-copy'
 import { getQrcodeDisplayName } from '@/frontend/lib/qrcode-display'
+import { getPosterShortUrlText } from '@/shared/poster-template'
 import type { posterSchema } from '@/shared/schemas/poster'
 
 type PosterListItem = z.infer<typeof posterSchema>
@@ -39,6 +40,20 @@ const LINK_WARNING_TEXT: Partial<Record<PosterListItem['linkStatus'], string>> =
   expired: 'リンクが期限切れです',
   suspended: 'リンクが停止中です',
   deleted: 'リンクが削除されています',
+}
+
+// getStoppedLink: 確認ダイアログに出す短縮URL(一覧の応答の項目から作る)。削除済みの場合は出さない
+function getStoppedLink(item: PosterListItem) {
+  if (item.linkStatus === 'deleted' || !item.targetLinkId || !item.targetShortCode) {
+    return null
+  }
+  return { id: item.targetLinkId, shortCode: item.targetShortCode, expiresAt: item.linkExpiresAt }
+}
+
+// getThumbnailShortUrlText: サムネイルに出す短縮URLの文字列。編集画面のプレビューと同じく、
+// QRコードに埋め込まれる内容(`{origin}/{shortCode}`)から共通の関数で作る。短縮URL経由でなければnull
+function getThumbnailShortUrlText(item: PosterListItem): string | null {
+  return item.targetShortCode ? getPosterShortUrlText('link', `${window.location.origin}/${item.targetShortCode}`) : null
 }
 
 function PlusIcon() {
@@ -71,39 +86,16 @@ export function PosterListPage() {
   )
   const visibleItems = filteredItems.slice(0, visibleCount)
 
-  // 確認ダイアログを開いている書き出し(リンクが使えない掲示物)。linkはダイアログに出す短縮URL(取得できなければnull)
-  const [pendingStoppedExport, setPendingStoppedExport] = useState<{
-    item: PosterListItem
-    format: 'pdf' | 'png'
-    link: { id: string; shortCode: string; expiresAt: string | null } | null
-  } | null>(null)
+  // 確認ダイアログを開いている書き出し(リンクが使えない掲示物)
+  const [pendingStoppedExport, setPendingStoppedExport] = useState<{ item: PosterListItem; format: 'pdf' | 'png' } | null>(null)
 
-  // 確認ダイアログに出す短縮URLを取得する。一覧の応答には短縮URLの情報が無いため、確認が必要になったときだけ、
-  // QRコード→短縮URLの順に取得する(失敗した場合はnullにして、短縮URLの表示と再開ボタンだけを省く)
-  async function fetchStoppedLink(qrCodeId: string) {
-    const qrcodeResponse = await apiClient.api.v1.qrcodes[':id'].$get({ param: { id: qrCodeId } })
-    if (!qrcodeResponse.ok) {
-      return null
-    }
-    const { targetId } = await qrcodeResponse.json()
-    const linkResponse = targetId ? await apiClient.api.v1.links[':id'].$get({ param: { id: targetId } }) : null
-    if (!linkResponse?.ok) {
-      return null
-    }
-    const link = await linkResponse.json()
-    return { id: link.id, shortCode: link.shortCode, expiresAt: link.expiresAt }
-  }
-
-  async function handleExport(item: PosterListItem, format: 'pdf' | 'png') {
+  function handleExport(item: PosterListItem, format: 'pdf' | 'png') {
     // リンクが使えない掲示物は、編集画面と同じダイアログで、書き出す前に確認する
     if (item.linkStatus === 'expired' || item.linkStatus === 'suspended' || item.linkStatus === 'deleted') {
-      setBusyKey(`${item.id}:${format}`)
-      const link = item.linkStatus === 'deleted' ? null : await fetchStoppedLink(item.qrCodeId)
-      setBusyKey(null)
-      setPendingStoppedExport({ item, format, link })
+      setPendingStoppedExport({ item, format })
       return
     }
-    await runExport(item, format)
+    void runExport(item, format)
   }
 
   async function runExport(item: PosterListItem, format: 'pdf' | 'png') {
@@ -143,7 +135,7 @@ export function PosterListPage() {
       <PosterExportStoppedDialog
         isOpen
         onClose={() => setPendingStoppedExport(null)}
-        link={pendingStoppedExport.link}
+        link={getStoppedLink(pendingStoppedExport.item)}
         linkStatus={stoppedStatus}
         onExportAnyway={() => {
           const { item, format } = pendingStoppedExport
@@ -193,7 +185,7 @@ export function PosterListPage() {
             {visibleItems.map((item: PosterListItem) => (
               <li key={item.id} className="poster-card">
                 <div className="poster-card__thumbnail">
-                  <PosterThumbnail title={item.title} subtitle={item.subtitle} size={item.size} qrCodeId={item.qrCodeId} />
+                  <PosterThumbnail title={item.title} subtitle={item.subtitle} size={item.size} qrCodeId={item.qrCodeId} shortUrlText={getThumbnailShortUrlText(item)} />
                 </div>
                 <div className="poster-card__body">
                   <p className="poster-card__title">{item.title}</p>

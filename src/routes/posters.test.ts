@@ -469,6 +469,22 @@ describe('一覧(GET /api/v1/posters)の表示用の項目', () => {
     expect(typeof named?.createdAt).toBe('string')
   })
 
+  it('短縮URL経由のQRコードの掲示物には短縮URLの情報(targetShortCode・targetLinkId・linkExpiresAt)を返し、直接指定ではnullにする', async () => {
+    const sessionCookie = await signUpAndGetSessionCookie()
+    const link = await createLink(sessionCookie)
+    const linkQrcode = await createLinkQrcode(sessionCookie, link.id)
+    const rawQrcode = await createQrcode(sessionCookie)
+    const linkPoster = await createPoster(sessionCookie, linkQrcode.id)
+    const rawPoster = await createPoster(sessionCookie, rawQrcode.id)
+
+    const listResponse = await SELF.fetch('https://example.com/api/v1/posters', { headers: { Cookie: sessionCookie } })
+    const body = await listResponse.json<{ items: Record<string, unknown>[] }>()
+    const shortCode = linkQrcode.targetShortCode
+    expect(body.items.find((item) => item.id === linkPoster.id)).toMatchObject({ targetShortCode: shortCode, targetLinkId: link.id, linkExpiresAt: null })
+    expect(shortCode).toEqual(expect.any(String))
+    expect(body.items.find((item) => item.id === rawPoster.id)).toMatchObject({ targetShortCode: null, targetLinkId: null, linkExpiresAt: null })
+  })
+
   it('作成日が新しい順に並ぶ', async () => {
     const sessionCookie = await signUpAndGetSessionCookie()
     const qrcode = await createQrcode(sessionCookie)

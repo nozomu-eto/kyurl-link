@@ -7,16 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getPostersMock: vi.fn(),
   postPosterMock: vi.fn(),
-  getQrcodeMock: vi.fn(),
-  getLinkMock: vi.fn(),
 }))
 vi.mock('@/frontend/lib/api-client', () => ({
   apiClient: {
     api: {
       v1: {
         posters: { $get: mocks.getPostersMock, $post: mocks.postPosterMock },
-        qrcodes: { ':id': { $get: mocks.getQrcodeMock } },
-        links: { ':id': { $get: mocks.getLinkMock } },
       },
     },
   },
@@ -37,6 +33,9 @@ function buildPoster(overrides: Record<string, unknown> = {}) {
     createdAt: '2026-09-26T00:00:00.000Z',
     qrCodeName: '店頭A5ポスター用',
     qrCodeCreatedAt: '2026-09-21T00:00:00.000Z',
+    targetShortCode: 'Ab3xK9a',
+    targetLinkId: 'link-1',
+    linkExpiresAt: null,
     ...overrides,
   }
 }
@@ -161,9 +160,9 @@ describe('PosterListPage', () => {
 
   it('リンクが期限切れの掲示物は注意書きを出し、書き出す前に編集画面と同じ確認ダイアログを出す。「このまま書き出す」で書き出す', async () => {
     const user = userEvent.setup()
-    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'expired' })], total: 1, limit: 20, offset: 0 }))
-    mocks.getQrcodeMock.mockResolvedValue(ok({ id: 'qr-1', targetId: 'link-1' }))
-    mocks.getLinkMock.mockResolvedValue(ok({ id: 'link-1', shortCode: 'Hn2cV5', expiresAt: '2026-08-31T14:59:59.999Z' }))
+    mocks.getPostersMock.mockResolvedValue(
+      ok({ items: [buildPoster({ linkStatus: 'expired', targetShortCode: 'Hn2cV5', linkExpiresAt: '2026-08-31T14:59:59.999Z' })], total: 1, limit: 20, offset: 0 }),
+    )
     renderList()
 
     expect(await screen.findByText('リンクが期限切れです')).toBeTruthy()
@@ -171,6 +170,7 @@ describe('PosterListPage', () => {
 
     const dialog = await screen.findByRole('alertdialog', { name: 'この掲示物のQRコードは、今は開けません' })
     expect(within(dialog).getByText('Hn2cV5')).toBeTruthy()
+    expect(within(dialog).getByText('2026/08/31 に期限切れになりました')).toBeTruthy()
     expect(within(dialog).getByRole('link', { name: '有効期限を変更して再開' }).getAttribute('href')).toBe('/app/links/link-1')
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/export'))
 
@@ -182,8 +182,6 @@ describe('PosterListPage', () => {
   it('リンクが停止中の掲示物は、公開設定を確認する導線つきの確認ダイアログを出す。閉じると書き出さない', async () => {
     const user = userEvent.setup()
     mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'suspended' })], total: 1, limit: 20, offset: 0 }))
-    mocks.getQrcodeMock.mockResolvedValue(ok({ id: 'qr-1', targetId: 'link-1' }))
-    mocks.getLinkMock.mockResolvedValue(ok({ id: 'link-1', shortCode: 'Hn2cV5', expiresAt: null }))
     renderList()
 
     await user.click(await screen.findByRole('button', { name: '秋の新メニューはじめましたをPNGでダウンロード' }))
@@ -207,17 +205,35 @@ describe('PosterListPage', () => {
     expect(within(dialog).getByRole('button', { name: 'このまま書き出す' })).toBeTruthy()
   })
 
-  it('短縮URLを取得できなくても、確認ダイアログは出て、このまま書き出せる', async () => {
-    const user = userEvent.setup()
-    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster({ linkStatus: 'expired' })], total: 1, limit: 20, offset: 0 }))
-    mocks.getQrcodeMock.mockResolvedValue({ ok: false })
-    renderList()
+  it('サムネイルには、編集画面のプレビューと同じ短縮URLの表示が出る。直接指定のQRコードでは出さない', async () => {
+    mocks.getPostersMock.mockResolvedValue(
+      ok({
+        items: [buildPoster(), buildPoster({ id: 'poster-2', title: '直接指定', qrCodeId: 'qr-2', targetShortCode: null, targetLinkId: null })],
+        total: 2,
+        limit: 20,
+        offset: 0,
+      }),
+    )
+    const { container } = renderList()
+    await screen.findByText('直接指定')
 
-    await user.click(await screen.findByRole('button', { name: '秋の新メニューはじめましたをPDFでダウンロード' }))
-    const dialog = await screen.findByRole('alertdialog')
-    expect(within(dialog).queryByRole('link')).toBeNull()
-    await user.click(within(dialog).getByRole('button', { name: 'このまま書き出す' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/posters/poster-1/export?format=pdf&paper=a4'))
+    // IntersectionObserverが無いテスト環境では、サムネイルがすぐ描画される
+    await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(2))
+    const [linked, direct] = Array.from(container.querySelectorAll('iframe')).map((iframe) => iframe.getAttribute('srcdoc') ?? '')
+    expect(linked).toContain(`${window.location.host}/Ab3xK9a`)
+    expect(linked).toContain('class="short-url"')
+    expect(direct).not.toContain('class="short-url"')
+  })
+
+  it('サムネイルのQRコードは、viewBox付きのSVGで描画される(枠いっぱいに縮む)', async () => {
+    mocks.getPostersMock.mockResolvedValue(ok({ items: [buildPoster()], total: 1, limit: 20, offset: 0 }))
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes('/image') ? new Response('<svg viewBox="0 0 256 256" width="256" height="256"></svg>') : new Response(new Blob(['pdf'])),
+    )
+    const { container } = renderList()
+
+    await waitFor(() => expect(container.querySelector('iframe')?.getAttribute('srcdoc')).toContain('<svg viewBox="0 0 256 256"'))
+    expect(container.querySelector('iframe')?.getAttribute('srcdoc')).toContain('.qrcode svg')
   })
 
   it('複製すると、同じ内容でタイトルに「のコピー」を付けて作成し、その編集画面へ移る', async () => {

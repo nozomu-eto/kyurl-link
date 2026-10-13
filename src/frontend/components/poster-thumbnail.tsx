@@ -8,6 +8,8 @@ type PosterThumbnailProps = {
   subtitle: string | null
   size: 'A6' | 'A5'
   qrCodeId: string
+  // 掲示物に出す短縮URLの文字列(編集画面のプレビューと同じ)。短縮URL経由でない場合はnull
+  shortUrlText: string | null
 }
 
 // 画面の外にあるうちは描画を始めない距離(px)。この距離まで近づいたら先読みして描画する
@@ -15,9 +17,9 @@ const PRELOAD_MARGIN_PX = 200
 
 // LoadedThumbnail: 画面に近づいてから描画する中身。QRコードのSVGの取得(useQrcodeSvg)も、
 // iframeの生成もここで始まるため、一覧に多数の掲示物があっても、見えていない分は通信も描画もしない
-function LoadedThumbnail({ title, subtitle, size, qrCodeId }: PosterThumbnailProps) {
+function LoadedThumbnail({ title, subtitle, size, qrCodeId, shortUrlText }: PosterThumbnailProps) {
   const qrCodeSvg = useQrcodeSvg(qrCodeId)
-  return <PosterPreview title={title} subtitle={subtitle ?? ''} size={size} qrCodeSvg={qrCodeSvg} decorative />
+  return <PosterPreview title={title} subtitle={subtitle ?? ''} size={size} qrCodeSvg={qrCodeSvg} shortUrlText={shortUrlText} decorative />
 }
 
 // PosterThumbnail: 掲示物一覧のサムネイル。書き出しと同じテンプレートを縮小して表示する(PNG書き出しやBrowser Renderingは使わない)。

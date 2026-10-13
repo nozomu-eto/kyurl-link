@@ -36,12 +36,22 @@ const DEFAULT_LAYOUT_TEMPLATE = 'default'
 // DB上のposterレコード(styleOptionsはJSON文字列)を、レスポンス用スキーマの形
 // (styleOptionsをJSON.parseしたオブジェクト・linkStatusを追加したもの)に変換する
 // 使っているQRコードの名前と作成日時(一覧・詳細の表示用)も、QRコードのレコードから付け足す
-function toPosterResponse(record: typeof posters.$inferSelect, qrcode: typeof qrcodes.$inferSelect | null, linkStatus: PosterLinkStatus) {
+function toPosterResponse(
+  record: typeof posters.$inferSelect,
+  qrcode: typeof qrcodes.$inferSelect | null,
+  link: typeof links.$inferSelect | null,
+  linkStatus: PosterLinkStatus,
+) {
+  // 短縮URL経由のQRコードのときだけ、短縮URLの情報を返す(直接指定のときはnull)
+  const targetLink = qrcode?.targetType === 'link' ? link : null
   return posterSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),
     qrCodeName: qrcode?.name ?? null,
     qrCodeCreatedAt: (qrcode?.createdAt ?? record.createdAt).toISOString(),
+    targetShortCode: targetLink?.shortCode ?? null,
+    targetLinkId: targetLink?.id ?? null,
+    linkExpiresAt: targetLink?.expiresAt ?? null,
     styleOptions: record.styleOptions === null ? null : JSON.parse(record.styleOptions),
     linkStatus,
   })
@@ -77,7 +87,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       .orderBy(desc(posters.createdAt))
 
     const response = posterListResponseSchema.parse({
-      items: rows.map((row) => toPosterResponse(row.poster, row.qrcode, computePosterLinkStatus(row.qrcode, row.link))),
+      items: rows.map((row) => toPosterResponse(row.poster, row.qrcode, row.link, computePosterLinkStatus(row.qrcode, row.link))),
       total: rows.length,
       limit: 20,
       offset: 0,
@@ -135,7 +145,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // linkStatus計算のため、作成したposterを対象にqrcode/linkを含めて再取得する
     const [row] = await selectPostersWithLinkFields(db).where(eq(posters.id, created.id)).limit(1)
 
-    return c.json(toPosterResponse(created, row?.qrcode ?? null, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)), 201)
+    return c.json(toPosterResponse(created, row?.qrcode ?? null, row?.link ?? null, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)), 201)
   })
   // 詳細取得
   .get('/:id', authMiddleware, async (c) => {
@@ -161,7 +171,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
-    return c.json(toPosterResponse(row.poster, row.qrcode, computePosterLinkStatus(row.qrcode, row.link)))
+    return c.json(toPosterResponse(row.poster, row.qrcode, row.link, computePosterLinkStatus(row.qrcode, row.link)))
   })
   // title/subtitle/styleOptions/size/qrCodeIdを更新できる
   .patch('/:id', authMiddleware, requireVerifiedEmail, jsonValidator(posterUpdateInputSchema), async (c) => {
@@ -239,7 +249,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
 
     const [row] = await selectPostersWithLinkFields(db).where(eq(posters.id, id)).limit(1)
 
-    return c.json(toPosterResponse(updated, row?.qrcode ?? null, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)))
+    return c.json(toPosterResponse(updated, row?.qrcode ?? null, row?.link ?? null, computePosterLinkStatus(row?.qrcode ?? null, row?.link ?? null)))
   })
   // 物理削除はせず、deletedAtに現在時刻をセットするソフトデリート
   .delete('/:id', authMiddleware, async (c) => {
