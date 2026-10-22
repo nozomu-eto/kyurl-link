@@ -72,7 +72,7 @@ kyurl.linkの現在の仕様と、設計上の決定・その理由をまとめ�
 
 ## 5. 運用上の制約とスケーリング
 
-Workers KV書き込み(1日1,000件)がボトルネックになりうるため、KVキャッシュは「作成時」ではなく「初回リダイレクト時」に書く方針とする。
+(未実装の構想)Workers KV書き込み(1日1,000件)がボトルネックになりうるため、KVキャッシュは「作成時」ではなく「初回リダイレクト時」に書く方針とする。
 
 ### Browser Rendering(掲示物PDF/PNG生成)のテナント数試算
 
@@ -387,7 +387,7 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 
 **超過時のレスポンス**: 既存のエラー形式に合わせ、`429`で`{ error: { code: 'RATE_LIMITED', message: '...' } }`を返す。フロントエンドは429受信時に日本語の案内メッセージ(「リクエストが多すぎます。しばらく時間をおいてから再度お試しください」)を表示する。
 
-**テストでの扱い**: `@cloudflare/vitest-pool-workers`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
+**テストでの扱い**: `@cloudflare/vitest-plugin`はMiniflareによる`ratelimits`バインディングの実装(実カウント)をそのまま利用できるため、モック無しで実際に上限到達・429を検証できる(`src/middleware/rate-limit.test.ts`)。ただしPOST /linksはURLhaus照会(外部ネットワーク呼び出し)を伴うため、上限到達までの消費には外部呼び出しの無いPOST /qrcodes(`targetType: 'rawUrl'`)を使い、429になること自体の確認は(ミドルウェアがハンドラより先に動くため外部呼び出しを伴わない)POST /links・POST /postersでも行っている。
 
 ### 9.3 メール未確認ユーザーの書き込み制限
 `requireEmailVerification`はあえてオフにしている(ソフト確認方式)。オンにするとBetter Authの仕様上サインアップ時にセッションCookieが発行されず、サインアップ直後にそのまま使い始める流れが成り立たないため。その代わり、捨てアドレスで作成したアカウントでフィッシング用短縮URLを量産されないよう、ログイン済みかつ`user.emailVerified`がtrueであることを要求する`requireVerifiedEmail`ミドルウェア(`src/middleware/require-verified-email.ts`)を、次の書き込み系エンドポイントに適用している(`authMiddleware`の直後、レート制限ミドルウェアより前に置く)。
@@ -448,7 +448,7 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 また、IP単位では同じIPを共有する別の利用者を巻き込み、IPを変える攻撃者には効かない。
 
 ## 10. テスト設計
-`@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。アカウント削除バッチ(第7.1節)は、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する。
+`@cloudflare/vitest-plugin` を使用し、D1・R2・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。アカウント削除バッチ(第7.1節)は、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する。
 
 フロントエンド(`src/frontend`配下)は、Workersランタイム環境にはDOMが無くReactコンポーネントを実際にレンダリングできないため、vitestの`projects`機能でバックエンド用(`workers`、上記のWorkersランタイム環境)とフロントエンド用(`frontend`、`environment: jsdom`)の2プロジェクトに分けて実行する(`pnpm test`で両方がまとめて実行される)。フロント側は`@testing-library/react` + `@testing-library/user-event`を使い、キーボード操作・フォーカス管理・スクリーンリーダー向けの読み上げ・タイマーやクリップボード操作等の副作用を伴う挙動(Dialogのフォーカストラップ・Escでの終了・CopyButtonのコピー完了表示等)を優先してテストする。単純な表示のみの部品(Card・Page等)や、画面全体のE2E的な遷移確認は対象外とし、無理に網羅しない。
 
