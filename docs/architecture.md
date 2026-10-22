@@ -448,7 +448,7 @@ Better Authはレート制限の保存先を指定しない場合、既定でメ
 また、IP単位では同じIPを共有する別の利用者を巻き込み、IPを変える攻撃者には効かない。
 
 ## 10. テスト設計
-`@cloudflare/vitest-pool-workers` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。アカウント削除バッチ(第7.1節)は、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する。
+`@cloudflare/vitest-plugin` を使用し、D1・KV・Rate Limiting bindingを含む実際のWorkersランタイムに近い環境でVitestを実行する。アカウント削除バッチ(第7.1節)は、猶予期間経過後の物理削除・カスケード削除・R2キャッシュ削除・セッション削除が正しく行われることをIntegrationテストで確認する。
 
 フロントエンド(`src/frontend`配下)は、Workersランタイム環境にはDOMが無くReactコンポーネントを実際にレンダリングできないため、vitestの`projects`機能でバックエンド用(`workers`、上記のWorkersランタイム環境)とフロントエンド用(`frontend`、`environment: jsdom`)の2プロジェクトに分けて実行する(`pnpm test`で両方がまとめて実行される)。フロント側は`@testing-library/react` + `@testing-library/user-event`を使い、キーボード操作・フォーカス管理・スクリーンリーダー向けの読み上げ・タイマーやクリップボード操作等の副作用を伴う挙動(Dialogのフォーカストラップ・Escでの終了・CopyButtonのコピー完了表示等)を優先してテストする。単純な表示のみの部品(Card・Page等)や、画面全体のE2E的な遷移確認は対象外とし、無理に網羅しない。
 
