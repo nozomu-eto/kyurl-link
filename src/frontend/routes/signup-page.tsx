@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { type FormEvent, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { TurnstileWidget, type TurnstileWidgetHandle } from '@/frontend/components/turnstile-widget'
@@ -82,10 +82,10 @@ export function SignupPage() {
     await navigate('/verify-email')
   }
 
-  function handleTurnstileError() {
+  const handleTurnstileError = useCallback(() => {
     setTurnstileToken(null)
     setErrorMessage('セキュリティ確認の読み込みに失敗しました。時間をおいて再度お試しください')
-  }
+  }, [])
 
   return (
     <Page contained title="新規登録">
