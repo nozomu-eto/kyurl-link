@@ -2,15 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
-
-// TurnstileWidgetは実際のwindow.turnstile・外部スクリプト読み込みに依存するため、
-// このテストでは「検証済みトークンを即座に返すだけのダミー」に差し替える
-// (ウィジェット自体の挙動はturnstile-widget.tsxのロジックとして別途検証する対象ではなく、
-// ここではチェックボックスによる送信ボタンの活性/非活性のみを検証したいため)
-vi.mock('@/frontend/components/turnstile-widget', () => ({
-  TurnstileWidget: () => null,
-}))
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // authClient.signUp.emailは実際には呼ばれない想定(チェック前は送信自体ができない)ため、
 // 呼び出しの有無だけ記録できるようにモックする。vi.mockはファイル先頭に巻き上げられるため、
@@ -31,6 +23,10 @@ function renderSignupPage() {
   )
 }
 
+afterEach(() => {
+  delete window.turnstile
+})
+
 describe('SignupPage: 規約同意チェックボックス', () => {
   it('チェックするまで登録ボタンが押せず、理由が表示される。チェックすると理由の文言が変わり押せるようになる', async () => {
     const user = userEvent.setup()
@@ -50,6 +46,36 @@ describe('SignupPage: 規約同意チェックボックス', () => {
     expect(screen.getByText('確認メールを送信します')).toBeTruthy()
     // Turnstileの検証はダミー化しておりトークンが無いため、チェックだけではまだ押せない
     expect(submitButton.disabled).toBe(true)
+  })
+
+  it('Turnstile検証成功後はウィジェットを再生成せず、規約同意後に登録ボタンを有効化する', async () => {
+    let options: Record<string, unknown> | undefined
+    const renderWidget = vi.fn((_container: string, receivedOptions: Record<string, unknown>) => {
+      options = receivedOptions
+      return 'widget-1'
+    })
+    const removeWidget = vi.fn()
+    window.turnstile = {
+      render: renderWidget,
+      remove: removeWidget,
+      reset: vi.fn(),
+    }
+
+    renderSignupPage()
+    expect(renderWidget).toHaveBeenCalledTimes(1)
+
+    ;(options?.callback as (token: string) => void)('verified-token')
+
+    expect(renderWidget).toHaveBeenCalledTimes(1)
+    expect(removeWidget).not.toHaveBeenCalled()
+    const submitButton = screen.getByRole('button', { name: '登録する' }) as HTMLButtonElement
+    expect(submitButton.disabled).toBe(true)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('checkbox', { name: /利用規約.*プライバシーポリシー.*同意します/ }))
+    expect(submitButton.disabled).toBe(false)
+    expect(renderWidget).toHaveBeenCalledTimes(1)
+    expect(removeWidget).not.toHaveBeenCalled()
   })
 
   it('利用規約・プライバシーポリシーのリンクは別タブで開く(target="_blank" rel="noopener noreferrer")', () => {
