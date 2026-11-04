@@ -50,14 +50,13 @@ kyurl.link — URL短縮 + QRコード生成 + 掲示物(ポスター)生成サ�
 
 ## Git
 
-- コミットメッセージ: Conventional Commits形式・日本語で、件名の末尾にタスクIDを付ける
-  例: `feat: linkリソースのzodスキーマを追加 (POR-12)` / `fix: tsconfig pathsのエイリアス解決を反映 (POR-13)`
+- コミットメッセージ: Conventional Commits形式・日本語で記載する。タスクIDの付記は不要
+  例: `feat: linkリソースのzodスキーマを追加` / `fix: tsconfig pathsのエイリアス解決を反映`
 
-## タスクIDのルール
-
-- ブランチ名: `<種類>/<タスクID>-<英語の短い説明>`(例: `feat/POR-79-link-list-page`)
-- PRタイトル: 先頭にタスクIDを付ける(例: `[POR-79] 〜する`)
-- PR本文の1行目に、YouTrackのURL(`https://nozomueto.youtrack.cloud/issue/<タスクID>`)を書く
+- ブランチ名: 作業内容がわかる名前を付ける。タスクIDは必須としない
+  例: `feat/link-list-page` / `docs/readme-improvement`
+- PRタイトル: 変更内容がわかるタイトルを付ける。タスクIDは必須としない
+- PR本文: YouTrackのURL記載は不要
 
 ## マージとデプロイのルール
 
