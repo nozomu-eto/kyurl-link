@@ -220,7 +220,8 @@ export function PosterEditorPage() {
         </button>
       </div>
 
-      <div className="poster-editor" data-active-tab={activeTab}>
+      <div className="poster-editor-layout">
+        <div className="poster-editor" data-active-tab={activeTab}>
         <div id="poster-editor-panel-edit" role="tabpanel" aria-labelledby="poster-editor-tab-edit" className="poster-editor__panel poster-editor__panel--edit">
           <FormCard onSubmit={handleSubmit}>
             {/* スマホでは、入力の合間に小さなプレビューを見せ、タップでプレビュー側のタブへ移る */}
@@ -298,6 +299,7 @@ export function PosterEditorPage() {
               </Button>
             </div>
           )}
+        </div>
         </div>
       </div>
 
