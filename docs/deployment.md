@@ -100,7 +100,6 @@ Cloudflareダッシュボードの Deployments タブから、過去のバージ
 
 - チーム開発になった場合、GitHub ActionsをPR検証(型チェック・lint・テスト)専用に追加し、実デプロイはWorkers Buildsに任せるハイブリッド構成への移行
 - リスクの高いマイグレーションが発生した場合、「マイグレーション適用」と「デプロイ」を分離する構成への変更(その際はWorkers BuildsからGitHub Actionsへの乗り換えも検討)
-- 独自ドメイン(kyurl.link)への切り替え(現時点では`*.workers.dev`のURLを使用)
 
 ## 8. 運用手順: D1への直接SQL操作
 
