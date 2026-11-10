@@ -489,6 +489,11 @@ h1 {
   max-width: 960px;
 }
 
+/* 掲示物エディタだけは、広い画面でプレビューを確保できるよう本文幅を広げる */
+.app-shell__main:has(.poster-editor-layout) {
+  max-width: 1200px;
+}
+
 /* 768px未満: サイドメニュー・ヘッダーのメールアドレス/ログアウトを隠し、
  * ハンバーガーメニュー(AppHeaderDrawer)に差し替える */
 @media (max-width: 768px) {
@@ -1323,19 +1328,30 @@ h1 {
 }
 
 /* 掲示物の作成・編集画面(docs/mocks/PosterEditor.html・MobilePosterEdit.html・MobilePosterPreview.html)。
-   PCは入力(左)とプレビュー・書き出し(右)を並べ、スマホ(768px以下)はタブで切り替える */
+   PCは十分な本文幅があるときだけ左右に並べ、スマホ(768px以下)はタブで切り替える */
+.poster-editor-layout {
+  container: poster-editor-layout / inline-size;
+}
+
 .poster-editor {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-8);
   align-items: flex-start;
 }
 
 .poster-editor__panel {
   display: flex;
-  flex: 1 1 0;
   flex-direction: column;
   gap: var(--space-6);
   min-width: 0;
+}
+
+/* 画面幅ではなくサイドバー・ページ余白を除いたエディタ幅で2カラムに切り替える */
+@container poster-editor-layout (min-width: 1120px) {
+  .poster-editor {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 /* スマホ用のタブとサムネイル、「プレビューで確認する」ボタンはPCでは出さない */
@@ -1427,6 +1443,8 @@ h1 {
 .poster-preview-frame {
   display: flex;
   justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   margin-bottom: var(--space-3);
   background-color: var(--color-bg);
 }
