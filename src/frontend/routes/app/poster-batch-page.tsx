@@ -7,6 +7,7 @@ import { Button } from '@/frontend/components/button'
 import { Card } from '@/frontend/components/card'
 import { Page } from '@/frontend/components/page'
 import { PosterBatchStoppedDialog } from '@/frontend/components/poster-batch-stopped-dialog'
+import { PosterExportStatus } from '@/frontend/components/poster-export-status'
 import { PosterPrintGuide } from '@/frontend/components/poster-print-guide'
 import { PosterSheetPreview } from '@/frontend/components/poster-sheet-preview'
 import { PosterThumbnail } from '@/frontend/components/poster-thumbnail'
@@ -84,14 +85,19 @@ export function PosterBatchPage() {
   async function runExport() {
     setErrorMessage(null)
     setIsExporting(true)
-    const result = await downloadPosterBatchExport({
-      size,
-      items: selected.map((item: PosterListItem) => ({ posterId: item.id, count: counts[item.id] })),
-      fileName: `posters-${size}-A4-${sheetCount}`,
-    })
-    setIsExporting(false)
-    if (!result.ok) {
-      setErrorMessage(result.message)
+    try {
+      const result = await downloadPosterBatchExport({
+        size,
+        items: selected.map((item: PosterListItem) => ({ posterId: item.id, count: counts[item.id] })),
+        fileName: `posters-${size}-A4-${sheetCount}`,
+      })
+      if (!result.ok) {
+        setErrorMessage(result.message)
+      }
+    } catch {
+      setErrorMessage('書き出しに失敗しました。時間をおいて、もう一度お試しください')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -191,6 +197,7 @@ export function PosterBatchPage() {
           </>
         )}
         {errorMessage && <AlertMessage tone="error">{errorMessage}</AlertMessage>}
+        {isExporting && <PosterExportStatus format="pdf" />}
         <div className="button-group">
           <Button disabled={totalFaces === 0 || isExporting} onClick={handleExportClick}>
             {isExporting ? '書き出し中…' : `PDFをダウンロード(A4・${sheetCount}枚)`}

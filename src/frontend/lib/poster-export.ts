@@ -16,27 +16,31 @@ export type PosterExportResult = { ok: true } | { ok: false; message: string }
 export async function downloadPosterExport({ posterId, format, paper, fileName }: PosterExportOptions): Promise<PosterExportResult> {
   const query = format === 'pdf' ? `format=pdf&paper=${paper}` : 'format=png'
 
-  let response: Response
   try {
-    response = await fetch(`/api/v1/posters/${posterId}/export?${query}`)
+    const response = await fetch(`/api/v1/posters/${posterId}/export?${query}`)
+
+    if (!response.ok) {
+      // サーバーの { error: { message } } をそのまま案内する(429の「しばらく時間をおいて…」などもここに入る)
+      const body = (await response.json().catch(() => null)) as { error?: { message?: unknown } } | null
+      const message = body?.error?.message
+      return { ok: false, message: typeof message === 'string' ? message : '書き出しに失敗しました。時間をおいて、もう一度お試しください' }
+    }
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    try {
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${fileName}.${format}`
+      anchor.click()
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+
+    return { ok: true }
   } catch {
     return { ok: false, message: '書き出しに失敗しました。通信状況を確認して、もう一度お試しください' }
   }
-
-  if (!response.ok) {
-    // サーバーの { error: { message } } をそのまま案内する(429の「しばらく時間をおいて…」などもここに入る)
-    const body = (await response.json().catch(() => null)) as { error?: { message?: unknown } } | null
-    const message = body?.error?.message
-    return { ok: false, message: typeof message === 'string' ? message : '書き出しに失敗しました。時間をおいて、もう一度お試しください' }
-  }
-
-  const url = URL.createObjectURL(await response.blob())
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `${fileName}.${format}`
-  anchor.click()
-  URL.revokeObjectURL(url)
-  return { ok: true }
 }
 
 export type PosterBatchExportOptions = {
@@ -50,28 +54,32 @@ export type PosterBatchExportOptions = {
 // 単体の書き出しと同じく、失敗(400の上限超過・429など)するとJSONのエラーが返るため、fetchで受け取り、
 // 成功したときだけ保存する
 export async function downloadPosterBatchExport({ size, items, fileName }: PosterBatchExportOptions): Promise<PosterExportResult> {
-  let response: Response
   try {
-    response = await fetch('/api/v1/posters/batch-export', {
+    const response = await fetch('/api/v1/posters/batch-export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ size, items }),
     })
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: { message?: unknown } } | null
+      const message = body?.error?.message
+      return { ok: false, message: typeof message === 'string' ? message : '書き出しに失敗しました。時間をおいて、もう一度お試しください' }
+    }
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    try {
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${fileName}.pdf`
+      anchor.click()
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+
+    return { ok: true }
   } catch {
     return { ok: false, message: '書き出しに失敗しました。通信状況を確認して、もう一度お試しください' }
   }
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: { message?: unknown } } | null
-    const message = body?.error?.message
-    return { ok: false, message: typeof message === 'string' ? message : '書き出しに失敗しました。時間をおいて、もう一度お試しください' }
-  }
-
-  const url = URL.createObjectURL(await response.blob())
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `${fileName}.pdf`
-  anchor.click()
-  URL.revokeObjectURL(url)
-  return { ok: true }
 }

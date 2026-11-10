@@ -188,6 +188,64 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/posters/poster-1/export?format=png'))
   })
 
+  it('PDF/PNG生成中は形式に応じた案内を出し、完了後に解除する', async () => {
+    const user = userEvent.setup()
+    let resolveExport: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/export') ? new Promise<Response>((resolve) => { resolveExport = resolve }) : Promise.resolve(new Response('<svg></svg>')),
+    )
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
+    renderEditor('/app/posters/poster-1')
+
+    await user.click(await screen.findByRole('button', { name: 'PDFをダウンロード(印刷用)' }))
+    expect(await screen.findByText('PDFを生成しています。画面を閉じずにお待ちください。')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'PDF生成中…' }) as HTMLButtonElement).disabled).toBe(true)
+
+    resolveExport?.(new Response(new Blob(['pdf']), { status: 200 }))
+    await waitFor(() => expect(document.querySelector('.poster-export-status')).toBeNull())
+
+    await user.click(screen.getByRole('button', { name: 'PNGをダウンロード(SNS用)' }))
+    expect(await screen.findByText('PNGを生成しています。画面を閉じずにお待ちください。')).toBeTruthy()
+    resolveExport?.(new Response(new Blob(['png']), { status: 200 }))
+    await waitFor(() => expect(document.querySelector('.poster-export-status')).toBeNull())
+  })
+
+  it('通信後のBlob読み込みに失敗しても、エラーを表示して再操作できる', async () => {
+    const user = userEvent.setup()
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('/export')) {
+        const response = new Response(new Blob(['pdf']), { status: 200 })
+        vi.spyOn(response, 'blob').mockRejectedValue(new Error('blob read failed'))
+        return response
+      }
+      return new Response('<svg></svg>')
+    })
+    renderEditor('/app/posters/poster-1')
+
+    await user.click(await screen.findByRole('button', { name: 'PDFをダウンロード(印刷用)' }))
+    expect(await screen.findByText('書き出しに失敗しました。通信状況を確認して、もう一度お試しください')).toBeTruthy()
+    await waitFor(() => expect(document.querySelector('.poster-export-status')).toBeNull())
+    expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('通信断でもエラーを表示して書き出しボタンを再度使える', async () => {
+    const user = userEvent.setup()
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('/export')) {
+        throw new TypeError('network unavailable')
+      }
+      return new Response('<svg></svg>')
+    })
+    renderEditor('/app/posters/poster-1')
+
+    await user.click(await screen.findByRole('button', { name: 'PDFをダウンロード(印刷用)' }))
+    expect(await screen.findByText('書き出しに失敗しました。通信状況を確認して、もう一度お試しください')).toBeTruthy()
+    await waitFor(() => expect(document.querySelector('.poster-export-status')).toBeNull())
+    expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('書き出しに失敗した場合(429など)は、サーバーのエラー文言を表示する', async () => {
     const user = userEvent.setup()
     mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
