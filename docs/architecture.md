@@ -475,6 +475,8 @@ Cloudflare Email Service(`no-reply@kyurl.link`)によるユーザー向け自動
 
 **掲示物に載せる内容**: タイトル・ひとことメッセージ・QRコードに加え、QRコードのそばに読み取りの案内文(「スマートフォンのカメラで読み取ってください」)を常に出す。短縮URL(`kyurl.link/…`、`https://`は省く)は、QRコードが短縮URL経由(`targetType: link`)のときだけ出す。URLを直接指定したQRコードでは、長いURLが入力の手がかりにならないため出さない。短縮URLの文字列はQRコードに埋め込む内容(`resolveQrcodeContent`の結果)から作り、両者が食い違わないようにする。タイトルの途中での改行は扱わず(入力欄は1行で改行を入れられない)、面の幅に合わせて折り返す。
 
+**サイズ別レイアウト**: `src/shared/poster-template.ts`の共通テンプレートで、A6とA5の表示寸法を分ける。A6はタイトル8mm・サブタイトル5mm・QRコード56mm・案内文3.6mm・短縮URL4.2mmを維持する。A5はそれぞれ9.2mm・5.5mm・70mm・4.4mm・5mmとし、最大文字数でも折り返して表示できる高さを確保する。どちらも各面の端から8mmの内側余白を取る。
+
 **書き出し設定**
 - PDFは`preferCSSPageSize: true`(`@page`のサイズ指定に従う)・`printBackground: true`で出力する。PNGは掲示物の要素(`.poster`)だけを`deviceScaleFactor`付きで撮影する(`src/lib/poster-template.ts`の`POSTER_PDF_OPTIONS`・`POSTER_PNG_ELEMENT_SELECTOR`・`POSTER_PNG_DEVICE_SCALE_FACTOR`)
 - テンプレートの版`POSTER_TEMPLATE_VERSION`をR2キャッシュキーの計算に含める。テンプレートや書き出し設定を変更した場合はこの値を上げ、変更前のPDF/PNGがR2から返り続けることを防ぐ
