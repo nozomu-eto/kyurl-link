@@ -8,6 +8,7 @@ import { Field, FormField, SelectField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
 import { PosterPrintGuide } from '@/frontend/components/poster-print-guide'
 import { PosterExportStoppedDialog } from '@/frontend/components/poster-export-stopped-dialog'
+import { PosterExportStatus } from '@/frontend/components/poster-export-status'
 import { PosterPreview } from '@/frontend/components/poster-preview'
 import { RadioCardGroup } from '@/frontend/components/radio-card-group'
 import { apiClient } from '@/frontend/lib/api-client'
@@ -160,10 +161,15 @@ export function PosterEditorPage() {
     }
     setExportErrorMessage(null)
     setExportingFormat(format)
-    const result = await downloadPosterExport({ posterId: poster.id, format, paper, fileName: poster.title })
-    setExportingFormat(null)
-    if (!result.ok) {
-      setExportErrorMessage(result.message)
+    try {
+      const result = await downloadPosterExport({ posterId: poster.id, format, paper, fileName: poster.title })
+      if (!result.ok) {
+        setExportErrorMessage(result.message)
+      }
+    } catch {
+      setExportErrorMessage('書き出しに失敗しました。時間をおいて、もう一度お試しください')
+    } finally {
+      setExportingFormat(null)
     }
   }
 
@@ -272,12 +278,13 @@ export function PosterEditorPage() {
             {poster === null && <p className="field__hint">掲示物を作成すると、書き出せるようになります。</p>}
             {poster !== null && isDirty && <p className="field__hint">変更を保存すると、書き出せるようになります。書き出しは保存した内容で行われます。</p>}
             {exportErrorMessage && <AlertMessage tone="error">{exportErrorMessage}</AlertMessage>}
+            {exportingFormat && <PosterExportStatus format={exportingFormat} />}
             <div className="button-group">
               <Button disabled={exportDisabled} onClick={() => handleExportClick('pdf')}>
-                {exportingFormat === 'pdf' ? '書き出し中…' : 'PDFをダウンロード(印刷用)'}
+                {exportingFormat === 'pdf' ? 'PDF生成中…' : 'PDFをダウンロード(印刷用)'}
               </Button>
               <Button variant="secondary" disabled={exportDisabled} onClick={() => handleExportClick('png')}>
-                {exportingFormat === 'png' ? '書き出し中…' : 'PNGをダウンロード(SNS用)'}
+                {exportingFormat === 'png' ? 'PNG生成中…' : 'PNGをダウンロード(SNS用)'}
               </Button>
             </div>
             <p className="field__hint">書き出しには数秒かかることがあります。PNGは用紙の指定に関係なく、掲示物1枚分の画像になります。</p>

@@ -2464,6 +2464,37 @@ h1 {
   margin-bottom: 0;
 }
 
+.poster-export-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.poster-export-status__spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: poster-export-spin 0.8s linear infinite;
+}
+
+.poster-export-status__slow {
+  display: block;
+  margin-top: var(--space-1);
+}
+
+@keyframes poster-export-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* 掲示物のまとめて印刷(docs/mocks/PosterBatchPrint.html・MobileBatchPrint.html) */
 .poster-batch__list {
   display: flex;
