@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { computePosterBatchExportCacheKey, computePosterExportCacheKey } from '@/lib/poster-export-cache'
+import { POSTER_TEMPLATE_VERSION } from '@/shared/poster-template'
 
 describe('computePosterExportCacheKey', () => {
   it('paperが違うと(format=pdfの場合)キーが変わる', async () => {
@@ -14,6 +15,20 @@ describe('computePosterExportCacheKey', () => {
     const v1Key = await computePosterExportCacheKey({ ...base, templateVersion: 1 })
     const v2Key = await computePosterExportCacheKey({ ...base, templateVersion: 2 })
     expect(v1Key).not.toBe(v2Key)
+  })
+
+  it('版5を使うと旧版4と異なる単体・まとめ印刷のキャッシュキーになる', async () => {
+    const hashSource = '{"title":"A5"}'
+    const singleV4 = await computePosterExportCacheKey({ posterId: 'poster-1', format: 'pdf', paper: 'fit', templateVersion: 4, hashSource })
+    const singleV5 = await computePosterExportCacheKey({ posterId: 'poster-1', format: 'pdf', paper: 'fit', templateVersion: POSTER_TEMPLATE_VERSION, hashSource })
+    const batchV4 = await computePosterBatchExportCacheKey({ userId: 'user-1', size: 'A5', templateVersion: 4, items: [{ hashSource, count: 1 }] })
+    const batchV5 = await computePosterBatchExportCacheKey({ userId: 'user-1', size: 'A5', templateVersion: POSTER_TEMPLATE_VERSION, items: [{ hashSource, count: 1 }] })
+
+    expect(POSTER_TEMPLATE_VERSION).toBe(5)
+    expect(singleV5).toContain('/v5/')
+    expect(batchV5).toContain('/v5/')
+    expect(singleV5).not.toBe(singleV4)
+    expect(batchV5).not.toBe(batchV4)
   })
 
   it('format=pngの場合、paperが違ってもキーは変わらない(PNGはpaperを無視するため)', async () => {

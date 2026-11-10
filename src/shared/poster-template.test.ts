@@ -10,9 +10,11 @@ import {
   generatePosterFaceHtml,
   generatePosterHtml,
   getA4SheetMaxFaces,
+  getPosterLayout,
   getPosterPageSizeMm,
   getPosterShortUrlText,
   POSTER_LAYOUT,
+  POSTER_LAYOUT_BY_SIZE,
   POSTER_PDF_OPTIONS,
   POSTER_PNG_DEVICE_SCALE_FACTOR,
   POSTER_PNG_ELEMENT_SELECTOR,
@@ -60,6 +62,8 @@ describe('generatePosterHtml', () => {
   it('A5は名前(A5)で@pageのサイズを指定する', () => {
     const html = generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A5' }, '<svg></svg>')
     expect(html).toMatch(/@page\s*{\s*size:\s*A5;/)
+    expect(html).toMatch(/html, body\s*{[^}]*width:\s*148mm;\s*height:\s*210mm/)
+    expect(html).toContain('style="width: 148mm; height: 210mm;"')
   })
 
   it('A6は名前が無いためmm指定で@pageのサイズを指定する', () => {
@@ -141,8 +145,8 @@ describe('generatePosterA4SheetHtml', () => {
 })
 
 describe('POSTER_TEMPLATE_VERSION', () => {
-  it('QRコードのSVGにviewBoxを足して切れを直した版(4)になっている', () => {
-    expect(POSTER_TEMPLATE_VERSION).toBe(4)
+  it('A5レイアウト変更を含む版(5)になっている', () => {
+    expect(POSTER_TEMPLATE_VERSION).toBe(5)
   })
 })
 
@@ -196,7 +200,6 @@ describe('読み取りの案内と短縮URLの表示', () => {
 // 各面の安全域の内側に収まることを確かめる
 describe('安全域(各面の端から5mm以内に文字やQRコードを置かない)', () => {
   const MIN_SAFE_MARGIN_MM = 5
-  const L = POSTER_LAYOUT
 
   // 全角文字を並べたときの行数。1文字の幅は文字サイズと同じとして見積もる(最も幅を取る場合)
   function countLines(charCount: number, fontMm: number, widthMm: number): number {
@@ -206,6 +209,7 @@ describe('安全域(各面の端から5mm以内に文字やQRコードを置か�
   // 最長の入力での、中身全体の高さ(mm)。案内文と短縮URLは1行で収まるものとして数える
   // (1行に収まることは別のテストで確かめる)
   function worstCaseContentHeightMm(size: 'A6' | 'A5'): number {
+    const L = getPosterLayout(size)
     const { width } = getPosterPageSizeMm(size)
     const innerWidth = width - POSTER_SAFE_MARGIN_MM * 2
     const titleLines = countLines(POSTER_TITLE_MAX_LENGTH, L.titleFontMm, innerWidth)
@@ -236,25 +240,65 @@ describe('安全域(各面の端から5mm以内に文字やQRコードを置か�
 
   it.each(['A6', 'A5'] as const)('%s: QRコードが安全域の内側の幅に収まる', (size) => {
     const { width } = getPosterPageSizeMm(size)
-    expect(L.qrcodeMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
+    expect(getPosterLayout(size).qrcodeMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
   })
 
   it.each(['A6', 'A5'] as const)('%s: 案内文が1行で安全域の内側の幅に収まる', (size) => {
     const { width } = getPosterPageSizeMm(size)
-    expect(POSTER_SCAN_GUIDE_TEXT.length * L.guideFontMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
+    expect(POSTER_SCAN_GUIDE_TEXT.length * getPosterLayout(size).guideFontMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
   })
 
   it.each(['A6', 'A5'] as const)('%s: 短縮URL(7文字のコード)が1行で安全域の内側の幅に収まる', (size) => {
     const { width } = getPosterPageSizeMm(size)
     // 英数字は全角より細いが、安全側に全角幅として見積もる。ドメインは本番の kyurl.link
     const text = 'kyurl.link/Ab3xK9a'
-    expect(text.length * L.shortUrlFontMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
+    expect(text.length * getPosterLayout(size).shortUrlFontMm).toBeLessThanOrEqual(width - POSTER_SAFE_MARGIN_MM * 2)
   })
 
   it.each(['A6', 'A5'] as const)('%s: タイトル・ひとことメッセージは折り返し、はみ出さない指定になっている', (size) => {
     const html = generatePosterHtml({ title: 't', subtitle: 's', size }, '')
     expect(html).toMatch(/\.title\s*{[^}]*overflow-wrap:\s*anywhere/)
     expect(html).toMatch(/\.subtitle\s*{[^}]*overflow-wrap:\s*anywhere/)
+  })
+
+  it('A6の寸法は従来どおりで、A5はQRコードと文字が拡大されている', () => {
+    expect(getPosterLayout('A6')).toEqual(POSTER_LAYOUT)
+    expect(POSTER_LAYOUT_BY_SIZE.A6).toEqual({
+      titleFontMm: 8,
+      titleLineHeight: 1.4,
+      titleMarginBottomMm: 4,
+      subtitleFontMm: 5,
+      subtitleLineHeight: 1.5,
+      subtitleMarginBottomMm: 6,
+      qrcodeMm: 56,
+      guideFontMm: 3.6,
+      guideLineHeight: 1.4,
+      guideMarginTopMm: 4,
+      shortUrlFontMm: 4.2,
+      shortUrlLineHeight: 1.3,
+      shortUrlMarginTopMm: 1.5,
+    })
+    expect(getPosterLayout('A5').qrcodeMm).toBe(70)
+    expect(getPosterLayout('A5').titleFontMm).toBeGreaterThan(POSTER_LAYOUT.titleFontMm)
+    expect(getPosterLayout('A5').subtitleFontMm).toBeGreaterThan(POSTER_LAYOUT.subtitleFontMm)
+    expect(getPosterLayout('A5').guideFontMm).toBeGreaterThan(POSTER_LAYOUT.guideFontMm)
+    expect(getPosterLayout('A5').shortUrlFontMm).toBeGreaterThan(POSTER_LAYOUT.shortUrlFontMm)
+  })
+
+  it('A5で最大長のタイトル・サブタイトルを含めてもレイアウト寸法を保持する', () => {
+    const html = generatePosterHtml({
+      title: 'あ'.repeat(POSTER_TITLE_MAX_LENGTH),
+      subtitle: 'い'.repeat(POSTER_SUBTITLE_MAX_LENGTH),
+      size: 'A5',
+      shortUrlText: 'kyurl.link/Ab3xK9a',
+    }, '<svg viewBox="0 0 256 256"></svg>')
+    expect(html).toContain(`font-size: ${getPosterLayout('A5').titleFontMm}mm`)
+    expect(html).toContain(`font-size: ${getPosterLayout('A5').subtitleFontMm}mm`)
+    expect(html).toContain(`width: ${getPosterLayout('A5').qrcodeMm}mm;\n    height: ${getPosterLayout('A5').qrcodeMm}mm;`)
+    expect(html).toContain(`font-size: ${getPosterLayout('A5').guideFontMm}mm`)
+    expect(html).toContain(`font-size: ${getPosterLayout('A5').shortUrlFontMm}mm`)
+    expect(html).toMatch(/overflow-wrap: anywhere/)
+    expect(worstCaseContentHeightMm('A5')).toBeLessThanOrEqual(210 - POSTER_SAFE_MARGIN_MM * 2)
   })
 
   // A4への面付け: 各面が用紙の内側に収まり、面の中身は面の端から安全域だけ内側にある
@@ -302,10 +346,13 @@ describe('掲示物に入れるQRコードのSVG', () => {
       expect(Number(y) + Number(height)).toBeLessThanOrEqual(viewBoxHeight + 1e-6)
     }
 
-    // viewBoxの大きさ全体が、CSSで枠(qrcodeMm)いっぱいに表示される
-    const html = generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A6' }, qrCodeSvg)
-    expect(html).toMatch(new RegExp(`\\.qrcode\\s*{\\s*width:\\s*${POSTER_LAYOUT.qrcodeMm}mm;\\s*height:\\s*${POSTER_LAYOUT.qrcodeMm}mm;`))
-    expect(html).toMatch(/\.qrcode svg\s*{\s*width:\s*100%;\s*height:\s*100%;/)
+    // viewBoxの大きさ全体が、A6・A5それぞれの正方形の枠いっぱいに表示される
+    for (const size of ['A6', 'A5'] as const) {
+      const html = generatePosterHtml({ title: 'テスト', subtitle: null, size }, qrCodeSvg)
+      const qrcodeMm = getPosterLayout(size).qrcodeMm
+      expect(html).toMatch(new RegExp(`\\.qrcode\\s*{\\s*width:\\s*${qrcodeMm}mm;\\s*height:\\s*${qrcodeMm}mm;`))
+      expect(html).toMatch(/\.qrcode svg\s*{\s*width:\s*100%;\s*height:\s*100%;/)
+    }
   })
 })
 
@@ -401,10 +448,8 @@ describe('generatePosterA4SheetsHtml(複数枚のA4シートをつなげる)', (
   })
 })
 
-// 単体の書き出し(GET /posters/:id/export)の出力が変わっていないことの確認。
-// まとめて印刷(POR-86)でシートの組み立てを共通化した際に、既存の出力が1バイトも変わらないことを、
-// 変更前の出力のSHA-256で固定した。意図してテンプレートを変える場合は、POSTER_TEMPLATE_VERSIONを上げ、この値も更新すること
-describe('単体の書き出しのHTML(変更前と同一)', () => {
+// A6レイアウトは変更しない。A5は意図した寸法変更を含めてHTMLのハッシュを固定する。
+describe('掲示物のHTMLハッシュ', () => {
   async function sha256(value: string) {
     const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
     return Array.from(new Uint8Array(buffer))
@@ -423,10 +468,10 @@ describe('単体の書き出しのHTML(変更前と同一)', () => {
   })
 
   it('A5のA4面付け(2面)', async () => {
-    expect(await sha256(generatePosterA4SheetHtml('A5', Array(2).fill(face('A5'))))).toBe('d127ba1f959567b7c36030b2454ea2e558ce7519d34797e78322e09f451197e5')
+    expect(await sha256(generatePosterA4SheetHtml('A5', Array(2).fill(face('A5'))))).toBe('ae15431938ab14899293a4395c89befec249f51cfd282925c73f746558513705')
   })
 
   it('A5の掲示物1面', async () => {
-    expect(await sha256(generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A5' }, '<svg></svg>'))).toBe('04b90574152464bc2342b42c43c7d323e819129065a96ee31951e4c502fe6768')
+    expect(await sha256(generatePosterHtml({ title: 'テスト', subtitle: null, size: 'A5' }, '<svg></svg>'))).toBe('f7a695cb1326f497284f7ac6495ff4d50cb8fea9450e1b6b14e109817c54f76d')
   })
 })

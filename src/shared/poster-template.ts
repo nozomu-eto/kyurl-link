@@ -5,7 +5,8 @@
 // 3: 読み取りの案内文と短縮URLの表示を追加し、それに合わせてQRコードを60mmから56mmに縮めた
 // 4: QRコードのSVGにviewBoxを追加し、枠に合わせて中身も縮むようにした(右端・下端が切れていた。POR-143)。
 //    版3までに書き出したQRコードが切れたPDF/PNGを、R2キャッシュから返さないようにする
-export const POSTER_TEMPLATE_VERSION = 4
+// 5: A5掲示物の文字とQRコードを拡大。A6のレイアウトは維持
+export const POSTER_TEMPLATE_VERSION = 5
 
 // サイズごとのページ寸法(mm)。A6縦・A5縦を想定する
 const PAGE_SIZES = {
@@ -25,7 +26,7 @@ export const POSTER_SAFE_MARGIN_MM = 8
 
 // 掲示物1面の中身の寸法(mm・倍率)。CSS(posterFaceStyle)の値の元であり、最長の入力でも
 // 安全域の内側に収まることをテストで確かめるためにも使う
-export const POSTER_LAYOUT = {
+const A6_POSTER_LAYOUT = {
   titleFontMm: 8,
   titleLineHeight: 1.4,
   titleMarginBottomMm: 4,
@@ -40,6 +41,33 @@ export const POSTER_LAYOUT = {
   shortUrlLineHeight: 1.3,
   shortUrlMarginTopMm: 1.5,
 } as const
+
+// A5は用紙面積に合わせて要素ごとに拡大し、A6は既存の寸法を保つ
+export const POSTER_LAYOUT_BY_SIZE = {
+  A6: A6_POSTER_LAYOUT,
+  A5: {
+    titleFontMm: 9.2,
+    titleLineHeight: 1.4,
+    titleMarginBottomMm: 4,
+    subtitleFontMm: 5.5,
+    subtitleLineHeight: 1.5,
+    subtitleMarginBottomMm: 6,
+    qrcodeMm: 70,
+    guideFontMm: 4.4,
+    guideLineHeight: 1.4,
+    guideMarginTopMm: 4,
+    shortUrlFontMm: 5,
+    shortUrlLineHeight: 1.3,
+    shortUrlMarginTopMm: 1.5,
+  },
+} as const
+
+export function getPosterLayout(size: 'A6' | 'A5') {
+  return POSTER_LAYOUT_BY_SIZE[size]
+}
+
+// 既存のA6寸法を参照するコード向けに互換エイリアスを残す
+export const POSTER_LAYOUT = A6_POSTER_LAYOUT
 
 // QRコードのそばに出す読み取りの案内文
 export const POSTER_SCAN_GUIDE_TEXT = 'スマートフォンのカメラで読み取ってください'
@@ -105,8 +133,8 @@ function getCssPageSize(size: 'A6' | 'A5'): string {
 // 共通スタイル。1面分の.poster要素(generatePosterFaceHtml)を、単体の掲示物HTML
 // (generatePosterHtml)・A4シートHTML(generatePosterA4SheetHtml)の両方で同じ見た目に
 // するため、共通の関数として切り出す
-function posterFaceStyle(): string {
-  const L = POSTER_LAYOUT
+function posterFaceStyle(size: 'A6' | 'A5'): string {
+  const L = getPosterLayout(size)
   return `
   .poster {
     display: flex;
@@ -209,7 +237,7 @@ export function generatePosterHtml(poster: PosterFaceContent, qrCodeSvg: string)
     height: ${height}mm;
     overflow: hidden;
   }
-  ${posterFaceStyle()}
+  ${posterFaceStyle(poster.size)}
 </style>
 </head>
 <body>
@@ -329,7 +357,7 @@ export function generatePosterA4SheetHtml(posterSize: 'A6' | 'A5', faceHtmlList:
     overflow: hidden;
   }
   ${a4FaceAndCutLineStyle()}
-  ${posterFaceStyle()}
+  ${posterFaceStyle(posterSize)}
 </style>
 </head>
 <body>
@@ -403,7 +431,7 @@ export function generatePosterA4SheetsHtml(posterSize: 'A6' | 'A5', faceHtmlList
     break-after: auto;
   }
   ${a4FaceAndCutLineStyle()}
-  ${posterFaceStyle()}
+  ${posterFaceStyle(posterSize)}
 </style>
 </head>
 <body>
