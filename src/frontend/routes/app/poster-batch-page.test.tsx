@@ -181,6 +181,27 @@ describe('PosterBatchPage', () => {
     })
   })
 
+  it('まとめて印刷も、PDF生成中の案内を出し、連続クリックによる重複リクエストを防ぐ', async () => {
+    const user = userEvent.setup()
+    setupPosters([buildPoster()])
+    let resolveExport: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/batch-export') ? new Promise<Response>((resolve) => { resolveExport = resolve }) : Promise.resolve(new Response('<svg></svg>')),
+    )
+    renderBatch()
+    await screen.findByText('秋の新メニュー')
+    await plus(user, '秋の新メニュー')
+
+    const button = screen.getByRole('button', { name: /PDFをダウンロード/ })
+    await user.dblClick(button)
+    expect(await screen.findByText('PDFを生成しています。画面を閉じずにお待ちください。')).toBeTruthy()
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/posters/batch-export')).toHaveLength(1)
+
+    resolveExport?.(new Response(new Blob(['pdf']), { status: 200 }))
+    await waitFor(() => expect(document.querySelector('.poster-export-status')).toBeNull())
+  })
+
   it('書き出しに失敗したら、サーバーのエラー文言を表示する', async () => {
     const user = userEvent.setup()
     setupPosters([buildPoster()])
