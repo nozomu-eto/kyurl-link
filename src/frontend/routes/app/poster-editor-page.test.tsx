@@ -74,6 +74,17 @@ afterEach(() => {
 })
 
 describe('PosterEditorPage: 作成', () => {
+  it('QRコードが0件ならフォームを出さず、QR作成への導線を表示する', async () => {
+    mocks.getQrcodesMock.mockResolvedValue(ok({ items: [] }))
+    renderEditor('/app/posters/new')
+
+    expect(await screen.findByText('掲示物に入れるQRコードを、先に作成しましょう。')).toBeTruthy()
+    const createQrLink = screen.getByRole('link', { name: 'URLからQRコードを作る' })
+    expect(createQrLink.getAttribute('href')).toBe('/app/qrcodes/new?from=poster')
+    expect(screen.queryByLabelText('タイトル(必須)')).toBeNull()
+    expect(screen.queryByRole('button', { name: '掲示物を作成' })).toBeNull()
+  })
+
   it('QRコード詳細からのURL(?size=A5)で用紙サイズの初期値が決まり、プレビューに入力内容が反映される', async () => {
     const user = userEvent.setup()
     renderEditor('/app/qrcodes/qr-2/posters/new?size=A5')
