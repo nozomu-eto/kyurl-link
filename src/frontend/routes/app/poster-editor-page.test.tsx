@@ -105,7 +105,7 @@ describe('PosterEditorPage: 作成', () => {
   it('作成すると、選んだQRコード・用紙サイズ・内容でPOSTし、編集画面へ移る。作成前は書き出せない', async () => {
     const user = userEvent.setup()
     mocks.postPosterMock.mockResolvedValue(ok({ id: 'poster-9' }))
-    mocks.getPosterMock.mockResolvedValue(ok(buildPoster({ id: 'poster-9', title: '営業時間のご案内', subtitle: null, size: 'A6' })))
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster({ id: 'poster-9', qrCodeId: 'qr-2', title: '営業時間のご案内', subtitle: null, size: 'A6' })))
     renderEditor('/app/posters/new')
 
     await screen.findByRole('heading', { level: 1, name: '掲示物を作成' })
@@ -116,6 +116,9 @@ describe('PosterEditorPage: 作成', () => {
 
     await waitFor(() => expect(mocks.postPosterMock).toHaveBeenCalledWith({ json: { qrCodeId: 'qr-2', title: '営業時間のご案内', subtitle: null, size: 'A6' } }))
     expect(await screen.findByRole('heading', { level: 1, name: '掲示物の編集(A6縦)' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'プレビュー・書き出し' }).getAttribute('aria-selected')).toBe('true')
+    expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByText('保存済みです。PDFをダウンロードできます。')).toBeTruthy()
   })
 
   it('ひとことメッセージの改行は取り除かれる', async () => {
@@ -144,7 +147,8 @@ describe('PosterEditorPage: 作成', () => {
 describe('PosterEditorPage: 編集と書き出し', () => {
   it('編集画面では保存済みの内容が入り、変更して保存するとPATCHする', async () => {
     const user = userEvent.setup()
-    mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
+    mocks.getPosterMock.mockResolvedValueOnce(ok(buildPoster()))
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster({ title: '新しいタイトル' })))
     mocks.patchPosterMock.mockResolvedValue(ok(buildPoster({ title: '新しいタイトル' })))
     renderEditor('/app/posters/poster-1')
 
@@ -157,7 +161,25 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     await waitFor(() =>
       expect(mocks.patchPosterMock).toHaveBeenCalledWith({ param: { id: 'poster-1' }, json: { qrCodeId: 'qr-1', title: '新しいタイトル', subtitle: 'ご覧ください', size: 'A5' } }),
     )
-    expect(await screen.findByText('保存しました')).toBeTruthy()
+    expect(await screen.findByText('保存しました。PDFをダウンロードできます。')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'プレビュー・書き出し' }).getAttribute('aria-selected')).toBe('true')
+    await waitFor(() => expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('保存に失敗しても入力内容を保持し、再試行できる', async () => {
+    const user = userEvent.setup()
+    mocks.getPosterMock.mockResolvedValue(ok(buildPoster()))
+    mocks.patchPosterMock.mockResolvedValue({ ok: false, json: async () => ({ error: { message: '保存できませんでした' } }) })
+    renderEditor('/app/posters/poster-1')
+
+    const titleInput = await screen.findByLabelText<HTMLInputElement>('タイトル(必須)')
+    await user.clear(titleInput)
+    await user.type(titleInput, '入力内容を保持')
+    await user.click(screen.getByRole('button', { name: '保存する' }))
+
+    expect(await screen.findByText('保存できませんでした')).toBeTruthy()
+    expect(titleInput.value).toBe('入力内容を保持')
+    expect((screen.getByRole('button', { name: '保存する' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('未保存の変更がある間は書き出せず、保存を促す', async () => {
@@ -170,7 +192,7 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     await user.type(screen.getByLabelText('タイトル(必須)'), '!')
 
     expect(pdfButton.disabled).toBe(true)
-    expect(screen.getByText(/変更を保存すると、書き出せるようになります/)).toBeTruthy()
+    expect(screen.getByText(/未保存の変更があるためPDFを作成できません/)).toBeTruthy()
   })
 
   it('書き出し画面に、コンビニ印刷では「A4用紙に並べる」を選ぶ案内があり、用紙の選択肢は用紙サイズに応じて変わる(A5は2枚、A6は4枚)', async () => {
@@ -190,6 +212,7 @@ describe('PosterEditorPage: 編集と書き出し', () => {
 
     await user.click(await screen.findByRole('button', { name: 'PDFをダウンロード(印刷用)' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/posters/poster-1/export?format=pdf&paper=a4'))
+    expect(await screen.findByText('PDFをダウンロードしました。')).toBeTruthy()
 
     await user.click(screen.getByRole('radio', { name: /A5用紙にそのまま/ }))
     await user.click(screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }))
@@ -335,5 +358,38 @@ describe('PosterEditorPage: スマホのタブ', () => {
     await user.click(editTab)
     await user.click(screen.getByRole('button', { name: /タップして大きく確認/ }))
     expect(previewTab.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('タブは矢印キーとHome/Endで移動し、ロービングtabindexを更新する', async () => {
+    const user = userEvent.setup()
+    renderEditor('/app/posters/new')
+
+    const editTab = await screen.findByRole('tab', { name: '入力' })
+    const previewTab = screen.getByRole('tab', { name: 'プレビュー・書き出し' })
+    expect(editTab.getAttribute('tabindex')).toBe('0')
+    expect(previewTab.getAttribute('tabindex')).toBe('-1')
+
+    editTab.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(previewTab.getAttribute('aria-selected')).toBe('true')
+    expect(previewTab.getAttribute('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(previewTab)
+
+    await user.keyboard('{Home}')
+    expect(editTab.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(editTab)
+    await user.keyboard('{End}')
+    expect(previewTab.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('未保存の新規掲示物では書き出せない理由と入力へ戻る操作を表示する', async () => {
+    const user = userEvent.setup()
+    renderEditor('/app/posters/new')
+
+    await user.click(await screen.findByRole('tab', { name: 'プレビュー・書き出し' }))
+    expect(screen.getByText(/まだ保存されていないためPDFを作成できません/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: '入力に戻って保存する' }))
+    expect(screen.getByRole('tab', { name: '入力' }).getAttribute('aria-selected')).toBe('true')
   })
 })
