@@ -39,14 +39,14 @@ function setupPosters(items: unknown[]) {
   mocks.getPostersMock.mockResolvedValue(ok({ items, total: items.length, limit: 20, offset: 0 }))
 }
 
-function renderBatch() {
+function renderBatch(initialEntry = '/app/posters/batch') {
   const router = createMemoryRouter(
     [
       { path: '/app/posters', element: <p>掲示物一覧</p> },
       { path: '/app/posters/new', element: <p>新規作成</p> },
       { path: '/app/posters/batch', element: <PosterBatchPage />, loader: posterBatchLoader },
     ],
-    { initialEntries: ['/app/posters/batch'] },
+    { initialEntries: [initialEntry] },
   )
   return render(<RouterProvider router={router} />)
 }
@@ -136,6 +136,44 @@ describe('PosterBatchPage', () => {
     await plus(user, 'A5の掲示物', 3)
     expect(screen.getByText(/合計/).textContent).toBe('合計 3枚 → A4用紙 2枚')
     expect(screen.getByText('2枚目に空きが1面あります。あと1枚追加できます(空きのまま印刷もできます)。')).toBeTruthy()
+  })
+
+  it.each([
+    ['A6', 4, 'poster-1'],
+    ['A5', 2, 'poster-5'],
+  ] as const)('%sの掲示物をURL指定すると枚数1で選択し、残りを空白にしたプレビューとPDFを出す', async (size, facesPerSheet, posterId) => {
+    const user = userEvent.setup()
+    const poster = buildPoster({ id: posterId, title: `${size}の試し刷り`, size })
+    setupPosters([poster])
+    const { container } = renderBatch(`/app/posters/batch?posterId=${posterId}&count=1`)
+
+    expect(await screen.findByText(`${size}の試し刷り`)).toBeTruthy()
+    expect((screen.getByRole('radio', { name: new RegExp(size) }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText(/合計/).textContent).toBe('合計 1枚 → A4用紙 1枚')
+    expect(screen.getByText(`1枚目に空きが${facesPerSheet - 1}面あります。あと${facesPerSheet - 1}枚追加できます(空きのまま印刷もできます)。`)).toBeTruthy()
+
+    await waitFor(() => {
+      const preview = container.querySelector('iframe[title^="A4用紙1枚目のプレビュー"]')
+      expect(preview?.getAttribute('srcdoc')?.match(/class="a4-face"/g)).toHaveLength(1)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'PDFをダウンロード(A4・1枚)' }))
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => url === '/api/v1/posters/batch-export')
+      expect(JSON.parse(call?.[1]?.body as string)).toEqual({ size, items: [{ posterId, count: 1 }] })
+    })
+  })
+
+  it.each([
+    '/app/posters/batch?posterId=not-a-valid-id&count=1',
+    '/app/posters/batch?posterId=poster-owned-by-someone-else&count=1',
+    '/app/posters/batch?posterId=poster-1&count=invalid',
+  ])('不正または一覧にないクエリ(%s)では初期選択を行わない', async (entry) => {
+    setupPosters([buildPoster()])
+    renderBatch(entry)
+    expect(await screen.findByText('秋の新メニュー')).toBeTruthy()
+    expect(screen.getByText(/合計/).textContent).toBe('合計 0枚 → A4用紙 0枚')
+    expect(screen.getByRole('button', { name: '秋の新メニューの枚数を減らす' }).hasAttribute('disabled')).toBe(true)
   })
 
   it('1枚目の用紙のプレビューに、選んだ掲示物が枚数ぶん並び、短縮URLの表示も出る', async () => {

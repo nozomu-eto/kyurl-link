@@ -337,6 +337,13 @@ export function PosterEditorPage() {
                 {exportingFormat === 'png' ? 'PNG生成中…' : 'PNGをダウンロード(SNS用)'}
               </Button>
             </div>
+            {poster && (
+              <div className="button-group">
+                <ButtonLink to={`/app/posters/batch?posterId=${encodeURIComponent(poster.id)}&count=1`} variant="secondary">
+                  1枚だけ印刷する(A4)
+                </ButtonLink>
+              </div>
+            )}
             <p className="field__hint">書き出しには数秒かかることがあります。PNGは用紙の指定に関係なく、掲示物1枚分の画像になります。</p>
             <PosterPrintGuide />
           </Card>
