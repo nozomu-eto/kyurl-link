@@ -250,6 +250,68 @@ h1 {
   align-items: center;
 }
 
+/* 公開トップの訴求。Pageの幅を使い、見出し・対象ユーザー・次の行動を一まとまりにする */
+.top-page__hero {
+  max-width: 640px;
+  padding: var(--space-6) 0 var(--space-4);
+}
+
+.top-page__audience {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.top-page__lead {
+  max-width: 38rem;
+  margin: var(--space-4) 0 0;
+  font-size: 1.125rem;
+  line-height: 1.8;
+}
+
+.top-page__actions {
+  margin-top: var(--space-6);
+}
+
+.top-page__signup-note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.top-page__features {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.top-page__features h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.top-page__features ul {
+  margin: var(--space-3) 0 0;
+  padding-left: 1.4em;
+  color: var(--color-text-muted);
+  line-height: 1.9;
+}
+
+@media (max-width: 600px) {
+  .top-page__hero {
+    padding-top: var(--space-3);
+  }
+
+  .top-page__lead {
+    font-size: 1rem;
+  }
+
+  .top-page__actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* フォーム下の補助リンク(「パスワードをお忘れの方」等)。項目間は詰めて表示する */
 .form-links {
   display: flex;

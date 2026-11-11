@@ -67,7 +67,7 @@ export function PublicLayout() {
         )}
       </header>
       <main className="public-shell__main">
-        <Outlet />
+        <Outlet context={{ session, isSessionPending: isPending }} />
       </main>
       <footer className="site-footer">
         <div className="site-footer__inner">
