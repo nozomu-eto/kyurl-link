@@ -164,6 +164,7 @@ describe('PosterEditorPage: 編集と書き出し', () => {
     expect(await screen.findByText('保存しました。PDFをダウンロードできます。')).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'プレビュー・書き出し' }).getAttribute('aria-selected')).toBe('true')
     await waitFor(() => expect((screen.getByRole('button', { name: 'PDFをダウンロード(印刷用)' }) as HTMLButtonElement).disabled).toBe(false))
+    expect(screen.getByRole('link', { name: '1枚だけ印刷する(A4)' }).getAttribute('href')).toBe('/app/posters/batch?posterId=poster-1&count=1')
   })
 
   it('保存に失敗しても入力内容を保持し、再試行できる', async () => {

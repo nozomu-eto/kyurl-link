@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { useState } from 'react'
-import { Link, useLoaderData } from 'react-router'
+import { type LoaderFunctionArgs, Link, useLoaderData } from 'react-router'
 import type { z } from 'zod'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { Button } from '@/frontend/components/button'
@@ -24,7 +24,7 @@ type PosterListItem = z.infer<typeof posterSchema>
 type PosterSize = 'A6' | 'A5'
 
 // posterBatchLoader: まとめて印刷の画面に必要な、ログインユーザーの掲示物一覧を取得するloader
-export async function posterBatchLoader() {
+export async function posterBatchLoader({ request }: LoaderFunctionArgs) {
   const response = await apiClient.api.v1.posters.$get()
 
   if (!response.ok) {
@@ -32,7 +32,12 @@ export async function posterBatchLoader() {
   }
 
   const body = await response.json()
-  return { posterListItems: body.items }
+  const searchParams = new URL(request.url).searchParams
+  const requestedPosterId = searchParams.get('posterId')
+  const initialPoster = searchParams.get('count') === '1' && requestedPosterId
+    ? body.items.find((item: PosterListItem) => item.id === requestedPosterId) ?? null
+    : null
+  return { posterListItems: body.items, initialPoster }
 }
 
 const SIZE_OPTIONS = [
@@ -46,11 +51,11 @@ const SIZE_OPTIONS = [
 // 1枚目の用紙のプレビューは、書き出しと同じテンプレートで表示する。
 // リンクが期限切れ・停止中・削除済みの掲示物が含まれる場合は、書き出す前に該当の掲示物を示して確認する
 export function PosterBatchPage() {
-  const { posterListItems } = useLoaderData<typeof posterBatchLoader>()
+  const { posterListItems, initialPoster } = useLoaderData<typeof posterBatchLoader>()
 
-  const [size, setSize] = useState<PosterSize>('A6')
+  const [size, setSize] = useState<PosterSize>(initialPoster?.size ?? 'A6')
   // 掲示物のid→枚数。0枚の掲示物は含めない
-  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [counts, setCounts] = useState<Record<string, number>>(() => initialPoster ? { [initialPoster.id]: 1 } : {})
   const [isExporting, setIsExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isStoppedDialogOpen, setIsStoppedDialogOpen] = useState(false)
