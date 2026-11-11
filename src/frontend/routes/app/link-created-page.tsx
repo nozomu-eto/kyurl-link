@@ -81,7 +81,7 @@ export function LinkCreatedPage() {
               <ShortUrl shortCode={link.shortCode} />
               <CopyButton value={shortUrl} />
             </div>
-            <p className="created-summary__destination">転送先:{link.originalUrl}</p>
+            <p className="created-summary__destination">リンク先URL:{link.originalUrl}</p>
           </div>
         </div>
         {qrcode && (
@@ -125,7 +125,7 @@ export function LinkCreatedPage() {
               description="この短縮URLのQRコードを作成して、掲示物に使えます。"
             />
           )}
-          <NextActionLink to={`/app/links/${link.id}`} title="詳細・設定を見る" description="有効期限の変更やクリック数の確認ができます。" />
+          <NextActionLink to={`/app/links/${link.id}`} title="詳細・設定を見る" description="有効期限の管理や短縮URL経由のアクセス数確認ができます。リンク先URLは作成後に変更できません。" />
           <NextActionLink to="/app/links/new" title="続けて作成する" description="別の掲示物用に、もう1つ短縮URLを作れます。" />
         </div>
       </Card>

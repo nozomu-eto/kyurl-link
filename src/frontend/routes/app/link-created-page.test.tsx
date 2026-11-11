@@ -26,7 +26,7 @@ describe('LinkCreatedPage', () => {
     renderLinkCreatedPage('?qrcodeId=qr-1')
 
     expect(await screen.findByRole('heading', { level: 1, name: '短縮URLとQRコードを作成しました' })).toBeTruthy()
-    expect(screen.getByText('転送先:https://example.com/menu')).toBeTruthy()
+    expect(screen.getByText('リンク先URL:https://example.com/menu')).toBeTruthy()
     expect(screen.getByRole('button', { name: `${window.location.origin}/Ab3xK9 をコピー` })).toBeTruthy()
 
     const png = screen.getByRole('link', { name: 'QRコードをPNGでダウンロード' })
@@ -36,6 +36,7 @@ describe('LinkCreatedPage', () => {
 
     expect(screen.getByRole('link', { name: /このQRで掲示物を作る/ }).getAttribute('href')).toBe('/app/qrcodes/qr-1/posters/new')
     expect(screen.getByRole('link', { name: /詳細・設定を見る/ }).getAttribute('href')).toBe('/app/links/link-1')
+    expect(screen.getByText(/リンク先URLは作成後に変更できません/)).toBeTruthy()
     expect(screen.getByRole('link', { name: /続けて作成する/ }).getAttribute('href')).toBe('/app/links/new')
   })
 

@@ -40,7 +40,7 @@ describe('QrCodeCreatePage', () => {
 
     expect(await screen.findByText('おすすめ')).toBeTruthy()
     expect((screen.getByRole('radio', { name: /作成済みの短縮URL/ }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.queryByText(/印刷後に読み取り先を変更できません/)).toBeNull()
+    expect(screen.getByText(/作成後にリンク先URLは変更できません/)).toBeTruthy()
 
     await user.type(screen.getByLabelText(/名前/), '入口の案内用')
     await user.click(screen.getByRole('button', { name: 'QRコードを作成' }))
@@ -56,7 +56,7 @@ describe('QrCodeCreatePage', () => {
 
     await user.click(await screen.findByRole('radio', { name: /URLを直接指定/ }))
 
-    expect(screen.getByText(/このQRコードは、印刷後に読み取り先を変更できません/)).toBeTruthy()
+    expect(screen.getByText(/リンク先URLの変更や、kyurl.linkによるアクセス集計はできません/)).toBeTruthy()
     expect(screen.getByRole('link', { name: '短縮URLを作成する' }).getAttribute('href')).toBe('/app/links/new')
 
     await user.type(screen.getByLabelText('読み取り先のURL'), 'https://www.example-cafe.jp/access')

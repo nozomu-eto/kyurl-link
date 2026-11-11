@@ -48,6 +48,7 @@ describe('LinkCreatePage', () => {
     renderLinkCreatePage()
 
     expect(screen.getByRole('button', { name: '無期限' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/作成後にリンク先URLは変更できません/)).toBeTruthy()
     expect((screen.getByRole('checkbox', { name: 'QRコードも一緒に作成する' }) as HTMLInputElement).checked).toBe(true)
     expect(screen.getByLabelText(/QRコードの名前/)).toBeTruthy()
   })
