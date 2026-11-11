@@ -17,13 +17,15 @@ function LocationProbe() {
 
 const selectableLinkItems = [{ id: 'link-1', shortCode: 'Ab3xK9', originalUrl: 'https://example.com/menu' }]
 
-function renderQrCodeCreatePage(loaderData: { fixedLink: unknown; selectableLinkItems: unknown }) {
+function renderQrCodeCreatePage(loaderData: { fixedLink: unknown; selectableLinkItems: unknown; fromPoster?: boolean }, initialEntry = '/app/qrcodes/new') {
   const router = createMemoryRouter(
     [
       { path: '/app/qrcodes/new', element: <QrCodeCreatePage />, loader: () => loaderData },
       { path: '/app/qrcodes/:qrCodeId', element: <LocationProbe /> },
+      { path: '/app/qrcodes/:qrCodeId/posters/new', element: <LocationProbe /> },
+      { path: '/app/posters/new', element: <LocationProbe /> },
     ],
-    { initialEntries: ['/app/qrcodes/new'] },
+    { initialEntries: [initialEntry] },
   )
   return render(<RouterProvider router={router} />)
 }
@@ -65,11 +67,23 @@ describe('QrCodeCreatePage', () => {
     await waitFor(() => expect(postQrcodeMock).toHaveBeenCalledWith({ json: { targetType: 'rawUrl', targetUrl: 'https://www.example-cafe.jp/access', name: '' } }))
   })
 
-  it('短縮URLが1件も無い場合は、作成ボタンを押せず、短縮URL作成への案内を出す', async () => {
+  it('短縮URLが1件も無い場合は、直接URLが初期選択され作成できる', async () => {
     renderQrCodeCreatePage({ fixedLink: null, selectableLinkItems: [] })
 
-    expect(await screen.findByText(/まだ短縮URLがありません/)).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'QRコードを作成' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((await screen.findByRole('radio', { name: /URLを直接指定/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByLabelText('読み取り先のURL')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'QRコードを作成' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('掲示物から来た場合は、作成後に新しいQRを選択した掲示物作成へ進み、キャンセルは掲示物作成へ戻る', async () => {
+    const user = userEvent.setup()
+    postQrcodeMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'qr-poster' }) })
+    renderQrCodeCreatePage({ fixedLink: null, selectableLinkItems: [], fromPoster: true }, '/app/qrcodes/new?from=poster')
+
+    expect((await screen.findByRole('link', { name: 'キャンセル' })).getAttribute('href')).toBe('/app/posters/new')
+    await user.type(screen.getByLabelText('読み取り先のURL'), 'https://example.com/poster')
+    await user.click(screen.getByRole('button', { name: 'QRコードを作成' }))
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/app/qrcodes/qr-poster/posters/new'))
   })
 
   it('作成に失敗した場合は、サーバーのエラー文言を表示する', async () => {
