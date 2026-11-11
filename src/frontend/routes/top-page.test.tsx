@@ -41,4 +41,18 @@ describe('TopPage', () => {
 
     expect(screen.queryByRole('link', { name: 'QR付き掲示物を作る' })).toBeNull()
   })
+
+  it('登録前に完成例と実際のA4面付け、作成手順を確認できる', () => {
+    renderTopPage(null)
+
+    expect(screen.getByRole('heading', { name: 'お店で使える掲示物のサンプル' })).toBeTruthy()
+    expect(screen.getByText(/以下はデモです。QRコードは安全なサンプルURL/)).toBeTruthy()
+    expect(screen.getByText('アンケートのお願い')).toBeTruthy()
+    expect(screen.getByText('LINE公式アカウント')).toBeTruthy()
+    expect(screen.getByText('A6を4面')).toBeTruthy()
+    expect(screen.getByText('A5を2面')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '掲示物は3ステップで完成' })).toBeTruthy()
+    expect(screen.getAllByTitle(/プレビュー/)).toHaveLength(4)
+    expect(screen.getByRole('link', { name: 'QR付き掲示物を作る' })).toBeTruthy()
+  })
 })
