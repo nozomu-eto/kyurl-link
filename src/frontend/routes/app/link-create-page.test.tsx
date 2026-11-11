@@ -17,13 +17,13 @@ function LocationProbe() {
   return <p data-testid="location">{location.pathname + location.search}</p>
 }
 
-function renderLinkCreatePage() {
+function renderLinkCreatePage(entry = '/app/links/new') {
   const router = createMemoryRouter(
     [
       { path: '/app/links/new', element: <LinkCreatePage /> },
       { path: '/app/links/:linkId/created', element: <LocationProbe /> },
     ],
-    { initialEntries: ['/app/links/new'] },
+    { initialEntries: [entry] },
   )
   return render(<RouterProvider router={router} />)
 }
@@ -53,6 +53,15 @@ describe('LinkCreatePage', () => {
     expect(screen.getByLabelText(/QRコードの名前/)).toBeTruthy()
   })
 
+  it('poster intentでは掲示物向けの説明と次へ進むボタンを表示する', () => {
+    renderLinkCreatePage('/app/links/new?intent=poster')
+
+    expect(screen.getByRole('heading', { name: 'QR付き掲示物を作る' })).toBeTruthy()
+    expect(screen.getByLabelText(/掲示物から案内したいページのURL/)).toBeTruthy()
+    expect((screen.getByRole('checkbox', { name: 'QRコードも一緒に作成する' }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole('button', { name: 'URLとQRコードを作成して次へ' })).toBeTruthy()
+  })
+
   it('日付を指定すると、その日の23:59:59.999(日本時間)で短縮URLを作成し、続けてQRコードを作成して完了画面へ遷移する', async () => {
     const user = userEvent.setup()
     postLinkMock.mockResolvedValueOnce(okResponse(createdLink))
@@ -68,6 +77,23 @@ describe('LinkCreatePage', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/app/links/link-1/created?qrcodeId=qr-1'))
     expect(postLinkMock).toHaveBeenCalledWith({ json: { originalUrl: 'https://example.com/menu', expiresAt: '2099-12-31T14:59:59.999Z' } })
     expect(postQrcodeMock).toHaveBeenCalledWith({ json: { targetType: 'link', targetId: 'link-1', name: '店頭ポスター用' } })
+  })
+
+  it('poster intentとqrcodeIdを完了画面へ安全に引き継ぐ', async () => {
+    const user = userEvent.setup()
+    postLinkMock.mockResolvedValueOnce(okResponse(createdLink))
+    postQrcodeMock.mockResolvedValueOnce(okResponse({ id: 'qr 1&x=2' }))
+    renderLinkCreatePage('/app/links/new?intent=poster')
+
+    await user.type(screen.getByLabelText(/掲示物から案内したいページのURL/), 'https://example.com/menu')
+    await user.click(screen.getByRole('button', { name: 'URLとQRコードを作成して次へ' }))
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/app/links/link-1/created?qrcodeId=qr+1%26x%3D2&intent=poster'))
+  })
+
+  it('未知のintentは通常モードとして扱う', () => {
+    renderLinkCreatePage('/app/links/new?intent=redirect')
+    expect(screen.getByRole('heading', { name: '短縮URLを作成' })).toBeTruthy()
   })
 
   it('QRコードのチェックを外すと、QRコードは作成せずに完了画面へ遷移する', async () => {
