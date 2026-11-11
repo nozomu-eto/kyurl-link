@@ -19,6 +19,7 @@ export async function linkCreatedLoader({ params, request }: LoaderFunctionArgs)
   }
 
   const qrcodeId = new URL(request.url).searchParams.get('qrcodeId')
+  const isPosterIntent = new URL(request.url).searchParams.get('intent') === 'poster'
   const [linkResponse, qrcodeResponse] = await Promise.all([
     apiClient.api.v1.links[':id'].$get({ param: { id: linkId } }),
     qrcodeId ? apiClient.api.v1.qrcodes[':id'].$get({ param: { id: qrcodeId } }) : Promise.resolve(null),
@@ -31,7 +32,7 @@ export async function linkCreatedLoader({ params, request }: LoaderFunctionArgs)
   const link = await linkResponse.json()
   const qrcode = qrcodeResponse?.ok ? await qrcodeResponse.json() : null
 
-  return { link, qrcode: qrcode && qrcode.targetType === 'link' && qrcode.targetId === link.id ? qrcode : null }
+  return { link, qrcode: qrcode && qrcode.targetType === 'link' && qrcode.targetId === link.id ? qrcode : null, isPosterIntent }
 }
 
 function CheckIcon() {
@@ -65,7 +66,7 @@ function NextActionLink({ to, title, description }: { to: string; title: string;
 // 短縮URLのコピー、QRコードのPNG/SVGダウンロード、次の操作([掲示物を作る][詳細・設定を見る][続けて作成する])を案内する。
 // QRコード無しで作成した場合は、QRの表示とダウンロードの代わりに、QRコードの作成への導線を出す
 export function LinkCreatedPage() {
-  const { link, qrcode } = useLoaderData<typeof linkCreatedLoader>()
+  const { link, qrcode, isPosterIntent } = useLoaderData<typeof linkCreatedLoader>()
   const shortUrl = `${window.location.origin}/${link.shortCode}`
 
   return (
@@ -110,20 +111,23 @@ export function LinkCreatedPage() {
           </div>
         )}
       </Card>
-      <Card title="次にできること">
+      <Card title={isPosterIntent ? '掲示物の作成に進みましょう' : '次にできること'}>
         <div className="next-actions">
           {qrcode ? (
             <NextActionLink
               to={`/app/qrcodes/${qrcode.id}/posters/new`}
-              title="このQRで掲示物を作る"
+              title={isPosterIntent ? '次へ：掲示物を作る' : 'このQRで掲示物を作る'}
               description="A6・A5の掲示物をPDFで書き出して、すぐ印刷できます。"
             />
           ) : (
-            <NextActionLink
-              to={`/app/links/${link.id}/qrcodes/new`}
-              title="QRコードを作る"
-              description="この短縮URLのQRコードを作成して、掲示物に使えます。"
-            />
+            <>
+              {isPosterIntent && <p>今回はQRコードを作成していません。掲示物を作るには、先にこの短縮URLのQRコードが必要です。</p>}
+              <NextActionLink
+                to={`/app/links/${link.id}/qrcodes/new`}
+                title={isPosterIntent ? '次へ：QRコードを作る' : 'QRコードを作る'}
+                description="この短縮URLのQRコードを作成して、掲示物に使えます。"
+              />
+            </>
           )}
           <NextActionLink to={`/app/links/${link.id}`} title="詳細・設定を見る" description="有効期限の管理や短縮URL経由のアクセス数確認ができます。リンク先URLは作成後に変更できません。" />
           <NextActionLink to="/app/links/new" title="続けて作成する" description="別の掲示物用に、もう1つ短縮URLを作れます。" />
