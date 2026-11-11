@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { apiClient } from '@/frontend/lib/api-client'
 import { Button, ButtonLink } from '@/frontend/components/button'
@@ -30,6 +30,9 @@ type CreatedLink = { id: string; shortCode: string }
 // 作成済みの短縮URLに対してQRコードの作成だけを再試行できる表示に切り替える
 export function LinkCreatePage() {
   const navigate = useNavigate()
+  const { search } = useLocation()
+  // 未知のintentは通常の短縮URL作成として扱う
+  const isPosterIntent = new URLSearchParams(search).get('intent') === 'poster'
   const [originalUrl, setOriginalUrl] = useState('')
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>('none')
   const [customExpiryDate, setCustomExpiryDate] = useState('')
@@ -59,7 +62,9 @@ export function LinkCreatePage() {
     }
 
     const createdQrcode = await qrcodeResponse.json()
-    await navigate(`/app/links/${createdLink.id}/created?qrcodeId=${createdQrcode.id}`)
+    const searchParams = new URLSearchParams({ qrcodeId: createdQrcode.id })
+    if (isPosterIntent) searchParams.set('intent', 'poster')
+    await navigate(`/app/links/${createdLink.id}/created?${searchParams.toString()}`)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -89,7 +94,10 @@ export function LinkCreatePage() {
     }
 
     setIsSubmitting(false)
-    await navigate(`/app/links/${createdLink.id}/created`)
+    const searchParams = new URLSearchParams()
+    if (isPosterIntent) searchParams.set('intent', 'poster')
+    const query = searchParams.toString()
+    await navigate(`/app/links/${createdLink.id}/created${query ? `?${query}` : ''}`)
   }
 
   async function handleRetryQrcode() {
@@ -123,7 +131,7 @@ export function LinkCreatePage() {
 
   if (qrcodeRetryTarget) {
     return (
-      <Page title="短縮URLを作成">
+      <Page title={isPosterIntent ? 'QR付き掲示物を作る' : '短縮URLを作成'}>
         {errorAlert}
         <Card title="QRコードを作成できませんでした">
           <p>
@@ -133,7 +141,7 @@ export function LinkCreatePage() {
             <Button disabled={isSubmitting} onClick={handleRetryQrcode}>
               {isSubmitting ? '作成中…' : 'QRコードの作成をやり直す'}
             </Button>
-            <ButtonLink variant="outline" to={`/app/links/${qrcodeRetryTarget.id}/created`}>
+            <ButtonLink variant="outline" to={`/app/links/${qrcodeRetryTarget.id}/created${isPosterIntent ? '?intent=poster' : ''}`}>
               QRコードなしで進む
             </ButtonLink>
           </div>
@@ -143,13 +151,13 @@ export function LinkCreatePage() {
   }
 
   return (
-    <Page title="短縮URLを作成">
+    <Page title={isPosterIntent ? 'QR付き掲示物を作る' : '短縮URLを作成'} description={isPosterIntent ? '掲示物に載せたいページのURLを入力してください。短縮URLとQRコードを作成したあと、掲示物を編集できます。' : undefined}>
       {errorAlert}
       <FormCard onSubmit={handleSubmit}>
         <FormField
           fieldId="link-create-original-url"
-          label="案内したいページのURL(必須)"
-          hint="お店のホームページ、予約ページ、SNSのページなどのURLを貼り付けてください。作成後にリンク先URLは変更できません。"
+          label={isPosterIntent ? '掲示物から案内したいページのURL(必須)' : '案内したいページのURL(必須)'}
+          hint={isPosterIntent ? 'お店のホームページ、予約ページ、SNSなど、QRコードを読み取った人に開いてほしいページのURLを貼り付けてください。作成後にリンク先URLは変更できません。' : 'お店のホームページ、予約ページ、SNSのページなどのURLを貼り付けてください。作成後にリンク先URLは変更できません。'}
           inputProps={{
             type: 'url',
             required: true,
@@ -162,7 +170,7 @@ export function LinkCreatePage() {
         />
         <ChoiceButtonGroup
           legend="有効期限"
-          hint="キャンペーンなど終わりが決まっている場合に設定します。あとから変更・延長もできます。指定した日の23:59(日本時間)に期限切れになります。"
+          hint={isPosterIntent ? '短縮URLが使える期間です。キャンペーンなど終わりが決まっている場合に設定します。あとから変更・延長もでき、指定日の23:59(日本時間)に使えなくなります。' : 'キャンペーンなど終わりが決まっている場合に設定します。あとから変更・延長もできます。指定した日の23:59(日本時間)に期限切れになります。'}
           options={EXPIRY_OPTIONS}
           value={expiryChoice}
           onChange={setExpiryChoice}
@@ -205,7 +213,7 @@ export function LinkCreatePage() {
         )}
         <div className="button-group">
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? '作成中…' : '短縮URLを作成'}
+            {isSubmitting ? '作成中…' : isPosterIntent ? 'URLとQRコードを作成して次へ' : '短縮URLを作成'}
           </Button>
           <ButtonLink variant="text" to="/app">
             キャンセル
