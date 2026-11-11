@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
-import { type FormEvent, useState } from 'react'
-import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate, useRevalidator } from 'react-router'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type LoaderFunctionArgs, Link, useLoaderData, useLocation, useNavigate, useRevalidator } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
 import { Button, ButtonLink } from '@/frontend/components/button'
 import { Card, FormCard } from '@/frontend/components/card'
@@ -74,6 +74,7 @@ const SIZE_OPTIONS = [
 // 書き出しは保存済みの内容で行われるため、未保存の変更がある間は書き出せない
 export function PosterEditorPage() {
   const { poster, qrcodes, stoppedLink, initialQrCodeId, initialSize } = useLoaderData<typeof posterEditorLoader>()
+  const location = useLocation()
   const navigate = useNavigate()
   const revalidator = useRevalidator()
 
@@ -82,18 +83,27 @@ export function PosterEditorPage() {
   const [subtitle, setSubtitle] = useState(poster?.subtitle ?? '')
   const [size, setSize] = useState<PosterSize>(poster?.size ?? initialSize)
   const [paper, setPaper] = useState<'a4' | 'fit'>('a4')
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>(() => new URLSearchParams(location.search).get('tab') === 'preview' ? 'preview' : 'edit')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // メール未確認(EMAIL_NOT_VERIFIED)・アカウント削除申請中(ACCOUNT_DELETION_PENDING)の場合のみ、導線を追加で出す
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const saveInProgress = useRef(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'png' | null>(null)
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null)
+  const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null)
   const [pendingStoppedExportFormat, setPendingStoppedExportFormat] = useState<'pdf' | 'png' | null>(null)
 
   const qrCodeSvg = useQrcodeSvg(qrCodeId)
+
+  // 作成成功時は同じルート部品が再利用される場合もあるため、URLのタブ状態を反映する
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('tab') === 'preview') {
+      setActiveTab('preview')
+    }
+  }, [location.pathname, location.search])
 
   // 掲示物に出す短縮URL。書き出し(サーバー)と同じく、QRコードに埋め込む内容(`{origin}/{shortCode}`)から
   // 共通の関数で作る。短縮URL経由でないQRコードでは出さない
@@ -109,34 +119,44 @@ export function PosterEditorPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (saveInProgress.current) return
+    saveInProgress.current = true
     setErrorMessage(null)
     setErrorCode(null)
     setSuccessMessage(null)
     setIsSaving(true)
 
     const input = { qrCodeId, title, subtitle: subtitle || null, size }
-    const response = poster
-      ? await apiClient.api.v1.posters[':id'].$patch({ param: { id: poster.id }, json: input })
-      : await apiClient.api.v1.posters.$post({ json: input })
+    try {
+      const response = poster
+        ? await apiClient.api.v1.posters[':id'].$patch({ param: { id: poster.id }, json: input })
+        : await apiClient.api.v1.posters.$post({ json: input })
 
-    setIsSaving(false)
+      if (!response.ok) {
+        // サーバーが返す{ error: { code, message } }をそのまま表示する
+        const body = await response.json().catch(() => null)
+        setErrorMessage(body && 'error' in body && body.error?.message ? body.error.message : '保存に失敗しました')
+        setErrorCode(body && 'error' in body ? (body.error?.code ?? null) : null)
+        return
+      }
 
-    if (!response.ok) {
-      // サーバーが返す{ error: { code, message } }をそのまま表示する(429時の「リクエストが多すぎます…」等もmessageに含まれる)
-      const body = await response.json().catch(() => null)
-      setErrorMessage(body && 'error' in body && body.error?.message ? body.error.message : '保存に失敗しました')
-      setErrorCode(body && 'error' in body ? (body.error?.code ?? null) : null)
-      return
+      if (!poster) {
+        const created = await response.json()
+        setActiveTab('preview')
+        await navigate(`/app/posters/${created.id}?tab=preview`, { replace: true })
+        return
+      }
+
+      setSuccessMessage('保存しました。PDFをダウンロードできます。')
+      setExportSuccessMessage(null)
+      setActiveTab('preview')
+      revalidator.revalidate()
+    } catch {
+      setErrorMessage('保存に失敗しました。通信状況を確認して、もう一度お試しください')
+    } finally {
+      saveInProgress.current = false
+      setIsSaving(false)
     }
-
-    if (!poster) {
-      const created = await response.json()
-      await navigate(`/app/posters/${created.id}`, { replace: true })
-      return
-    }
-
-    setSuccessMessage('保存しました')
-    revalidator.revalidate()
   }
 
   async function handleDeleteClick() {
@@ -161,11 +181,14 @@ export function PosterEditorPage() {
       return
     }
     setExportErrorMessage(null)
+    setExportSuccessMessage(null)
     setExportingFormat(format)
     try {
       const result = await downloadPosterExport({ posterId: poster.id, format, paper, fileName: poster.title })
       if (!result.ok) {
         setExportErrorMessage(result.message)
+      } else {
+        setExportSuccessMessage(format === 'pdf' ? 'PDFをダウンロードしました。' : 'PNGをダウンロードしました。')
       }
     } catch {
       setExportErrorMessage('書き出しに失敗しました。時間をおいて、もう一度お試しください')
@@ -225,18 +248,27 @@ export function PosterEditorPage() {
       {successMessage && <AlertMessage tone="success">{successMessage}</AlertMessage>}
 
       {/* スマホ用のタブ。PCではCSSで隠し、入力とプレビューを並べて表示する */}
-      <div className="poster-editor-tabs" role="tablist" aria-label="表示の切り替え">
-        <button type="button" role="tab" id="poster-editor-tab-edit" aria-selected={activeTab === 'edit'} aria-controls="poster-editor-panel-edit" className="poster-editor-tabs__tab" onClick={() => setActiveTab('edit')}>
+      <div className="poster-editor-tabs" role="tablist" aria-label="表示の切り替え" aria-orientation="horizontal" onKeyDown={(event) => {
+        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+        const currentIndex = tabs.indexOf(event.target as HTMLButtonElement)
+        const nextIndex = event.key === 'ArrowRight' ? (currentIndex + 1) % tabs.length : event.key === 'ArrowLeft' ? (currentIndex - 1 + tabs.length) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1
+        if (nextIndex >= 0) {
+          event.preventDefault()
+          tabs[nextIndex].focus()
+          setActiveTab(nextIndex === 0 ? 'edit' : 'preview')
+        }
+      }}>
+        <button type="button" role="tab" tabIndex={activeTab === 'edit' ? 0 : -1} id="poster-editor-tab-edit" aria-selected={activeTab === 'edit'} aria-controls="poster-editor-panel-edit" className="poster-editor-tabs__tab" onClick={() => setActiveTab('edit')}>
           入力
         </button>
-        <button type="button" role="tab" id="poster-editor-tab-preview" aria-selected={activeTab === 'preview'} aria-controls="poster-editor-panel-preview" className="poster-editor-tabs__tab" onClick={() => setActiveTab('preview')}>
+        <button type="button" role="tab" tabIndex={activeTab === 'preview' ? 0 : -1} id="poster-editor-tab-preview" aria-selected={activeTab === 'preview'} aria-controls="poster-editor-panel-preview" className="poster-editor-tabs__tab" onClick={() => setActiveTab('preview')}>
           プレビュー・書き出し
         </button>
       </div>
 
       <div className="poster-editor-layout">
         <div className="poster-editor" data-active-tab={activeTab}>
-        <div id="poster-editor-panel-edit" role="tabpanel" aria-labelledby="poster-editor-tab-edit" className="poster-editor__panel poster-editor__panel--edit">
+        <div id="poster-editor-panel-edit" role="tabpanel" tabIndex={0} aria-labelledby="poster-editor-tab-edit" className="poster-editor__panel poster-editor__panel--edit">
           <FormCard onSubmit={handleSubmit}>
             {/* スマホでは、入力の合間に小さなプレビューを見せ、タップでプレビュー側のタブへ移る */}
             <button type="button" className="poster-editor__thumbnail" onClick={() => setActiveTab('preview')}>
@@ -268,6 +300,7 @@ export function PosterEditorPage() {
               />
             </Field>
             <RadioCardGroup legend="用紙サイズ(縦向き)" name="poster-editor-size" options={SIZE_OPTIONS} value={size} onChange={setSize} />
+            {isSaving && <p className="field__hint" role="status" aria-live="polite">保存しています。</p>}
             <div className="button-group">
               <Button type="submit" disabled={isSaving || qrcodes.length === 0}>
                 {isSaving ? '保存中…' : poster ? '保存する' : '掲示物を作成'}
@@ -281,7 +314,7 @@ export function PosterEditorPage() {
           </div>
         </div>
 
-        <div id="poster-editor-panel-preview" role="tabpanel" aria-labelledby="poster-editor-tab-preview" className="poster-editor__panel poster-editor__panel--preview">
+        <div id="poster-editor-panel-preview" role="tabpanel" tabIndex={0} aria-labelledby="poster-editor-tab-preview" className="poster-editor__panel poster-editor__panel--preview">
           <Card title={`プレビュー(${size}・縦)`}>
             <PosterPreview title={title} subtitle={subtitle} size={size} qrCodeSvg={qrCodeSvg} shortUrlText={shortUrlText} />
             <p className="field__hint">書き出しと同じ配置で表示しています。文字の書体は、書き出したPDF・PNGと少し異なることがあります。</p>
@@ -290,9 +323,11 @@ export function PosterEditorPage() {
           <Card title="書き出し">
             <AlertMessage tone="warning">コンビニで印刷する場合は「A4用紙に並べる」を選んでください。コンビニのネットプリントで選べる普通紙はA3・A4・B4・B5だけで、サイズが違うと自動で拡大されてしまいます。</AlertMessage>
             <RadioCardGroup legend="PDFの用紙" name="poster-editor-paper" options={paperOptions} value={paper} onChange={setPaper} />
-            {poster === null && <p className="field__hint">掲示物を作成すると、書き出せるようになります。</p>}
-            {poster !== null && isDirty && <p className="field__hint">変更を保存すると、書き出せるようになります。書き出しは保存した内容で行われます。</p>}
+            {poster === null && <div className="poster-editor__save-guidance"><p className="field__hint">まだ保存されていないためPDFを作成できません。入力に戻って保存してください。</p><Button variant="secondary" onClick={() => setActiveTab('edit')}>入力に戻って保存する</Button></div>}
+            {poster !== null && isDirty && <div className="poster-editor__save-guidance"><p className="field__hint">未保存の変更があるためPDFを作成できません。保存した内容で書き出します。</p><Button variant="secondary" onClick={() => setActiveTab('edit')}>入力に戻って保存する</Button></div>}
+            {poster !== null && !isDirty && <p className="field__hint">保存済みです。PDFをダウンロードできます。</p>}
             {exportErrorMessage && <AlertMessage tone="error">{exportErrorMessage}</AlertMessage>}
+            {exportSuccessMessage && <AlertMessage tone="success">{exportSuccessMessage}</AlertMessage>}
             {exportingFormat && <PosterExportStatus format={exportingFormat} />}
             <div className="button-group">
               <Button disabled={exportDisabled} onClick={() => handleExportClick('pdf')}>
