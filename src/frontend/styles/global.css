@@ -2427,6 +2427,42 @@ h1 {
 
 /* ========== 短縮URL一覧(docs/mocks/Dashboard.html・MobileDashboard.html・EmptyDashboard.html) ========== */
 
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.home-link-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.home-link-section__header .card__title,
+.home-link-empty > .card__title {
+  margin-bottom: var(--space-2);
+}
+
+.home-link-section__header .page-description {
+  margin-bottom: var(--space-4);
+}
+
+.home-link-empty .empty-state {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .home-actions {
+    flex-direction: column;
+  }
+
+  .home-actions .button {
+    width: 100%;
+  }
+}
+
 .link-row__short-url {
   display: flex;
   align-items: center;

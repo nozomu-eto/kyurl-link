@@ -78,7 +78,7 @@ describe('AppHeaderDrawer', () => {
     const toggleButton = screen.getByRole('button', { name: 'メニューを開く' })
     await user.click(toggleButton)
 
-    const firstLink = screen.getByRole('link', { name: '短縮URL' })
+    const firstLink = screen.getByRole('link', { name: 'ホーム' })
     expect(document.activeElement).toBe(firstLink)
 
     const secondLink = screen.getByRole('link', { name: 'QRコード' })
