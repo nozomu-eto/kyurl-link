@@ -40,6 +40,16 @@ describe('LinkCreatedPage', () => {
     expect(screen.getByRole('link', { name: /続けて作成する/ }).getAttribute('href')).toBe('/app/links/new')
   })
 
+  it('poster intentでは掲示物作成を次の主導線として表示する', async () => {
+    getLinkMock.mockResolvedValueOnce({ ok: true, json: async () => link })
+    getQrcodeMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'qr-1', targetType: 'link', targetId: 'link-1' }) })
+    renderLinkCreatedPage('?qrcodeId=qr-1&intent=poster')
+
+    expect(await screen.findByRole('heading', { level: 1, name: '短縮URLとQRコードを作成しました' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '掲示物の作成に進みましょう' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /次へ：掲示物を作る/ }).getAttribute('href')).toBe('/app/qrcodes/qr-1/posters/new')
+  })
+
   it('QRコードが無い場合は、ダウンロードを出さず、QRコードの作成への導線を表示する', async () => {
     getLinkMock.mockResolvedValueOnce({ ok: true, json: async () => link })
     renderLinkCreatedPage('')
@@ -47,6 +57,15 @@ describe('LinkCreatedPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '短縮URLを作成しました' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'QRコードをPNGでダウンロード' })).toBeNull()
     expect(screen.getByRole('link', { name: /QRコードを作る/ }).getAttribute('href')).toBe('/app/links/link-1/qrcodes/new')
+  })
+
+  it('poster intentでQRが無い場合は作成されなかったことを伝えQR作成へ案内する', async () => {
+    getLinkMock.mockResolvedValueOnce({ ok: true, json: async () => link })
+    renderLinkCreatedPage('?intent=poster')
+
+    expect(await screen.findByRole('heading', { level: 1, name: '短縮URLを作成しました' })).toBeTruthy()
+    expect(screen.getByText(/今回はQRコードを作成していません/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /次へ：QRコードを作る/ }).getAttribute('href')).toBe('/app/links/link-1/qrcodes/new')
   })
 
   it('別の短縮URLのQRコードが指定された場合は、QRコード無しとして扱う', async () => {
