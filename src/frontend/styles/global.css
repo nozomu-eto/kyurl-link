@@ -297,6 +297,109 @@ h1 {
   line-height: 1.9;
 }
 
+.top-page__demo,
+.top-page__steps {
+  margin-top: var(--space-8);
+}
+
+.top-page__section-heading {
+  margin-bottom: var(--space-4);
+}
+
+.top-page__section-heading h2,
+.top-page__steps h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.top-page__section-heading > p:last-child {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+}
+
+.top-page__eyebrow {
+  margin: 0 0 var(--space-1);
+  color: var(--color-brand);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.top-page__examples,
+.top-page__sheets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.top-page__sheets {
+  margin-top: var(--space-6);
+}
+
+.top-page__example,
+.top-page__sheet {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.top-page__example figcaption,
+.top-page__sheet figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.top-page__example figcaption span,
+.top-page__sheet figcaption span {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.top-page__example .poster-preview-frame,
+.top-page__sheet .poster-preview-frame {
+  margin-inline: auto;
+}
+
+.top-page__steps {
+  padding: var(--space-5);
+  border-radius: var(--radius-base);
+  background: var(--color-bg-alt);
+}
+
+.top-page__steps ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: top-steps;
+}
+
+.top-page__steps li {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  counter-increment: top-steps;
+}
+
+.top-page__steps li::before {
+  content: counter(top-steps, decimal-leading-zero);
+  color: var(--color-brand);
+  font-weight: 700;
+}
+
+.top-page__steps li span {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 600px) {
   .top-page__hero {
     padding-top: var(--space-3);
@@ -309,6 +412,21 @@ h1 {
   .top-page__actions .button {
     width: 100%;
     justify-content: center;
+  }
+
+  .top-page__examples,
+  .top-page__sheets,
+  .top-page__steps ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-page__demo,
+  .top-page__steps {
+    margin-top: var(--space-6);
+  }
+
+  .top-page__steps {
+    padding: var(--space-4);
   }
 }
 
