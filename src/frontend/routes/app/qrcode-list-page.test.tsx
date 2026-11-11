@@ -61,7 +61,7 @@ describe('QrCodeListPage', () => {
     const [linkRow, rawUrlRow] = rows
     expect(within(linkRow).getByText('店頭A5ポスター用')).toBeTruthy()
     expect(within(linkRow).getByText('短縮URL経由')).toBeTruthy()
-    expect(within(linkRow).getByText('変更・集計できる')).toBeTruthy()
+    expect(within(linkRow).getByText('停止・期限管理・集計が可能')).toBeTruthy()
     expect(within(linkRow).getByText('Ab3xK9')).toBeTruthy()
     expect(within(linkRow).getByText('2件')).toBeTruthy()
     expect(within(linkRow).getByText('2026/09/21')).toBeTruthy()
@@ -69,10 +69,10 @@ describe('QrCodeListPage', () => {
     expect(within(linkRow).getByRole('link', { name: '店頭A5ポスター用をSVGでダウンロード' }).getAttribute('href')).toBe('/api/v1/qrcodes/qr-1/image?format=svg')
     expect(within(linkRow).getByRole('link', { name: '詳細' }).getAttribute('href')).toBe('/app/qrcodes/qr-1')
 
-    // 名前なしは作成日付きで表示し、元URLを直接指定したQRは「変更・集計できない」、掲示物なしは「なし」
+    // 名前なしは作成日付きで表示し、元URLを直接指定したQRはURL変更・集計不可、掲示物なしは「なし」
     expect(within(rawUrlRow).getByText('名前なし(9/22作成)')).toBeTruthy()
     expect(within(rawUrlRow).getByText('元URLを直接')).toBeTruthy()
-    expect(within(rawUrlRow).getByText('変更・集計できない')).toBeTruthy()
+    expect(within(rawUrlRow).getByText('URL変更・集計は不可')).toBeTruthy()
     expect(within(rawUrlRow).getByText('https://www.instagram.com/example_cafe/')).toBeTruthy()
     expect(within(rawUrlRow).getByText('なし')).toBeTruthy()
   })
