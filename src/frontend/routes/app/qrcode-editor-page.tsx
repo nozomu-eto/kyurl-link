@@ -136,7 +136,7 @@ export function QrCodeEditorPage() {
             )}
           </p>
           <p className="field__hint">
-            {qrcode.targetType === 'link' ? '短縮URL経由(読み取り先の変更・読み取り数の集計ができます)' : '元URLを直接(印刷後の読み取り先の変更・読み取り数の集計はできません)'}
+            {qrcode.targetType === 'link' ? '短縮URL経由(公開の停止・有効期限の管理・短縮URL経由のアクセス数確認ができます。作成後にリンク先URLは変更できません)' : '元URLを直接(リンク先URLの変更や、kyurl.linkによるアクセス集計はできません)'}
           </p>
 
           <h2 className="card__title">ダウンロード</h2>

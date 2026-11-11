@@ -78,6 +78,9 @@ describe('LinkDetailPage', () => {
     renderLinkDetailPage()
 
     expect(await screen.findByText('作成日')).toBeTruthy()
+    expect(screen.getByText('リンク先URL')).toBeTruthy()
+    expect(screen.getByText('リンク先URLは作成後に変更できません。')).toBeTruthy()
+    expect(screen.getByText('短縮URL経由のアクセス数です。QRコードのスキャンだけを数えたものではありません。おおむね90日分まで確認できます。')).toBeTruthy()
     expect(screen.getByText('2026/09/22')).toBeTruthy()
   })
 

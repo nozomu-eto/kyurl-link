@@ -149,7 +149,7 @@ export function LinkCreatePage() {
         <FormField
           fieldId="link-create-original-url"
           label="案内したいページのURL(必須)"
-          hint="お店のホームページ、予約ページ、SNSのページなどのURLを貼り付けてください。"
+          hint="お店のホームページ、予約ページ、SNSのページなどのURLを貼り付けてください。作成後にリンク先URLは変更できません。"
           inputProps={{
             type: 'url',
             required: true,
