@@ -184,12 +184,13 @@ export function LinkDetailPage() {
         </div>
         <dl className="detail-list">
           <div className="detail-list__row">
-            <dt>元URL</dt>
+            <dt>リンク先URL</dt>
             <dd>
               <a href={link.originalUrl} target="_blank" rel="noopener noreferrer" className="detail-list__external-link">
                 {link.originalUrl}
                 <ExternalLinkIcon />
               </a>
+              <p className="field__hint">リンク先URLは作成後に変更できません。</p>
             </dd>
           </div>
           <div className="detail-list__row">
@@ -230,7 +231,7 @@ export function LinkDetailPage() {
       </Card>
 
       <Card
-        title="クリック統計"
+        title="短縮URL経由のアクセス統計"
         actions={
           <ChoiceButtonGroup
             legend="集計期間"
@@ -242,7 +243,7 @@ export function LinkDetailPage() {
         }
       >
         {clicks === null ? (
-          <p className="field__hint">クリック統計を取得できませんでした。時間をおいて開き直してください。</p>
+          <p className="field__hint">アクセス統計を取得できませんでした。時間をおいて開き直してください。</p>
         ) : (
           <>
             <div className="stats-summary">
@@ -261,7 +262,7 @@ export function LinkDetailPage() {
             </div>
             <ClickChart series={clickSeries} label={`直近${days}日の日別クリック数の棒グラフ`} />
             <p className="field__hint">
-              クリック数は、おおむね90日分まで確認できます。
+              短縮URL経由のアクセス数です。QRコードのスキャンだけを数えたものではありません。おおむね90日分まで確認できます。
               <Button variant="text" aria-expanded={isClickTableShown} onClick={() => setIsClickTableShown((shown) => !shown)}>
                 {isClickTableShown ? '表を閉じる' : '表形式で見る'}
               </Button>
@@ -272,7 +273,7 @@ export function LinkDetailPage() {
                   <thead>
                     <tr>
                       <th scope="col">日付</th>
-                      <th scope="col">クリック数</th>
+                      <th scope="col">アクセス数</th>
                     </tr>
                   </thead>
                   <tbody>

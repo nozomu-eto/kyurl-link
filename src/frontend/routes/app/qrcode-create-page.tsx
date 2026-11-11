@@ -32,15 +32,14 @@ export async function qrcodeCreateLoader({ params }: LoaderFunctionArgs) {
 
 // 読み取り先の選択肢(docs/architecture.mdの「画面ごとの確定仕様」「作成済みの短縮URL(おすすめ)」「URLを直接指定」)
 const TARGET_KIND_OPTIONS = [
-  { value: 'link', label: '作成済みの短縮URL', badge: 'おすすめ', description: '印刷後も転送先を変えられ、読み取り数も確認できます。' },
+  { value: 'link', label: '作成済みの短縮URL', badge: 'おすすめ', description: '公開の停止・有効期限の管理・短縮URL経由のアクセス数確認ができます。作成後にリンク先URLは変更できません。' },
   { value: 'rawUrl', label: 'URLを直接指定', description: '短縮せず、元のURLをそのままQRコードにします。' },
 ] as const
 
 // QrCodeCreatePage: QRコードの新規作成フォーム(docs/mocks/QrCreate.html・MobileQrCreate.html)。
 // 読み取り先は「既存の短縮URL(link)」または「直接指定するURL(rawUrl)」のいずれかを選ぶ
 // (docs/architecture.md「QRコードは短縮後・短縮前どちらのURLにも紐づけ可能」に対応)。
-// 直接指定では、印刷後に読み取り先を変更できず読み取り数も確認できない旨の注意と、
-// 短縮URL作成への導線を表示する。
+// 短縮URLではリンク先URLを変更できず、直接指定ではkyurl.linkによる集計ができない旨を案内する。
 // :linkIdから遷移してきた場合は対象linkを固定し、選択UI自体を出さない
 export function QrCodeCreatePage() {
   const { fixedLink, selectableLinkItems } = useLoaderData<typeof qrcodeCreateLoader>()
@@ -155,8 +154,7 @@ export function QrCodeCreatePage() {
                   }}
                 />
                 <AlertMessage tone="warning">
-                  <strong>このQRコードは、印刷後に読み取り先を変更できません。</strong>
-                  読み取り数の確認もできません。ページのURLが変わる可能性がある場合は、短縮URLを作ってからQRコードにするのがおすすめです。{' '}
+                  <strong>リンク先URLの変更や、kyurl.linkによるアクセス集計はできません。</strong>ページのURLが変わる可能性がある場合は、短縮URLを作ってからQRコードにするのがおすすめです。{' '}
                   <Link to="/app/links/new">短縮URLを作成する</Link>
                 </AlertMessage>
               </>

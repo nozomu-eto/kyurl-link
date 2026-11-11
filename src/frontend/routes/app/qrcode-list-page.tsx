@@ -58,13 +58,13 @@ function QrcodeTarget({ qrcode }: { qrcode: QrcodeListItem }) {
   )
 }
 
-// QrcodeKind: 種類(短縮URL経由=変更・集計できる / 元URLを直接=変更・集計できない)
+// QrcodeKind: 種類と機能差(短縮URL経由は停止・期限管理・アクセス集計が可能。元URL直接指定はURL変更・集計不可)
 function QrcodeKind({ qrcode }: { qrcode: QrcodeListItem }) {
   const isLink = qrcode.targetType === 'link'
   return (
     <span className="qrcode-kind">
       <span className="qrcode-kind__name">{isLink ? '短縮URL経由' : '元URLを直接'}</span>
-      <span className="qrcode-kind__note">{isLink ? '変更・集計できる' : '変更・集計できない'}</span>
+      <span className="qrcode-kind__note">{isLink ? '停止・期限管理・集計が可能' : 'URL変更・集計は不可'}</span>
     </span>
   )
 }
