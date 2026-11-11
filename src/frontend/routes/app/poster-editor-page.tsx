@@ -2,8 +2,9 @@
 import { type FormEvent, useState } from 'react'
 import { type LoaderFunctionArgs, Link, useLoaderData, useNavigate, useRevalidator } from 'react-router'
 import { AlertMessage } from '@/frontend/components/alert-message'
-import { Button } from '@/frontend/components/button'
+import { Button, ButtonLink } from '@/frontend/components/button'
 import { Card, FormCard } from '@/frontend/components/card'
+import { EmptyState } from '@/frontend/components/empty-state'
 import { Field, FormField, SelectField } from '@/frontend/components/form-field'
 import { Page } from '@/frontend/components/page'
 import { PosterPrintGuide } from '@/frontend/components/poster-print-guide'
@@ -188,6 +189,19 @@ export function PosterEditorPage() {
   ] as const
 
   const exportDisabled = poster === null || isDirty || exportingFormat !== null
+
+  // QRコードがない新規作成では、入力内容を持つフォームを出さず、先に必要な操作だけ案内する
+  if (!poster && qrcodes.length === 0) {
+    return (
+      <Page title="掲示物を作成">
+        <EmptyState
+          title="QRコードを先に作成しましょう"
+          description="掲示物に入れるQRコードを、先に作成しましょう。"
+          action={<ButtonLink to="/app/qrcodes/new?from=poster" variant="cta">URLからQRコードを作る</ButtonLink>}
+        />
+      </Page>
+    )
+  }
 
   return (
     <Page title={poster ? `掲示物の編集(${poster.size}縦)` : '掲示物を作成'}>

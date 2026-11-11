@@ -15,19 +15,20 @@ import { QRCODE_NAME_MAX_LENGTH, URL_MAX_LENGTH } from '@/shared/constants/input
 // linkだけを取得し、対象linkを固定した状態でフォームを表示する。
 // :linkIdが無い場合(/app/qrcodes/newへ直接来た場合)は、対象を選べるように
 // ログインユーザーの全link一覧を取得する
-export async function qrcodeCreateLoader({ params }: LoaderFunctionArgs) {
+export async function qrcodeCreateLoader({ params, request }: LoaderFunctionArgs) {
+  const fromPoster = new URL(request.url).searchParams.get('from') === 'poster'
   if (params.linkId) {
     const response = await apiClient.api.v1.links[':id'].$get({ param: { id: params.linkId } })
     if (!response.ok) {
       throw new Response('指定された短縮URLが見つかりません', { status: response.status })
     }
     const fixedLink = await response.json()
-    return { fixedLink, selectableLinkItems: null }
+    return { fixedLink, selectableLinkItems: null, fromPoster }
   }
 
   const response = await apiClient.api.v1.links.$get()
   const body = response.ok ? await response.json() : { items: [] }
-  return { fixedLink: null, selectableLinkItems: body.items }
+  return { fixedLink: null, selectableLinkItems: body.items, fromPoster }
 }
 
 // 読み取り先の選択肢(docs/architecture.mdの「画面ごとの確定仕様」「作成済みの短縮URL(おすすめ)」「URLを直接指定」)
@@ -42,11 +43,11 @@ const TARGET_KIND_OPTIONS = [
 // 短縮URLではリンク先URLを変更できず、直接指定ではkyurl.linkによる集計ができない旨を案内する。
 // :linkIdから遷移してきた場合は対象linkを固定し、選択UI自体を出さない
 export function QrCodeCreatePage() {
-  const { fixedLink, selectableLinkItems } = useLoaderData<typeof qrcodeCreateLoader>()
+  const { fixedLink, selectableLinkItems, fromPoster } = useLoaderData<typeof qrcodeCreateLoader>()
   const navigate = useNavigate()
 
   // targetKind: 対象種別の選択状態。fixedLinkがある場合は常に'link'固定
-  const [targetKind, setTargetKind] = useState<'link' | 'rawUrl'>('link')
+  const [targetKind, setTargetKind] = useState<'link' | 'rawUrl'>(selectableLinkItems?.length === 0 ? 'rawUrl' : 'link')
   const [selectedLinkId, setSelectedLinkId] = useState(selectableLinkItems?.[0]?.id ?? '')
   const [rawUrl, setRawUrl] = useState('')
   const [name, setName] = useState('')
@@ -80,7 +81,7 @@ export function QrCodeCreatePage() {
     }
 
     const created = await response.json()
-    await navigate(`/app/qrcodes/${created.id}`)
+    await navigate(fromPoster ? `/app/qrcodes/${created.id}/posters/new` : `/app/qrcodes/${created.id}`)
   }
 
   return (
@@ -173,7 +174,7 @@ export function QrCodeCreatePage() {
           <Button type="submit" disabled={isSubmitting || (!fixedLink && targetKind === 'link' && !selectedLinkId)}>
             {isSubmitting ? '作成中…' : 'QRコードを作成'}
           </Button>
-          <ButtonLink variant="text" to="/app/qrcodes">
+          <ButtonLink variant="text" to={fromPoster ? '/app/posters/new' : '/app/qrcodes'}>
             キャンセル
           </ButtonLink>
         </div>
