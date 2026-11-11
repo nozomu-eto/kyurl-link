@@ -100,48 +100,48 @@ export function DashboardPage() {
   )
   const toast = toastMessage && <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
-  // 0件のときは見出しの作成ボタンを出さず、案内内のボタンに一本化する
-  if (linkListItems.length === 0) {
-    return (
-      <Page title="短縮URL一覧">
-        {deletionBanner}
-        <EmptyState
-          icon={<LinkIcon />}
-          title="まだ短縮URLがありません"
-          description={
-            <>
-              案内したいページのURLを入力して、最初の短縮URLを作りましょう。
-              <br />
-              QRコードと掲示物も、続けて作成できます。
-            </>
-          }
-          action={
-            <ButtonLink to="/app/links/new" variant="cta" size="large">
-              <PlusIcon />
-              最初の短縮URLを作成
-            </ButtonLink>
-          }
-          steps={EMPTY_STATE_STEPS}
-        />
-        {toast}
-      </Page>
-    )
-  }
-
   return (
     <Page
-      title="短縮URL一覧"
-      description="作成した短縮URLの確認・コピー・状態の管理ができます。"
-      actions={
-        <ButtonLink to="/app/links/new" variant="cta">
-          <PlusIcon />
-          新しい短縮URLを作成
-        </ButtonLink>
-      }
+      title="ホーム"
+      description="お店の掲示物やQRコードを作成・管理できます。"
     >
       {deletionBanner}
-      <section className="card">
-        <p className="list-summary">全{linkListItems.length}件</p>
+      <section className="home-actions" aria-label="掲示物の操作">
+        <ButtonLink to="/app/links/new?intent=poster" variant="cta" size="large">
+          <PlusIcon />
+          新しいQR付き掲示物を作る
+        </ButtonLink>
+        <ButtonLink to="/app/posters" variant="secondary" size="large">
+          以前の掲示物を再印刷する
+        </ButtonLink>
+      </section>
+
+      {linkListItems.length === 0 ? (
+        <section className="home-link-empty">
+          <h2 className="card__title">短縮URLを管理</h2>
+          <EmptyState
+            icon={<LinkIcon />}
+            title="まだ短縮URLがありません"
+            description={
+              <>
+                掲示物を作るときに、お店のページのURLから短縮URLとQRコードを作成できます。
+                <br />
+                上の「新しいQR付き掲示物を作る」から始めましょう。
+              </>
+            }
+            steps={EMPTY_STATE_STEPS}
+          />
+        </section>
+      ) : (
+        <section className="home-link-section">
+          <div className="home-link-section__header">
+            <div>
+              <h2 className="card__title">短縮URLを管理</h2>
+              <p className="page-description">短縮URLの確認・コピー・状態の管理ができます。</p>
+            </div>
+            <span className="list-summary">全{linkListItems.length}件</span>
+          </div>
+          <div className="card">
         <div className="link-table">
           <div className="data-table__scroll">
             <table className="data-table">
@@ -205,7 +205,9 @@ export function DashboardPage() {
             </li>
           ))}
         </ul>
-      </section>
+          </div>
+        </section>
+      )}
       {toast}
     </Page>
   )
