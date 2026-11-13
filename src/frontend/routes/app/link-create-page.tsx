@@ -32,11 +32,13 @@ export function LinkCreatePage() {
   const navigate = useNavigate()
   const { search } = useLocation()
   // 未知のintentは通常の短縮URL作成として扱う
-  const isPosterIntent = new URLSearchParams(search).get('intent') === 'poster'
+  const intent = new URLSearchParams(search).get('intent')
+  const isPosterIntent = intent === 'poster'
+  const isLinkOnlyIntent = intent === 'link'
   const [originalUrl, setOriginalUrl] = useState('')
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>('none')
   const [customExpiryDate, setCustomExpiryDate] = useState('')
-  const [shouldCreateQrcode, setShouldCreateQrcode] = useState(true)
+  const [shouldCreateQrcode, setShouldCreateQrcode] = useState(!isLinkOnlyIntent)
   const [qrcodeName, setQrcodeName] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // メール未確認によるエラー(EMAIL_NOT_VERIFIED)の場合のみ、「メール確認待ち」画面への
@@ -151,7 +153,7 @@ export function LinkCreatePage() {
   }
 
   return (
-    <Page title={isPosterIntent ? 'QR付き掲示物を作る' : '短縮URLを作成'} description={isPosterIntent ? '掲示物に載せたいページのURLを入力してください。短縮URLとQRコードを作成したあと、掲示物を編集できます。' : undefined}>
+    <Page title={isPosterIntent ? 'QR付き掲示物を作る' : '短縮URLを作成'} description={isPosterIntent ? '掲示物に載せたいページのURLを入力してください。短縮URLとQRコードを作成したあと、掲示物を編集できます。' : isLinkOnlyIntent ? 'URLを入力して、コピーできる短縮URLを作成します。QRコードは必要な場合に追加できます。' : undefined}>
       {errorAlert}
       <FormCard onSubmit={handleSubmit}>
         <FormField
