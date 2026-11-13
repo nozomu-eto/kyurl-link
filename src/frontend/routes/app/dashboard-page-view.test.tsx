@@ -33,19 +33,22 @@ function renderDashboardPage(linkListItems: LinkListItem[]) {
 }
 
 describe('DashboardPage', () => {
-  it('0件の場合も掲示物の作成と再印刷を案内し、短縮URLの空状態を表示する', async () => {
+  it('0件の場合も目的別の作成導線と短縮URLの空状態を表示する', async () => {
     renderDashboardPage([])
 
     expect(await screen.findByRole('heading', { name: 'ホーム' })).toBeTruthy()
     expect(await screen.findByRole('heading', { name: 'まだ短縮URLがありません' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: '新しいQR付き掲示物を作る' }).getAttribute('href')).toBe('/app/links/new?intent=poster')
-    expect(screen.getByRole('link', { name: '以前の掲示物を再印刷する' }).getAttribute('href')).toBe('/app/posters')
+    expect(screen.getByRole('heading', { name: '何を作りますか？' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /QRコードを作る/ }).getAttribute('href')).toBe('/app/qrcodes/new')
+    expect(screen.getByRole('link', { name: /短縮URLを作る/ }).getAttribute('href')).toBe('/app/links/new?intent=link')
+    expect(screen.getByRole('link', { name: /掲示物を作る/ }).getAttribute('href')).toBe('/app/posters/new')
+    expect(screen.getByRole('link', { name: '掲示物一覧' }).getAttribute('href')).toBe('/app/posters')
     expect(screen.getByRole('heading', { name: '短縮URLを管理' })).toBeTruthy()
     expect(screen.getByText('STEP 3')).toBeTruthy()
     expect(screen.queryByRole('table')).toBeNull()
   })
 
-  it('データがある場合もホーム操作を表示し、短縮URL一覧の管理機能を保つ', async () => {
+  it('データがある場合も用途別導線を表示し、短縮URL一覧の管理機能を保つ', async () => {
     renderDashboardPage([
       createLinkListItem({ id: 'link-1', shortCode: 'Ab3xK9' }),
       // statusがactiveでも、期限切れならdisplayStatusのexpiredが表示される想定の入力
@@ -54,8 +57,11 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('全2件')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'ホーム' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: '新しいQR付き掲示物を作る' }).getAttribute('href')).toBe('/app/links/new?intent=poster')
-    expect(screen.getByRole('link', { name: '以前の掲示物を再印刷する' }).getAttribute('href')).toBe('/app/posters')
+    expect(screen.getByRole('heading', { name: '何を作りますか？' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /QRコードを作る/ }).getAttribute('href')).toBe('/app/qrcodes/new')
+    expect(screen.getByRole('link', { name: /短縮URLを作る/ }).getAttribute('href')).toBe('/app/links/new?intent=link')
+    expect(screen.getByRole('link', { name: /掲示物を作る/ }).getAttribute('href')).toBe('/app/posters/new')
+    expect(screen.getByRole('link', { name: '掲示物一覧' }).getAttribute('href')).toBe('/app/posters')
     expect(screen.getByRole('heading', { name: '短縮URLを管理' })).toBeTruthy()
     const table = screen.getByRole('table')
     const rows = within(table).getAllByRole('row').slice(1)
