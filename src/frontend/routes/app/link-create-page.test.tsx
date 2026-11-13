@@ -53,6 +53,18 @@ describe('LinkCreatePage', () => {
     expect(screen.getByLabelText(/QRコードの名前/)).toBeTruthy()
   })
 
+  it('短縮URLだけを作る入口ではQRコード作成が初期オフになり、必要ならオンにできる', async () => {
+    const user = userEvent.setup()
+    renderLinkCreatePage('/app/links/new?intent=link')
+    const checkbox = screen.getByRole('checkbox', { name: 'QRコードも一緒に作成する' }) as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
+    expect(screen.queryByLabelText(/QRコードの名前/)).toBeNull()
+    expect(screen.getByText(/QRコードは必要な場合に追加できます/)).toBeTruthy()
+    await user.click(checkbox)
+    expect(checkbox.checked).toBe(true)
+    expect(screen.getByLabelText(/QRコードの名前/)).toBeTruthy()
+  })
+
   it('poster intentでは掲示物向けの説明と次へ進むボタンを表示する', () => {
     renderLinkCreatePage('/app/links/new?intent=poster')
 
