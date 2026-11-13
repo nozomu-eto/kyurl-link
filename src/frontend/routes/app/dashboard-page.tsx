@@ -6,7 +6,6 @@ import { apiClient } from '@/frontend/lib/api-client'
 import { formatDateJst, loadPendingDeletionRequest } from '@/frontend/lib/account-deletion'
 import type { linkSchema } from '@/shared/schemas/link'
 import type { z } from 'zod'
-import { ButtonLink } from '@/frontend/components/button'
 import { CopyButton } from '@/frontend/components/copy-button'
 import { CreationStart } from '@/frontend/components/creation-start'
 import { EmptyState, type EmptyStateStep } from '@/frontend/components/empty-state'
@@ -48,15 +47,6 @@ const EMPTY_STATE_STEPS: EmptyStateStep[] = [
   { label: 'STEP 2', title: 'QRコードを作成', text: '白黒のQRコードができます' },
   { label: 'STEP 3', title: '掲示物を印刷', text: 'A6・A5のPDFで書き出せます' },
 ]
-
-function PlusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  )
-}
 
 function LinkIcon() {
   return (
