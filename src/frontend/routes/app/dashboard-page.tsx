@@ -43,9 +43,9 @@ export async function dashboardLoader() {
 
 // 0件のときに案内する3ステップ(docs/mocks/EmptyDashboard.html)
 const EMPTY_STATE_STEPS: EmptyStateStep[] = [
-  { label: 'STEP 1', title: 'URLを入力', text: 'お店のページのURLを貼り付けます' },
-  { label: 'STEP 2', title: 'QRコードを作成', text: '白黒のQRコードができます' },
-  { label: 'STEP 3', title: '掲示物を印刷', text: 'A6・A5のPDFで書き出せます' },
+  { label: 'STEP 1', title: '作りたいものを選ぶ', text: 'QRコード・短縮URL・掲示物から選びます' },
+  { label: 'STEP 2', title: 'URLを入力する', text: '案内したいページのURLを貼り付けます' },
+  { label: 'STEP 3', title: '保存・共有する', text: '画像・短縮URL・印刷用PDFとして利用できます' },
 ]
 
 function LinkIcon() {
