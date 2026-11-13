@@ -6,8 +6,8 @@ import { apiClient } from '@/frontend/lib/api-client'
 import { formatDateJst, loadPendingDeletionRequest } from '@/frontend/lib/account-deletion'
 import type { linkSchema } from '@/shared/schemas/link'
 import type { z } from 'zod'
-import { ButtonLink } from '@/frontend/components/button'
 import { CopyButton } from '@/frontend/components/copy-button'
+import { CreationStart } from '@/frontend/components/creation-start'
 import { EmptyState, type EmptyStateStep } from '@/frontend/components/empty-state'
 import { LinkStatusBadge } from '@/frontend/components/link-status-badge'
 import { Page } from '@/frontend/components/page'
@@ -43,19 +43,10 @@ export async function dashboardLoader() {
 
 // 0件のときに案内する3ステップ(docs/mocks/EmptyDashboard.html)
 const EMPTY_STATE_STEPS: EmptyStateStep[] = [
-  { label: 'STEP 1', title: 'URLを入力', text: 'お店のページのURLを貼り付けます' },
-  { label: 'STEP 2', title: 'QRコードを作成', text: '白黒のQRコードができます' },
-  { label: 'STEP 3', title: '掲示物を印刷', text: 'A6・A5のPDFで書き出せます' },
+  { label: 'STEP 1', title: '作りたいものを選ぶ', text: 'QRコード・短縮URL・掲示物から選びます' },
+  { label: 'STEP 2', title: 'URLを入力する', text: '案内したいページのURLを貼り付けます' },
+  { label: 'STEP 3', title: '保存・共有する', text: '画像・短縮URL・印刷用PDFとして利用できます' },
 ]
-
-function PlusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  )
-}
 
 function LinkIcon() {
   return (
@@ -106,15 +97,7 @@ export function DashboardPage() {
       description="お店の掲示物やQRコードを作成・管理できます。"
     >
       {deletionBanner}
-      <section className="home-actions" aria-label="掲示物の操作">
-        <ButtonLink to="/app/links/new?intent=poster" variant="cta" size="large">
-          <PlusIcon />
-          新しいQR付き掲示物を作る
-        </ButtonLink>
-        <ButtonLink to="/app/posters" variant="secondary" size="large">
-          以前の掲示物を再印刷する
-        </ButtonLink>
-      </section>
+      <CreationStart />
 
       {linkListItems.length === 0 ? (
         <section className="home-link-empty">
@@ -126,7 +109,7 @@ export function DashboardPage() {
               <>
                 掲示物を作るときに、お店のページのURLから短縮URLとQRコードを作成できます。
                 <br />
-                上の「新しいQR付き掲示物を作る」から始めましょう。
+                上のメニューから、作りたいものを選んで始めましょう。
               </>
             }
             steps={EMPTY_STATE_STEPS}
