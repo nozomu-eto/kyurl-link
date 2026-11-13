@@ -8,6 +8,7 @@ import type { linkSchema } from '@/shared/schemas/link'
 import type { z } from 'zod'
 import { ButtonLink } from '@/frontend/components/button'
 import { CopyButton } from '@/frontend/components/copy-button'
+import { CreationStart } from '@/frontend/components/creation-start'
 import { EmptyState, type EmptyStateStep } from '@/frontend/components/empty-state'
 import { LinkStatusBadge } from '@/frontend/components/link-status-badge'
 import { Page } from '@/frontend/components/page'
@@ -106,15 +107,7 @@ export function DashboardPage() {
       description="お店の掲示物やQRコードを作成・管理できます。"
     >
       {deletionBanner}
-      <section className="home-actions" aria-label="掲示物の操作">
-        <ButtonLink to="/app/links/new?intent=poster" variant="cta" size="large">
-          <PlusIcon />
-          新しいQR付き掲示物を作る
-        </ButtonLink>
-        <ButtonLink to="/app/posters" variant="secondary" size="large">
-          以前の掲示物を再印刷する
-        </ButtonLink>
-      </section>
+      <CreationStart />
 
       {linkListItems.length === 0 ? (
         <section className="home-link-empty">
@@ -126,7 +119,7 @@ export function DashboardPage() {
               <>
                 掲示物を作るときに、お店のページのURLから短縮URLとQRコードを作成できます。
                 <br />
-                上の「新しいQR付き掲示物を作る」から始めましょう。
+                上のメニューから、作りたいものを選んで始めましょう。
               </>
             }
             steps={EMPTY_STATE_STEPS}
