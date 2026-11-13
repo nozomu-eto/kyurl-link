@@ -2815,3 +2815,76 @@ h1 {
     justify-content: flex-end;
   }
 }
+
+/* ホーム: 作りたいものから始められる用途別カード */
+.creation-start {
+  display: grid;
+  gap: var(--space-4);
+}
+.creation-start__heading h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-heading);
+  font-size: 1.35rem;
+}
+.creation-start__heading p,
+.creation-start__history {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.creation-start__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.creation-start__choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.creation-start__choice:hover,
+.creation-start__choice:focus-visible {
+  border-color: var(--color-link);
+  box-shadow: 0 3px 12px var(--color-border);
+}
+.creation-start__choice:focus-visible {
+  outline: 3px solid var(--color-link);
+  outline-offset: 2px;
+}
+.creation-start__number {
+  color: var(--color-link);
+  font-weight: 700;
+  font-size: .875rem;
+}
+.creation-start__title {
+  color: var(--color-heading);
+  font-weight: 700;
+  font-size: 1.12rem;
+}
+.creation-start__description {
+  flex: 1;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+.creation-start__action {
+  font-weight: 700;
+  color: var(--color-link);
+}
+.creation-start__history a {
+  color: var(--color-link);
+}
+@media (max-width: 768px) {
+  .creation-start__grid {
+    grid-template-columns: 1fr;
+  }
+  .creation-start__choice {
+    gap: var(--space-2);
+  }
+}
