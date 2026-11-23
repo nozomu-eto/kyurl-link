@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { user } from '@/db/auth-schema'
 import { accountRequests, posters } from '@/db/schema'
 import { buildDeletionCompletedEmail } from '@/lib/account-deletion-emails'
+import { sendEmail } from '@/lib/send-email'
 
 // R2(POSTER_CACHE)からobjectKeyのprefixに一致する全オブジェクトを削除する。
 // 1回のlist()では最大1000件までしか返らないため、truncated(まだ続きがある)な間はcursorで
@@ -58,11 +59,7 @@ export async function runAccountDeletionBatch(env: CloudflareBindings): Promise<
       console.log(`アカウント削除完了: ${deletedUser.email}`)
 
       try {
-        await env.EMAIL.send({
-          from: 'no-reply@kyurl.link',
-          to: deletedUser.email,
-          ...buildDeletionCompletedEmail(),
-        })
+        await sendEmail(env, deletedUser.email, buildDeletionCompletedEmail())
       } catch (error) {
         console.error('完全削除完了メールの送信に失敗しました', error)
       }

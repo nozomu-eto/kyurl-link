@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { parseTrustedOrigins } from '@/lib/auth-trusted-origins'
+import { isPreviewAuthOrigin, parseTrustedOrigins } from '@/lib/auth-trusted-origins'
+
+describe('isPreviewAuthOrigin', () => {
+  it('個別の登録済みPreview用ホストだけを許可する', () => {
+    expect(isPreviewAuthOrigin('https://isolation-e2e-kyurl-link.teddies-01yolk.workers.dev')).toBe(true)
+    expect(isPreviewAuthOrigin('https://isolation-e2e.preview.kyurl.link')).toBe(true)
+  })
+
+  it.each([
+    undefined,
+    'https://kyurl.link',
+    'https://preview.kyurl.link',
+    'https://*.preview.kyurl.link',
+    'https://isolation-e2e.preview.kyurl.link/',
+    'https://isolation-e2e.preview.kyurl.link.example.com',
+  ])('本番、未設定、曖昧なオリジン %s を拒否する', (origin) => {
+    expect(isPreviewAuthOrigin(origin)).toBe(false)
+  })
+})
 
 describe('parseTrustedOrigins', () => {
   it('未設定・空文字の場合は空配列を返す(本番の動きに影響しない)', () => {

@@ -1,4 +1,4 @@
-// プレビュー環境(kyurl-linkのプレビューデプロイ、https://<プレビューID>-kyurl-link.teddies-01yolk.workers.dev)
+// 旧Version URL(https://<プレビューID>-kyurl-link.teddies-01yolk.workers.dev)
 // からのログイン・新規登録を確認できるようにするため、Better Authのtrusted originsに追加で
 // 信頼させたい接続元を、環境変数BETTER_AUTH_TRUSTED_ORIGINS(カンマ区切り)から読み取るための
 // 検証・変換処理。本番ではこの環境変数を設定しないため、trustedOriginsは空配列のままになり
@@ -7,12 +7,18 @@
 //
 // teddies-01yolk.workers.devはCloudflareアカウント共通のworkers.devサブドメインであり、
 // 同じアカウントの他のWorker(youtube-transcript-mcp・tech-watch等)もこのドメインの下で
-// 動いている。プレビュー環境は本番と同じD1を使うため、「*.teddies-01yolk.workers.dev」のように
+// 動いている。旧Version URLは本番と同じD1を使うため、「*.teddies-01yolk.workers.dev」のように
 // このドメイン全体を許可する形にすると、他のWorkerのプレビューURLまで信頼してしまい、
 // kyurl-linkのD1に対してBetter Authの認証済みリクエストを送れてしまう。そのため、
 // kyurl-linkのプレビューURLの命名規則(「<プレビューID>-kyurl-link.teddies-01yolk.workers.dev」)に
 // 一致する接続元だけを許可する
 const TRUSTED_PREVIEW_ORIGIN_PATTERN = /^https:\/\/(?:\*|[a-zA-Z0-9-]+)-kyurl-link\.teddies-01yolk\.workers\.dev$/
+const PREVIEW_ORIGIN_PATTERN =
+  /^https:\/\/[a-z0-9-]+(?:-kyurl-link\.teddies-01yolk\.workers\.dev|\.preview\.kyurl\.link)$/
+
+export function isPreviewAuthOrigin(value: string | undefined): boolean {
+  return value !== undefined && PREVIEW_ORIGIN_PATTERN.test(value)
+}
 
 // BETTER_AUTH_TRUSTED_ORIGINSの値(カンマ区切り、未設定・空文字ならundefined)を検証しつつ、
 // Better Authのtrusted originsに渡せる配列に変換する。

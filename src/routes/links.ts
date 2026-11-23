@@ -323,6 +323,14 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
       )
     }
 
+    // SQL APIのトークンはアカウント単位の権限を持つため、Previewには渡さない。
+    if (c.env.APP_ENV === 'preview') {
+      return c.json(
+        { error: { code: 'PREVIEW_ANALYTICS_READ_DISABLED', message: 'プレビューではクリック統計を表示しません' } },
+        503,
+      )
+    }
+
     const sql = buildLinkClicksSql(id, days as LinkClicksDays)
 
     // Analytics Engine SQL APIへ問い合わせる。認証はACCOUNT_ID(アカウントを特定するID)と

@@ -1,0 +1,10 @@
+{
+	"d1_databases": [
+		{
+			"binding": "PREVIEW_DB",
+			"database_name": "kyurl-link-staging",
+			"database_id": "181981e5-fee2-4b44-9abe-647df337fd2a",
+			"migrations_dir": "./drizzle"
+		}
+	]
+}

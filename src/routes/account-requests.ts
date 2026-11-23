@@ -5,6 +5,7 @@ import { accountRequests, links, posters, qrcodes } from '@/db/schema'
 import { buildRequestReceivedEmail } from '@/lib/account-deletion-emails'
 import { cancelPendingAccountRequestIfAny } from '@/lib/account-request-cancellation'
 import { auth } from '@/lib/auth'
+import { sendEmail } from '@/lib/send-email'
 import { authMiddleware, type AuthUser } from '@/middleware/auth'
 import { jsonValidator } from '@/middleware/json-validator'
 import { accountRequestCreateInputSchema, accountRequestSchema } from '@/shared/schemas/account-request'
@@ -144,11 +145,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: { user: AuthUser
     // 申請受付メールを送信する。メール送信の失敗が退会申請そのもの(=既にDB更新は完了している)
     // を妨げないよう、必ずtry/catchで囲み、失敗してもAPIレスポンス自体は201のまま返す
     try {
-      await c.env.EMAIL.send({
-        from: 'no-reply@kyurl.link',
-        to: c.get('user').email,
-        ...buildRequestReceivedEmail(scheduledDeletionAt),
-      })
+      await sendEmail(c.env, c.get('user').email, buildRequestReceivedEmail(scheduledDeletionAt))
     } catch (error) {
       console.error('申請受付メールの送信に失敗しました', error)
     }
