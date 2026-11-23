@@ -250,95 +250,230 @@ h1 {
   align-items: center;
 }
 
-/* 公開トップの訴求。Pageの幅を使い、見出し・対象ユーザー・次の行動を一まとまりにする */
-.top-page__hero {
-  max-width: 640px;
-  padding: var(--space-6) 0 var(--space-4);
+/* 公開トップ(LP)。セクションごとに全幅の帯を持ち、中身は.top-page__innerで幅をそろえる */
+html {
+  scroll-padding-top: var(--space-12);
 }
 
-.top-page__audience {
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.top-page {
+  overflow-x: clip;
+}
+
+.top-page__section {
+  padding: var(--space-8) var(--space-4);
+}
+
+.top-page__band {
+  background: var(--color-bg-alt);
+}
+
+.top-page__inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.top-page__heading {
+  margin: 0 0 var(--space-6);
+  font-size: 1.5rem;
+  line-height: 1.5;
+}
+
+.top-page p {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.top-page__lead {
-  max-width: 38rem;
-  margin: var(--space-4) 0 0;
-  font-size: 1.125rem;
   line-height: 1.8;
 }
 
+.top-page__note {
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* ファーストビュー: スマートフォンでは文章の下に画像、PCでは左右2カラム */
+.top-page__hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.top-page__audience {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.top-page__hero h1 {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: 1.875rem;
+  line-height: 1.4;
+}
+
+.top-page__lead {
+  font-size: 1.0625rem;
+}
+
+.top-page__lead + .top-page__lead {
+  margin-top: var(--space-3);
+}
+
 .top-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-top: var(--space-6);
 }
 
-.top-page__signup-note {
-  margin: var(--space-2) 0 0;
+.top-page__actions .button {
+  max-width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.top-page__actions--center {
+  justify-content: center;
+}
+
+/* 画像と、その下のキャプション */
+.top-page__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.top-page__figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.top-page__figure figcaption,
+.top-page__preview figcaption {
   color: var(--color-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.top-page__figure a {
   font-size: 0.875rem;
 }
 
-.top-page__features {
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--color-border);
+.top-page__hero-figure img {
+  max-width: min(100%, 298px);
 }
 
-.top-page__features h2 {
-  margin: 0;
-  font-size: 1.125rem;
-}
-
-.top-page__features ul {
-  margin: var(--space-3) 0 0;
-  padding-left: 1.4em;
-  color: var(--color-text-muted);
-  line-height: 1.9;
-}
-
-.top-page__demo,
-.top-page__steps {
-  margin-top: var(--space-8);
-}
-
-.top-page__section-heading {
-  margin-bottom: var(--space-4);
-}
-
-.top-page__section-heading h2,
-.top-page__steps h2 {
-  margin: 0;
-  font-size: 1.35rem;
-}
-
-.top-page__section-heading > p:last-child {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-muted);
-}
-
-.top-page__eyebrow {
-  margin: 0 0 var(--space-1);
-  color: var(--color-brand);
-  font-size: 0.875rem;
-  font-weight: 700;
-}
-
-.top-page__examples,
-.top-page__sheets {
+/* 悩み・機能のカード。高さをそろえて縦並び(PCでは複数列) */
+.top-page__cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top-page__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-brand);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.top-page__card h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-heading);
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+.top-page__card .top-page__note {
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+/* 解決策: 文章中心。URL → QRコード・案内文 → 印刷用ファイルの小さなフロー */
+.top-page__solution {
+  max-width: 720px;
+}
+
+.top-page__solution p + p {
+  margin-top: var(--space-3);
+}
+
+.top-page__flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top-page__flow li {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  color: var(--color-heading);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 次の工程を示す矢印(スマートフォンでは下向き) */
+.top-page__flow li:not(:last-child)::after {
+  content: '↓';
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--color-brand);
+}
+
+/* サンプル */
+.top-page__intro {
+  margin-bottom: var(--space-6);
+}
+
+.top-page__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
-.top-page__sheets {
-  margin-top: var(--space-6);
+.top-page__sample,
+.top-page__sheets-block {
+  min-width: 0;
 }
 
-.top-page__example,
-.top-page__sheet {
+.top-page__sample h3,
+.top-page__sheets-block h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 1.125rem;
+}
+
+.top-page__preview {
   min-width: 0;
-  margin: 0;
+  margin: var(--space-4) 0 0;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
@@ -346,87 +481,121 @@ h1 {
   box-shadow: var(--shadow-card);
 }
 
-.top-page__example figcaption,
-.top-page__sheet figcaption {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.top-page__example figcaption span,
-.top-page__sheet figcaption span {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-.top-page__example .poster-preview-frame,
-.top-page__sheet .poster-preview-frame {
+.top-page__preview .poster-preview-frame {
   margin-inline: auto;
 }
 
-.top-page__steps {
-  padding: var(--space-5);
-  border-radius: var(--radius-base);
-  background: var(--color-bg-alt);
+.top-page__sheets-block {
+  margin-top: var(--space-8);
 }
 
-.top-page__steps ol {
+.top-page__sheets-block .top-page__pair {
+  margin-top: var(--space-4);
+}
+
+.top-page__sheets-block .top-page__preview {
+  margin-top: 0;
+}
+
+.top-page__samples .top-page__note {
+  margin-top: var(--space-6);
+}
+
+/* 3ステップ: スマートフォンでは説明の下に画像、PCでは左右に並べる */
+.top-page__steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin: var(--space-4) 0 0;
+  gap: var(--space-8);
+  margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: top-steps;
 }
 
-.top-page__steps li {
+.top-page__step {
   display: grid;
-  gap: var(--space-1);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
   min-width: 0;
-  counter-increment: top-steps;
 }
 
-.top-page__steps li::before {
-  content: counter(top-steps, decimal-leading-zero);
+.top-page__step-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.top-page__step-text h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.top-page__step-number {
   color: var(--color-brand);
+  font-family: var(--font-family-display);
   font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
-.top-page__steps li span {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
+/* 縦長のエディタ画面は、不自然に縮小しない幅に抑える */
+.top-page__figure--tall img {
+  max-width: min(100%, 480px);
+}
+
+.top-page__final-inner {
+  max-width: 720px;
+  text-align: center;
+}
+
+.top-page__final-inner p + p {
+  margin-top: var(--space-2);
+}
+
+@media (min-width: 768px) {
+  .top-page__section {
+    padding: 4rem var(--space-6);
+  }
+
+  .top-page__hero h1 {
+    font-size: 2.5rem;
+  }
+
+  .top-page__hero-grid,
+  .top-page__step {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-12);
+  }
+
+  .top-page__cards--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .top-page__cards--2,
+  .top-page__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+
+  .top-page__flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+
+  .top-page__flow li:not(:last-child)::after {
+    content: '→';
+    top: 50%;
+    left: calc(100% + var(--space-3));
+    transform: translateY(-50%);
+  }
+
+  /* 偶数ステップは画像を左に置き、視線が左右に動くようにする */
+  .top-page__step:nth-child(even) .top-page__figure {
+    order: -1;
+  }
 }
 
 @media (max-width: 600px) {
-  .top-page__hero {
-    padding-top: var(--space-3);
-  }
-
-  .top-page__lead {
-    font-size: 1rem;
-  }
-
   .top-page__actions .button {
     width: 100%;
-    justify-content: center;
-  }
-
-  .top-page__examples,
-  .top-page__sheets,
-  .top-page__steps ol {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .top-page__demo,
-  .top-page__steps {
-    margin-top: var(--space-6);
-  }
-
-  .top-page__steps {
-    padding: var(--space-4);
   }
 }
 
