@@ -52,18 +52,42 @@ CLIでの`wrangler deploy`手動実行や、GitHub Actionsによる独自CI構�
 - Workers Builds(GitHub連携)は、ビルド・デプロイの自動化は行うが、**ランタイムで使うシークレットの設定automationはしない**。Cloudflare公式ドキュメントに「Build variables and secretsはビルド時のみ有効で、ランタイムで使う変数はSettings > Variables & Secretsで別途設定する」と明記されている
 - `BETTER_AUTH_URL`は、初回デプロイでWorkerのURLが確定した後でなければ値を決められないため、「初回デプロイ → URL確認 → シークレット設定」という順序になる
 
-### 3.1 プレビュー環境専用: `BETTER_AUTH_TRUSTED_ORIGINS`
+### 3.1 プレビュー環境の分離
 
-プレビュー環境(`<プレビューID>-kyurl-link.teddies-01yolk.workers.dev`、Workers Buildsがブランチ・PRごとに払い出すプレビューURL)は、接続元(Origin)が本番の`BETTER_AUTH_URL`(`https://kyurl.link`)と異なるため、Better Authの既定のOrigin検証に弾かれ、マージ前にログイン・新規登録ができない。これを許可するため、`BETTER_AUTH_TRUSTED_ORIGINS`(カンマ区切り、`src/lib/auth-trusted-origins.ts`で検証・変換してBetter Authの`trustedOrigins`に渡す)を以下の手順で設定する。
+ブランチごとのURLと履歴を保つため、同じWorker内の [Worker Previews](https://developers.cloudflare.com/workers/previews/) を採用する。ロック済みの Wrangler 4.135.0 が対応している。旧 `wrangler versions upload` の [Version URL](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/) は、本番バインディングを持つバージョンに接続する。独立したステージングWorkerなら名前と配信境界も独立するが、Worker・ビルド設定とブランチURLの追加管理が必要になる。[方式の比較](https://developers.cloudflare.com/workers/previews/compare-workflows/)
 
-1. Cloudflareダッシュボード → 対象Worker → Settings → Variables and Secrets を開く
-2. 環境の切り替えで「Previews Base」(Production向けとは別の、プレビューデプロイ共通の設定)を選ぶ
-3. `BETTER_AUTH_TRUSTED_ORIGINS`を追加する。**種別は必ず「シークレット」にする(「変数」にしない。理由は下記)**
-4. 値は`https://*-kyurl-link.teddies-01yolk.workers.dev`にする。`teddies-01yolk.workers.dev`はCloudflareアカウント共通のworkers.devサブドメインであり、同じアカウントの他のWorker(`youtube-transcript-mcp`・`tech-watch`等)もこのドメインの下で動いている。プレビュー環境は本番と同じD1を使うため、`https://*.teddies-01yolk.workers.dev`のようにこのドメイン全体を許可する値にしてはいけない(他のWorkerのプレビューURLまで信頼してしまう)。`src/lib/auth-trusted-origins.ts`は、`<プレビューID>-kyurl-link.teddies-01yolk.workers.dev`という命名規則(またはそのワイルドカード)に一致しない値を読み捨てるため、誤って`https://*.teddies-01yolk.workers.dev`や`*`のような値を設定しても効果を持たない
+| 領域 | Previewの設定 |
+| --- | --- |
+| D1 / R2 | `kyurl-link-staging` / `kyurl-link-posters-staging`。本番データは複製しない |
+| Analytics Engine | `link_clicks_staging` に書き込む。アカウント全体を読めるSQL APIトークンは渡さず、統計APIは503を返す |
+| レート制限 | 専用namespace ID `73541001`〜`73541004`。Better Authのカウンターも専用D1に入る |
+| 認証 | Previewごとの安定URLを `BETTER_AUTH_URL` に設定し、専用の `BETTER_AUTH_SECRET` を使う |
+| Turnstile | 合成データ向けのCloudflare公式テストキーを使用。フロントのキーはビルド時に指定し、テスト秘密鍵は対象Previewだけに設定する |
+| メール・外部サービス | `EMAIL`、`ANALYTICS_API_TOKEN`、`URLHAUS_API_KEY` はPreviewに渡さない。メールはアプリでも送信を抑止する。Browser RunはPDF/PNGテストに使い、利用枠はアカウント内で共有する。CronはPreviewで起動しない |
 
-#### なぜ「変数」ではなく「シークレット」にするか
+専用D1・R2・データセット・namespaceは、同じ設定を使うPreview間で共有する。互換性のないスキーマを試すブランチは、別D1を用意するか検証を直列化する。[Cloudflareの分離仕様](https://developers.cloudflare.com/workers/previews/resources/)
 
-Workers Builds経由のデプロイ(`wrangler versions upload` / `wrangler deploy`)は、`wrangler.jsonc`の`vars`セクションの内容をそのままランタイムの環境変数に反映する。ダッシュボードで「変数」として登録した値であっても、`wrangler.jsonc`の`vars`にそのキーが無ければ、次のデプロイのたびにこの反映処理によって上書き・削除されてしまう。一方「シークレット」はwrangler.jsonc側で宣言する仕組みが無く、デプロイのたびに上書き・削除されずそのまま残る。`BETTER_AUTH_TRUSTED_ORIGINS`はプレビュー環境専用の値であり`wrangler.jsonc`にコミットしたくない(本番ではこの値を設定しないことで、本番の動きを変えないようにしている、`src/lib/auth.ts`参照)ため、シークレットとして登録する。
+#### 初回の切替
+
+1. 専用D1・R2の実リソースを確認し、D1のIDを `wrangler.jsonc` の `previews` と `wrangler.preview-migrations.jsonc` に揃える。
+2. 対象WorkerのSettings → Buildsで **Switch to Worker Previews** を選ぶ。この切替は不可逆。ブランチ用のPreview commandを `pnpm run preview:upload` に設定する。本番の `main` トリガーと `pnpm run deploy` はそのまま使う。
+3. ダッシュボードのDomainsで `preview.kyurl.link` を **Preview専用** で追加する。手動では `pnpm run preview:upload --name isolation-e2e` で対象Previewだけを更新する。ソースとVite生成設定を検査し、`--ignore-base-config` でダッシュボードのBase設定を取り込まない。
+4. 安定URL `https://isolation-e2e.preview.kyurl.link` を対象Previewの `BETTER_AUTH_URL`（末尾スラッシュなし）にする。ランダムな `BETTER_AUTH_SECRET` と [Turnstileのテスト秘密鍵](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) も、そのPreviewだけに設定する。CLIは `pnpm exec wrangler preview secret put <KEY> --name isolation-e2e`。テスト用のTurnstile設定で公開する間は合成データだけを使う。
+5. 専用ホストでTLSと認証APIの応答を確認後、同じWorkerの `*.workers.dev` 側のPreview URLを無効化する。このスイッチは旧Version URLと新しい `workers.dev` Previewの両方に及ぶ。本番のカスタムドメインと本番用の `workers.dev` は維持する。旧URLが閉じ、専用ホストが開くことを確認する。[切替手順](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) · [ホスト設定](https://developers.cloudflare.com/workers/previews/custom-domains/)
+
+#### マイグレーションとE2E準備
+
+1. `pnpm run preview:check` とCloudflareのD1メタデータで専用D1の名前・IDを照合し、`pnpm run preview:db:migrate` を実行する。専用設定の `PREVIEW_DB` だけが対象。Previewのアップロードから本番・Previewいずれのマイグレーションも実行しない。
+2. 本番の配信バージョンと対象Previewの最新デプロイのBindingsで、実際のD1 ID・R2名・Analyticsデータセット・4つのnamespace IDが重複していないことを確認する。認証設定とメール・本番向け秘密鍵が無いことも確認する。識別できない間はテストで書き込まない。
+3. 照合後、専用Previewに一意の合成メールアドレスで登録する。未確認の書き込み拒否を確かめた後、下記のように専用D1の対象行だけを確認済みにし、再ログインする。実行前後に対象行を確認する。
+
+```sh
+pnpm run preview:check
+pnpm exec wrangler d1 execute PREVIEW_DB --remote --config wrangler.preview-migrations.jsonc \
+  --command "UPDATE user SET email_verified = 1 WHERE email = 'kyurl-e2e-20261123@example.com';"
+```
+
+4. 合成URL `https://example.com/` を使って短縮・QR・掲示物・PDF/PNGを確認する。Analyticsの試験書き込みは専用データセットを権限のある運用者が確認する。実メールの到達と統計画面の取得はこのPreviewのE2E範囲外。
 
 ## 4. D1マイグレーションの適用
 

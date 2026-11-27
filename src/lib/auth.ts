@@ -6,8 +6,9 @@ import { drizzle } from 'drizzle-orm/d1'
 import * as linkSchema from '@/db/schema'
 import * as authSchema from '@/db/auth-schema'
 import { buildChangeEmailConfirmationEmail, buildEmailVerificationEmail, buildPasswordResetEmail } from '@/lib/auth-emails'
-import { parseTrustedOrigins } from '@/lib/auth-trusted-origins'
+import { isPreviewAuthOrigin, parseTrustedOrigins } from '@/lib/auth-trusted-origins'
 import { shouldSendResendLimitedEmail } from '@/lib/email-resend-limit'
+import { sendEmail } from '@/lib/send-email'
 import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/shared/constants/legal-versions'
 
 // linksテーブルとBetter Authのテーブル(user/session/account/verification)をまとめたスキーマ。
@@ -43,6 +44,14 @@ type AuthEnv = CloudflareBindings & {
 
 // リクエストごとにHonoのc.env(D1バインディング等)を受け取り、Better Authインスタンスを生成する
 export function auth(env: AuthEnv) {
+  // Previewの正規URLを個別設定する。未設定や本番URLの流用では認証を開始しない。
+  if (
+    env.APP_ENV === 'preview' &&
+    (!env.BETTER_AUTH_SECRET || !isPreviewAuthOrigin(env.BETTER_AUTH_URL))
+  ) {
+    throw new Error('Preview専用のBETTER_AUTH_URLとBETTER_AUTH_SECRETが必要です')
+  }
+
   const db = drizzle(env.DB, { schema })
 
   return betterAuth({
@@ -55,7 +64,7 @@ export function auth(env: AuthEnv) {
     secret: env.BETTER_AUTH_SECRET,
     // プレビュー環境からの確認用(上のAuthEnv・BETTER_AUTH_TRUSTED_ORIGINSのコメント参照)。
     // 未設定時は空配列になり、Better Authは常にbaseURLを信頼するため本番の動きは変わらない
-    trustedOrigins: parseTrustedOrigins(env.BETTER_AUTH_TRUSTED_ORIGINS),
+    trustedOrigins: env.APP_ENV === 'preview' ? [] : parseTrustedOrigins(env.BETTER_AUTH_TRUSTED_ORIGINS),
     // docs/architecture.md: 認証はBetter Auth・メール+パスワードのみの方針。
     // requireEmailVerificationはあえて設定しない(ソフト確認方式)。trueにすると
     // Better Authの仕様上サインアップ時にセッションCookieが発行されなくなり
@@ -82,11 +91,7 @@ export function auth(env: AuthEnv) {
         if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'reset', user.email))) {
           return
         }
-        await env.EMAIL.send({
-          from: 'no-reply@kyurl.link',
-          to: user.email,
-          ...buildPasswordResetEmail(url),
-        })
+        await sendEmail(env, user.email, buildPasswordResetEmail(url))
       },
     },
     emailVerification: {
@@ -103,11 +108,7 @@ export function auth(env: AuthEnv) {
         if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'verify', user.email))) {
           return
         }
-        await env.EMAIL.send({
-          from: 'no-reply@kyurl.link',
-          to: user.email,
-          ...buildEmailVerificationEmail(url),
-        })
+        await sendEmail(env, user.email, buildEmailVerificationEmail(url))
       },
     },
     user: {
@@ -146,11 +147,7 @@ export function auth(env: AuthEnv) {
           if (!(await shouldSendResendLimitedEmail(env.EMAIL_RESEND_RATE_LIMITER, 'change-email', user.email))) {
             return
           }
-          await env.EMAIL.send({
-            from: 'no-reply@kyurl.link',
-            to: user.email,
-            ...buildChangeEmailConfirmationEmail(newEmail, url),
-          })
+          await sendEmail(env, user.email, buildChangeEmailConfirmationEmail(newEmail, url))
         },
       },
     },

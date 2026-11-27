@@ -7,6 +7,8 @@
 // worker-configuration.d.tsの__BaseEnv_CloudflareBindingsを継承する別々のinterfaceのため、
 // 両方に反映されるよう、ここでは共通の親であるこちらを拡張する
 interface __BaseEnv_CloudflareBindings {
+  // Worker Previewsのvarsでのみ設定する
+  APP_ENV?: 'preview'
   // Better Authのベースとなるアプリケーション公開URL(例: http://localhost:5173)
   BETTER_AUTH_URL: string
   // Better Authがセッション等の署名・暗号化に使う秘密鍵
